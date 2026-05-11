@@ -244,11 +244,11 @@
 
 <script>
 const U="https://lreoyedcvotkwmzplucd.supabase.co",K="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxyZW95ZWRjdm90a3dtenBsdWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MzIxMjAsImV4cCI6MjA5NDAwODEyMH0.UDNFyIsHM4fdH6Fev_JLCpIiaum5q1qxKI29vJyFU70",PS=50;
-let Z={star:false,priced:false,sf:"auction_end_date",sd:"desc",pg:0,tot:0,ok:false,n:0};
+let Z={star:false,priced:false,sf:"sale_date",sd:"desc",pg:0,tot:0,ok:false,n:0};
 const CATS=[["","All Categories"],["Federal Reserve Notes","Federal Reserve Notes"],["National Bank Notes","National Bank Notes"],["Silver Certificates","Silver Certificates"],["Legal Tender Notes","Legal Tender Notes"],["Gold Certificates","Gold Certificates"],["Treasury Notes","Treasury Notes"],["Colonial Notes","Colonial Notes"],["Confederate Notes","Confederate Notes"],["Fractional Currency","Fractional Currency"],["Obsoletes By State","Obsoletes By State"],["Error Notes","Error Notes"],["Military Payment Certificates","Military Payment Certs"],["Federal Reserve Bank Notes","Fed Reserve Bank Notes"],["Encased Postage","Encased Postage"]];
 const DENS=[["","All"],["1","$1"],["2","$2"],["3","$3"],["5","$5"],["10","$10"],["20","$20"],["50","$50"],["100","$100"],["500","$500"],["1000","$1,000"]];
 const US={AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",DC:"D.C.",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"N. Carolina",ND:"N. Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"S. Carolina",SD:"S. Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"W. Virginia",WI:"Wisconsin",WY:"Wyoming"};
-const CL=[["auction_end_date","Date",84],["category_parent","Category",0],["fr_number","Fr#",56],["denomination","Denom",48],["year_series","Series",50],["description_full","Description",0],["grade_text","Grade",120],["grade_numeric","#",32],["sold_for","Price",82],["state","St",28],["charter_number","Ch#",50]];
+const CL=[["sale_date","Date",84],["category_path","Category",0],["friedberg_number","Fr#",56],["denomination","Denom",48],["series_date","Series",50],["title","Description",0],["grade","Grade",120],["grade_numeric","#",32],["realized_price","Price",82],["state","St",28],["charter_number","Ch#",50]];
 const $=id=>document.getElementById(id),fP=n=>n==null?"—":"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0}),fD=n=>n==null?"—":"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}),mA=d=>d?(Date.now()-new Date(d).getTime())/(30.44*86400*1000):999,esc=s=>{const d=document.createElement("div");d.textContent=s;return d.innerHTML};
 function fSel(el,o){o.forEach(([v,l])=>{const op=document.createElement("option");op.value=v;op.textContent=l;el.appendChild(op)})}
 fSel($("fC"),CATS);fSel($("fD"),DENS);fSel($("fS"),[["","All"],...Object.entries(US).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>[k,k+" — "+v])]);
@@ -258,16 +258,16 @@ function tc(w){Z[w]=!Z[w];const el=w==="star"?$("tS"):$("tP");el.classList.toggl
 
 function bU(sel,ex={}){
   const u=new URL(U+"/rest/v1/lots");u.searchParams.set("select",sel);
-  const q=$("sT").value.trim();if(q)q.split(/\s+/).forEach(t=>u.searchParams.append("description_full","ilike.*"+t+"*"));
-  const c=$("fC").value;if(c)u.searchParams.set("category_parent","ilike.*"+c+"*");
-  const f=$("fF").value.replace(/^fr\.?\s*/i,"").trim();if(f)u.searchParams.set("fr_number","eq."+f);
+  const q=$("sT").value.trim();if(q)q.split(/\s+/).forEach(t=>u.searchParams.append("title","ilike.*"+t+"*"));
+  const c=$("fC").value;if(c)u.searchParams.set("category_path","ilike.*"+c+"*");
+  const f=$("fF").value.replace(/^fr\.?\s*/i,"").trim();if(f)u.searchParams.set("friedberg_number","eq."+f);
   const d=$("fD").value;if(d)u.searchParams.set("denomination","eq."+d);
   const gn=$("gN").value;if(gn)u.searchParams.set("grade_numeric","gte."+gn);
   const gx=$("gX").value;if(gx)u.searchParams.append("grade_numeric","lte."+gx);
   const s=$("fS").value;if(s)u.searchParams.set("state","eq."+s);
   const h=$("fH").value.trim();if(h)u.searchParams.set("charter_number","eq."+h);
-  if(Z.star)u.searchParams.set("is_star","eq.Y");
-  if(Z.priced||ex.priced)u.searchParams.set("sold_for","gt.0");
+  if(Z.star)u.searchParams.set("is_star","eq.true");
+  if(Z.priced||ex.priced)u.searchParams.set("realized_price","gt.0");
   Object.entries(ex).forEach(([k,v])=>{if(k!=="priced")u.searchParams.set(k,v)});return u;
 }
 async function sf(u){return fetch(u.toString(),{headers:{apikey:K,Authorization:"Bearer "+K,Prefer:"count=exact"}})}
@@ -279,14 +279,14 @@ function hF(){return $("sT").value||$("fC").value||$("fF").value||$("fD").value|
 async function doS(pg=0){
   $("bG").disabled=true;$("bG").textContent="…";$("eM").style.display="none";
   try{
-    const u=bU("auction_no,lot_no,category_parent,fr_number,denomination,year_series,description_full,grade_service,grade_text,grade_numeric,grade_qualifiers,is_star,sold_for,auction_end_date,lot_url,state,city,bank_name,charter_number",{order:Z.sf+"."+Z.sd+".nullslast",limit:String(PS),offset:String(pg*PS)});
+    const u=bU("auction_event,lot_number,category_path,friedberg_number,denomination,series_date,title,grading_company,grade,grade_numeric,grade_details,is_star,realized_price,sale_date,lot_url,state,city,bank_name,charter_number",{order:Z.sf+"."+Z.sd+".nullslast",limit:String(PS),offset:String(pg*PS)});
     const r=await sf(u);if(!r.ok)throw new Error((await r.json())?.message||"Query failed");
     const cn=r.headers.get("content-range")?.split("/")?.[1],rows=await r.json();
     Z.tot=cn?parseInt(cn):0;Z.pg=pg;
     rT(rows);rSu();rPg();$("eY").style.display="none";$("bR").style.display=hF()?"inline":"none";
-    const eu=bU("sold_for,auction_end_date",{limit:"2000",priced:true}),er=await sf(eu);
-    if(er.ok){const ed=await er.json(),ps=ed.map(x=>parseFloat(x.sold_for)).filter(p=>p>0).sort((a,b)=>a-b);
-      if(ps.length>=3){const dr=Math.log(2)/24;let sw=0,sp=0;ed.forEach(x=>{const p=parseFloat(x.sold_for);if(p>0){const w=Math.exp(-dr*Math.max(mA(x.auction_end_date),0));sw+=w;sp+=w*p}});
+    const eu=bU("realized_price,sale_date",{limit:"2000",priced:true}),er=await sf(eu);
+    if(er.ok){const ed=await er.json(),ps=ed.map(x=>parseFloat(x.realized_price)).filter(p=>p>0).sort((a,b)=>a-b);
+      if(ps.length>=3){const dr=Math.log(2)/24;let sw=0,sp=0;ed.forEach(x=>{const p=parseFloat(x.realized_price);if(p>0){const w=Math.exp(-dr*Math.max(mA(x.sale_date),0));sw+=w;sp+=w*p}});
         aE({n:ps.length,wa:sw>0?sp/sw:null,med:ps[Math.floor(ps.length/2)],mn:ps[0],mx:ps[ps.length-1]})}
       else if(ps.length>0)$("sU").innerHTML+=` <span style="font-size:11px;color:var(--tx4);font-style:italic">${ps.length} comp${ps.length>1?"s":""} — need 3+ for estimate</span>`}
   }catch(e){$("eM").textContent=e.message;$("eM").style.display="block"}
@@ -300,11 +300,11 @@ function rSu(){$("sU").style.display="flex";$("sU").className="summary fade";$("
 function aE(e){$("sU").innerHTML+=`<div class="est fade"><div style="text-align:center"><div class="est-lbl">Weighted Estimate</div><div class="est-val">${fP(e.wa)}</div></div><div class="est-sep"></div><div class="est-stats"><div>Median ${fP(e.med)}</div><div>${fP(e.mn)} – ${fP(e.mx)}</div></div><div class="est-n">${e.n} comps</div></div>`}
 
 function rT(rows){
-  let h="";CL.forEach(([k,l,w])=>{const cls=(Z.sf===k?"act":"")+(k==="sold_for"?" r":""),arr=Z.sf===k?(Z.sd==="asc"?" ↑":" ↓"):"",sty=w?`min-width:${w}px`:"";h+=`<th class="${cls}" style="${sty}" onclick="sB('${k}')">${l}${arr}</th>`});$("tH").innerHTML=h;
+  let h="";CL.forEach(([k,l,w])=>{const cls=(Z.sf===k?"act":"")+(k==="realized_price"?" r":""),arr=Z.sf===k?(Z.sd==="asc"?" ↑":" ↓"):"",sty=w?`min-width:${w}px`:"";h+=`<th class="${cls}" style="${sty}" onclick="sB('${k}')">${l}${arr}</th>`});$("tH").innerHTML=h;
   let b="";
   if(!rows.length)b='<tr><td colspan="11" style="padding:44px;text-align:center;color:var(--tx4)">No matching lots found</td></tr>';
-  else rows.forEach(r=>{const g=r.grade_numeric?parseInt(r.grade_numeric):null,p=r.sold_for?parseFloat(r.sold_for):null,gc=g>=63?"gh":g>=40?"gm":"",dn=r.denomination?"$"+r.denomination:"—",d=r.description_full||"—",dh=r.lot_url?`<a href="${r.lot_url}" target="_blank">${esc(d)}</a>`:esc(d),st=r.is_star==="Y"?' <span class="star">★</span>':"",cat=(r.category_parent||"—").split("»")[0].trim();
-    b+=`<tr><td class="mono dim" style="font-size:10.5px">${r.auction_end_date||"—"}</td><td><span class="cat-pill">${esc(cat)}</span></td><td class="mono" style="color:var(--bl);font-size:11px">${r.fr_number||"—"}</td><td class="mono" style="font-weight:600">${dn}</td><td class="mono dim" style="font-size:10.5px">${r.year_series||"—"}</td><td class="dc">${dh}</td><td style="font-size:10.5px"><span class="dim">${r.grade_service||""}</span> ${esc(r.grade_text||"")}${st}</td><td class="mono c ${gc}" style="font-weight:600">${g??"—"}</td><td class="mono r ${p?"py":"pn"}" style="font-weight:600">${p?fD(p):"—"}</td><td class="c dim" style="font-size:9.5px">${r.state||""}</td><td class="mono dim" style="font-size:10.5px">${r.charter_number||""}</td></tr>`});
+  else rows.forEach(r=>{const g=r.grade_numeric?parseInt(r.grade_numeric):null,p=r.realized_price?parseFloat(r.realized_price):null,gc=g>=63?"gh":g>=40?"gm":"",dn=r.denomination?"$"+r.denomination:"—",d=r.title||"—",dh=r.lot_url?`<a href="${r.lot_url}" target="_blank">${esc(d)}</a>`:esc(d),st=r.is_star===true?' <span class="star">★</span>':"",cat=(r.category_path||"—").split("»")[0].trim();
+    b+=`<tr><td class="mono dim" style="font-size:10.5px">${r.sale_date||"—"}</td><td><span class="cat-pill">${esc(cat)}</span></td><td class="mono" style="color:var(--bl);font-size:11px">${r.friedberg_number||"—"}</td><td class="mono" style="font-weight:600">${dn}</td><td class="mono dim" style="font-size:10.5px">${r.series_date||"—"}</td><td class="dc">${dh}</td><td style="font-size:10.5px"><span class="dim">${r.grading_company||""}</span> ${esc(r.grade||"")}${st}</td><td class="mono c ${gc}" style="font-weight:600">${g??"—"}</td><td class="mono r ${p?"py":"pn"}" style="font-weight:600">${p?fD(p):"—"}</td><td class="c dim" style="font-size:9.5px">${r.state||""}</td><td class="mono dim" style="font-size:10.5px">${r.charter_number||""}</td></tr>`});
   $("tB").innerHTML=b}
 
 function rPg(){const tp=Math.ceil(Z.tot/PS);if(tp<=1){$("pG").style.display="none";return}$("pG").style.display="flex";$("pG").innerHTML=`<button ${Z.pg===0?"disabled":""} onclick="doS(0)">«</button><button ${Z.pg===0?"disabled":""} onclick="doS(${Z.pg-1})">‹</button><span class="pi">${Z.pg+1} / ${tp}</span><button ${Z.pg>=tp-1?"disabled":""} onclick="doS(${Z.pg+1})">›</button><button ${Z.pg>=tp-1?"disabled":""} onclick="doS(${tp-1})">»</button>`}
