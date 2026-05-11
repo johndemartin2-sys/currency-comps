@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""Heritage Auctions Scraper v3 - with session cookies"""
+import subprocess, sys, json, time, random, re, logging
+from datetime import datetime, date
+from pathlib import Path
+def _install(pkg, import_as=None):
+    try: __import__(import_as or pkg)
+    except ImportError:
+        print(f'Installing {pkg}...')
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', pkg])
+_install('requests')
+_install('beautifulsoup4', 'bs4')
+_install('pandas')
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+OUTPUT_DIR   = Path(r'C:\Users\JDeMartin\OneDrive - Chase Corporation\Desktop\Heritage CSV')
+CURRENCY_CSV = OUTPUT_DIR / 'heritage_currency.csv'
+COINS_CSV    = OUTPUT_DIR / 'heritage_coins.csv'
+STATE_FILE   = OUTPUT_DIR / 'last_run.json'
+LOG_FILE     = OUTPUT_DIR / 'scraper.log'
+START_DATE   = date(2024, 1, 1)
+PAGE_SIZE    = 100
+DELAY_MIN    = 2.0
+DELAY_MAX    = 4.5
+DEPARTMENTS = {
+    'currency': {'dept_id': '2021', 'base_url': 'https://currency.ha.com', 'csv_path': None, 'label': 'Currency'},
+    'coins':    {'dept_id': '1909', 'base_url': 'https://coins.ha.com',    'csv_path': None, 'label': 'Coins'},
+}
+COLUMNS = ['lot_url','auction_number','lot_number','category','title','grade','grading_company','estimate_low','estimate_high','sold_price','auction_date','auction_name','scraped_at']
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler(LOG_FILE, encoding='utf-8')])
+log = logging.getLogger(__name__)
+SESSION = requests.Session()
+SESSION.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+})
+# Inject your live browser cookies
+SESSION.cookies.set('cf_clearance', 'xHMdsik2bHPt7abkTPrXRT1NkytQy.HprlexV9VE4GE-1778242892-1.2.1.1-M8xHQzMpBk6UuHz4BOKOs79eGg2EG3OI0d0vEBAYi0Wgum8hiNJwVzeoHXIAlVflTSATm63W35js9339Kq84Yc6pwuOg5YtzYNRZlEQUGBk3RdX15q7TLj.Qf8NZG0w60AfOKwH.GEdwei6DwUhDOIFsRq.LvDcJPPQ.lErwhGTGLHk69SQlRH0gy6hhXRFcDNAN7YKerBOjKQYqHRULbq.pOS_KzSikaLUWIAk9CtGZgByl4jImmoRRfYb0bTk_Okg19aoa0hUY.1VkYSEwNAaboHuqvPYaP9pAlJGSgZmAnWc.InGM5Pehl7RjLezYj9uoKuwXX4yaY5SdqTewOw', domain='.ha.com')
+SESSION.cookies.set('SessionID', 'alvos4rs1n5e519hf5m0slgq83', domain='.ha.com')
+SESSION.cookies.set('datadome', 'k93deX82xSh1PvgJRK7t_QAqvxreJQJxDiVamP5gIEVc6yP6tBkeE3AKEXje7hi5sRnZU_8S93fdlYblh2Pqi~wvKkO2U~JHAjpvcTa3fstsW3knCsZ8LVP1Gs4ROGD8', domain='.ha.com')
+SESSION.cookies.set('NOVSB', 'OVBvOFJmR1JPdz09LlZUbkRVckwwNHl5dHBETUcuR0xZaVNrdHdNTy9CSThDWEFXMk5vUT09', domain='.ha.com')
+SESSION.cookies.set('RC', 'No3345304', domain='.ha.com')
+def load_state():
+    if STATE_FILE.exists():
+        with open(STATE_FILE) as f: return json.load(f)
+    return {}
+def save_state(state):
+    with open(STATE_FILE, 'w') as f: json.dump(state, f, indent=2, default=str)
+def parse_date(text):
+    if not text: return None
+    text = text.strip()
+    for fmt in ('%B %d, %Y', '%b %d, %Y', '%B %d %Y', '%b %d %Y', '%Y-%m-%d'):
+        try: return datetime.strptime(text, fmt).date()
+        except ValueError: pass
+    m = re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),?\s+(\d{4})', text, re.IGNORECASE)
+    if m:
+        try: return datetime.strptime(f'{m.group(1).capitalize()} {m.group(2)} {m.group(3)}', '%B %d %Y').date()
+        except ValueError: pass
+    return None
+def parse_price(text):
+    if not text: return ''
+    m = re.search(r'\$([\d,]+\.?\d*)', text)
+    return f'${m.group(1)}' if m else ''
+def parse_estimate(text):
+    if not text: return '', ''
+    nums = [n.replace(',','') for n in re.findall(r'[\d,]+', text) if n.replace(',','').isdigit()]
+    return (nums[0], nums[1]) if len(nums) >= 2 else ((nums[0], '') if nums else ('', ''))
+def date_status(ds, cutoff):
+    d = parse_date(ds)
+    if d is None: return 'unknown'
+    return 'in_range' if d >= cutoff else 'too_old'
+def fetch(url, retries=3):
+    for i in range(retries):
+        try:
+            if i > 0: time.sleep(5 * i + random.uniform(2, 5))
+            r = SESSION.get(url, timeout=30)
+            if r.status_code == 403:
+                log.warning(f'  403 on attempt {i+1} - cookies may have expired. Re-run script after refreshing browser session.')
+                time.sleep(8)
+                continue
+            r.raise_for_status()
+            return r.text
+        except requests.RequestException as e:
+            log.warning(f'  Attempt {i+1}/{retries} failed: {e}')
+    return None
+def build_url(dept_id, base_url, pg):
+    return (f'{base_url}/c/search/results.zx?si=2&dept={dept_id}'
+            f'&archive_state=5327&sold_status=1526~1524&sb=5'
+            f'&mode=archive&page={PAGE_SIZE}~{pg}&layout=list')
+def get_total_pages(html):
+    m = re.search(r'([\d,]+)\s+SOLD ITEMS', html, re.I)
+    if m: return max(1, (int(m.group(1).replace(',','')) + PAGE_SIZE - 1) // PAGE_SIZE)
+    nums = re.findall(r'page=\d+~(\d+)', html)
+    return max((int(n) for n in nums), default=1)
+KNOWN_GRADERS = ['PCGS Banknote','PCGS','PMG','NGC','ANACS','ICG','CGA','CGC','CBCS','HGA','SGC']
+GRADE_RE = re.compile(r'(Superb Gem Uncirculated|Gem Uncirculated|Choice Uncirculated|Crisp Uncirculated|About Uncirculated|Extremely Fine|Choice Fine|Very Fine|Fine|Very Good|Good|About Good|Poor|Superb Gem New|Gem New|Choice New|Superb New|Choice VF|Choice EF|Choice AU|MS[- ]?\d{2,3}|AU[- ]?\d{2,3}|EF[- ]?\d{2,3}|XF[- ]?\d{2,3}|VF[- ]?\d{2,3}|PF[- ]?\d{2,3}|PR[- ]?\d{2,3}|SP[- ]?\d{2,3})', re.IGNORECASE)
+def parse_lot(li, base_url):
+    a = li.find('a', href=re.compile(r'/itm/|/a/\d+-\d+'))
+    if not a: return None
+    href = a.get('href', '')
+    if not href.startswith('http'): href = base_url + href
+    href = re.sub(r'[?&]ic[0-9]*=[^&]*', '', href).rstrip('?&')
+    full = li.get_text(' ', strip=True)
+    m_a = re.search(r'Auction\s+(\d+)', full)
+    m_l = re.search(r'Lot\s+(\d+)', full)
+    m_c = re.search(r'\xbb\s*(.+?)(?:\s{2,}|\||$)', full)
+    auction_no = m_a.group(1) if m_a else ''
+    lot_no     = m_l.group(1) if m_l else ''
+    category   = m_c.group(1).strip() if m_c else ''
+    h = li.find(['h3','h2','h4'])
+    title = h.get_text(' ', strip=True) if h else (li.find_all('a', href=re.compile(r'/itm/|/a/\d+')) or [a])[0].get_text(' ', strip=True)
+    grading_co = ''
+    svc = li.find(string=re.compile(r'^\s*SERVICE\s*$', re.I))
+    if svc:
+        p = svc.find_parent()
+        for s in (p.find_next_siblings() if p else [])[:4]:
+            t = s.get_text(' ', strip=True)
+            if t and len(t) < 35: grading_co = t; break
+    if not grading_co:
+        for g in KNOWN_GRADERS:
+            if g in full: grading_co = g; break
+    grade = ''
+    glb = li.find(string=re.compile(r'^\s*GRADE\s*$', re.I))
+    if glb:
+        p = glb.find_parent()
+        for s in (p.find_next_siblings() if p else [])[:4]:
+            t = s.get_text(' ', strip=True)
+            if t and len(t) < 60: grade = t; break
+    if not grade:
+        gm = GRADE_RE.search(title)
+        if gm: grade = gm.group(0)
+    sold = ''
+    sp = li.find(string=re.compile(r'Sold For', re.I))
+    if sp:
+        p = sp.find_parent()
+        sold = parse_price(p.get_text(' ', strip=True) if p else '')
+    adate = ''
+    ended = li.find(string=re.compile(r'AUCTION ENDED', re.I))
+    if ended:
+        p = ended.find_parent()
+        sib = p.find_next_sibling() if p else None
+        if sib: adate = sib.get_text(' ', strip=True)
+        elif p and p.parent:
+            block = p.parent.get_text(' ', strip=True)
+            dm = re.search(r'AUCTION ENDED\s+(.+?)(?:\s{2,}|Sold|$)', block, re.I)
+            if dm: adate = dm.group(1).strip()
+    est_lo = est_hi = ''
+    el = li.find(string=re.compile(r'Estimate', re.I))
+    if el:
+        p = el.find_parent()
+        est_lo, est_hi = parse_estimate(p.get_text(' ', strip=True) if p else '')
+    return {'lot_url': href,'auction_number': auction_no,'lot_number': lot_no,'category': category,'title': title,'grade': grade,'grading_company': grading_co,'estimate_low': est_lo,'estimate_high': est_hi,'sold_price': sold,'auction_date': adate,'auction_name': f'Auction {auction_no}' if auction_no else '','scraped_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+def parse_page(html, base_url):
+    soup = BeautifulSoup(html, 'html.parser')
+    container = soup.find('form', attrs={'name': 'searchResults'}) or soup
+    rows = []
+    for li in container.find_all('li', recursive=True):
+        row = parse_lot(li, base_url)
+        if row is not None: rows.append(row)
+    return rows
+def load_csv(path):
+    if not path.exists(): return pd.DataFrame(columns=COLUMNS)
+    try: return pd.read_csv(path, dtype=str)
+    except Exception: return pd.DataFrame(columns=COLUMNS)
+def get_existing_urls(path):
+    df = load_csv(path)
+    return set(df['lot_url'].dropna()) if 'lot_url' in df.columns else set()
+def save_rows(path, new_rows):
+    if not new_rows: return 0
+    combined = pd.concat([load_csv(path), pd.DataFrame(new_rows, columns=COLUMNS)], ignore_index=True)
+    combined.drop_duplicates(subset=['lot_url'], keep='last', inplace=True)
+    combined.to_csv(path, index=False, encoding='utf-8-sig')
+    return len(combined)
+def scrape_dept(key, cfg, state):
+    dept_id = cfg['dept_id']; base_url = cfg['base_url']
+    csv_path = cfg['csv_path']; label = cfg['label']
+    log.info(''); log.info('='*62)
+    log.info(f'  SCRAPING: {label}  (dept={dept_id})')
+    log.info('='*62)
+    prev = state.get(key, {})
+    last_d = parse_date(prev.get('newest_date', ''))
+    cutoff = last_d if (last_d and last_d > START_DATE) else START_DATE
+    log.info(f'  Cutoff date  : {cutoff}')
+    log.info(f'  Output CSV   : {csv_path}')
+    seen = get_existing_urls(csv_path)
+    log.info(f'  Existing rows: {len(seen)}')
+    pending = []; newest = [None]; stopped = [False]
+    def process(rows):
+        for row in rows:
+            if stopped[0]: return
+            if row['lot_url'] in seen: continue
+            status = date_status(row['auction_date'], cutoff)
+            if status == 'too_old':
+                log.info(f'  Lots older than {cutoff} -- stopping.')
+                stopped[0] = True; return
+            pending.append(row)
+            d = parse_date(row['auction_date'])
+            if d and (newest[0] is None or d > newest[0]): newest[0] = d
+    log.info('  Fetching page 1...')
+    html1 = fetch(build_url(dept_id, base_url, 1))
+    if not html1: log.error('  Failed page 1 - cookies may be expired. Visit ha.com in browser then re-run.'); return
+    total = get_total_pages(html1)
+    log.info(f'  Total pages  : {total}')
+    process(parse_page(html1, base_url))
+    if not stopped[0]:
+        for pg in range(2, total+1):
+            time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
+            log.info(f'  Page {pg:>5}/{total} ...')
+            html = fetch(build_url(dept_id, base_url, pg))
+            if not html: log.warning(f'  Skipping page {pg}'); continue
+            process(parse_page(html, base_url))
+            if stopped[0]: break
+            if pg % 20 == 0 and pending:
+                n = save_rows(csv_path, pending)
+                log.info(f'  Checkpoint pg {pg}: {n} rows total')
+                pending.clear(); seen = get_existing_urls(csv_path)
+    added = save_rows(csv_path, pending)
+    log.info(f'  Rows saved this run: {added}')
+    state[key] = {'newest_date': str(newest[0]) if newest[0] else prev.get('newest_date',''),
+                  'last_run': datetime.now().isoformat(timespec='seconds'), 'rows_saved': added}
+def main():
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    log.info('Heritage Auctions Scraper v3 (with session cookies)')
+    log.info(f'Output dir : {OUTPUT_DIR}')
+    log.info(f'Start date : {START_DATE}')
+    DEPARTMENTS['currency']['csv_path'] = CURRENCY_CSV
+    DEPARTMENTS['coins']['csv_path']    = COINS_CSV
+    state = load_state()
+    for key, cfg in DEPARTMENTS.items():
+        try:
+            scrape_dept(key, cfg, state)
+        except KeyboardInterrupt:
+            log.warning('Interrupted -- saving state'); save_state(state); sys.exit(0)
+        except Exception as e:
+            log.error(f'Error in {key}: {e}', exc_info=True)
+        finally:
+            save_state(state)
+    log.info('Done!')
+    log.info(f'  Currency: {CURRENCY_CSV}')
+    log.info(f'  Coins:    {COINS_CSV}')
+if __name__ == '__main__':
+    main()
