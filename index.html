@@ -232,6 +232,7 @@
     <div class="bubble"><label>Charter #</label><input class="mono" id="fH" placeholder="1386"></div>
     <div class="toggle-pill" id="tS" onclick="tc('star')"><div class="ck"></div>★ Star</div>
     <div class="toggle-pill" id="tP" onclick="tc('priced')"><div class="ck"></div>$ Priced</div>
+    <div class="toggle-pill" id="tG" onclick="tc('graded')"><div class="ck"></div>◉ Graded</div>
     <button class="btn-clear" id="bR" onclick="rA()" style="display:none">Clear filters</button>
   </div>
 </div>
@@ -244,7 +245,7 @@
 
 <script>
 const U="https://lreoyedcvotkwmzplucd.supabase.co",K="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxyZW95ZWRjdm90a3dtenBsdWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MzIxMjAsImV4cCI6MjA5NDAwODEyMH0.UDNFyIsHM4fdH6Fev_JLCpIiaum5q1qxKI29vJyFU70",PS=50;
-let Z={star:false,priced:false,sf:"sale_date",sd:"desc",pg:0,tot:0,ok:false,n:0};
+let Z={star:false,priced:false,graded:false,sf:"sale_date",sd:"desc",pg:0,tot:0,ok:false,n:0};
 const CATS=[["","All Categories"],["Federal Reserve Notes","Federal Reserve Notes"],["National Bank Notes","National Bank Notes"],["Silver Certificates","Silver Certificates"],["Legal Tender Notes","Legal Tender Notes"],["Gold Certificates","Gold Certificates"],["Treasury Notes","Treasury Notes"],["Colonial Notes","Colonial Notes"],["Confederate Notes","Confederate Notes"],["Fractional Currency","Fractional Currency"],["Obsoletes By State","Obsoletes By State"],["Error Notes","Error Notes"],["Military Payment Certificates","Military Payment Certs"],["Federal Reserve Bank Notes","Fed Reserve Bank Notes"],["Encased Postage","Encased Postage"]];
 const DENS=[["","All"],["1","$1"],["2","$2"],["3","$3"],["5","$5"],["10","$10"],["20","$20"],["50","$50"],["100","$100"],["500","$500"],["1000","$1,000"]];
 const US={AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",DC:"D.C.",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"N. Carolina",ND:"N. Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"S. Carolina",SD:"S. Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"W. Virginia",WI:"Wisconsin",WY:"Wyoming"};
@@ -254,7 +255,7 @@ function fSel(el,o){o.forEach(([v,l])=>{const op=document.createElement("option"
 fSel($("fC"),CATS);fSel($("fD"),DENS);fSel($("fS"),[["","All"],...Object.entries(US).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>[k,k+" — "+v])]);
 document.querySelectorAll(".search-area input").forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")doS()}));
 
-function tc(w){Z[w]=!Z[w];const el=w==="star"?$("tS"):$("tP");el.classList.toggle("on",Z[w]);el.querySelector(".ck").textContent=Z[w]?"✓":""}
+function tc(w){Z[w]=!Z[w];const el=$({star:"tS",priced:"tP",graded:"tG"}[w]);el.classList.toggle("on",Z[w]);el.querySelector(".ck").textContent=Z[w]?"✓":""}
 
 function bU(sel,ex={}){
   const u=new URL(U+"/rest/v1/lots");u.searchParams.set("select",sel);
@@ -267,14 +268,14 @@ function bU(sel,ex={}){
   const s=$("fS").value;if(s)u.searchParams.set("state","eq."+s);
   const h=$("fH").value.trim();if(h)u.searchParams.set("charter_number","eq."+h);
   if(Z.star)u.searchParams.set("is_star","eq.true");
-  if(Z.priced||ex.priced)u.searchParams.set("realized_price","gt.0");
+  if(Z.priced||ex.priced)u.searchParams.set("realized_price","gt.0");if(Z.graded)u.searchParams.set("grading_company","not.is.null");
   Object.entries(ex).forEach(([k,v])=>{if(k!=="priced")u.searchParams.set(k,v)});return u;
 }
 async function sf(u){return fetch(u.toString(),{headers:{apikey:K,Authorization:"Bearer "+K,Prefer:"count=exact"}})}
 
 (async()=>{try{const r=await sf(bU("id",{limit:"1"}));if(!r.ok)throw 0;const c=r.headers.get("content-range")?.split("/")?.[1];Z.n=c?parseInt(c):0;Z.ok=true;$("dd").classList.add("ok");$("dt").textContent=Z.n.toLocaleString()+" lots";$("eY").innerHTML='<div class="ic">⌕</div><h2>Search auction records</h2><p>Use the filters above and press <kbd>Search</kbd> or <kbd>Enter</kbd> to query '+Z.n.toLocaleString()+' lots with time-weighted price estimates.</p>'}catch{$("dd").classList.add("err");$("dt").textContent="Connection failed";$("eY").innerHTML='<div class="ic">⚠</div><h2 style="color:var(--rd)">Unable to connect</h2><p>Verify the lots table exists and Row Level Security allows public SELECT.</p>'}})();
 
-function hF(){return $("sT").value||$("fC").value||$("fF").value||$("fD").value||$("gN").value||$("gX").value||$("fS").value||$("fH").value||Z.star||Z.priced}
+function hF(){return $("sT").value||$("fC").value||$("fF").value||$("fD").value||$("gN").value||$("gX").value||$("fS").value||$("fH").value||Z.star||Z.priced||Z.graded}
 
 async function doS(pg=0){
   $("bG").disabled=true;$("bG").textContent="…";$("eM").style.display="none";
@@ -293,7 +294,7 @@ async function doS(pg=0){
   finally{$("bG").disabled=false;$("bG").textContent="Search"}
 }
 
-function rA(){$("sT").value="";$("fC").value="";$("fF").value="";$("fD").value="";$("gN").value="";$("gX").value="";$("fS").value="";$("fH").value="";Z.star=false;Z.priced=false;["tS","tP"].forEach(id=>{$(id).classList.remove("on");$(id).querySelector(".ck").textContent=""});$("sU").style.display="none";$("tB").innerHTML="";$("tH").innerHTML="";$("pG").style.display="none";$("bR").style.display="none";$("eY").style.display="block";$("eY").innerHTML='<div class="ic">⌕</div><h2>Search auction records</h2><p>Use the filters above and press <kbd>Search</kbd> or <kbd>Enter</kbd>.</p>'}
+function rA(){$("sT").value="";$("fC").value="";$("fF").value="";$("fD").value="";$("gN").value="";$("gX").value="";$("fS").value="";$("fH").value="";Z.star=false;Z.priced=false;Z.graded=false;["tS","tP","tG"].forEach(id=>{$(id).classList.remove("on");$(id).querySelector(".ck").textContent=""});$("sU").style.display="none";$("tB").innerHTML="";$("tH").innerHTML="";$("pG").style.display="none";$("bR").style.display="none";$("eY").style.display="block";$("eY").innerHTML='<div class="ic">⌕</div><h2>Search auction records</h2><p>Use the filters above and press <kbd>Search</kbd> or <kbd>Enter</kbd>.</p>'}
 
 function rSu(){$("sU").style.display="flex";$("sU").className="summary fade";$("sU").innerHTML=`<span><strong>${Z.tot.toLocaleString()}</strong> lots match</span>`}
 
