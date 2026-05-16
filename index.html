@@ -260,7 +260,7 @@ function bU(sel,ex={}){
   const u=new URL(U+"/rest/v1/lots");u.searchParams.set("select",sel);
   const q=$("sT").value.trim();if(q)q.split(/\s+/).forEach(t=>u.searchParams.append("title","ilike.*"+t+"*"));
   const c=$("fC").value;if(c)u.searchParams.set("category_path","ilike.*"+c+"*");
-  const f=$("fF").value.replace(/^fr\.?\s*/i,"").trim();if(f)u.searchParams.set("friedberg_number","eq."+f);
+  const f=$("fF").value.replace(/^fr\.?\s*/i,"").trim();if(f){const fs=f.replace(/\s+/g,'');u.searchParams.append("or",`(friedberg_number.eq.${fs},friedberg_number.eq.Fr.${fs},friedberg_number.eq.Fr.-${fs},friedberg_number.ilike.*${fs}*)`);}
   const d=$("fD").value;if(d)u.searchParams.set("denomination","eq."+d);
   const gn=$("gN").value;if(gn)u.searchParams.set("grade_numeric","gte."+gn);
   const gx=$("gX").value;if(gx)u.searchParams.append("grade_numeric","lte."+gx);
