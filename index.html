@@ -1,315 +1,483 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Currency Comps</title>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #f5f3ef; --white: #ffffff; --sf: #faf9f7; --sf2: #f0eee9;
-    --bd: #e2dfd8; --bd2: #d4d0c8;
-    --ac: #9a7340; --ac2: #b8884d; --ac3: #7a5a2e; --ac4: #c49e5c;
-    --tx: #2c2518; --tx2: #5c5448; --tx3: #8a8278; --tx4: #b0a99e;
-    --gn: #2a7d52; --rd: #c44040; --bl: #3568a8;
-    --pill: #ffffff; --pill-bd: #ddd8cf; --pill-focus: #b8884d;
-    --r: 24px; --r2: 16px; --r3: 10px;
-    --shadow: 0 1px 3px rgba(44,37,24,0.06);
-    --shadow2: 0 2px 8px rgba(44,37,24,0.08);
+    --bg:#0f1115; --panel:#171a21; --panel2:#1f242e; --border:#2a3140;
+    --text:#e7ecf3; --muted:#9aa3b2; --accent:#6aa8ff; --accent2:#43d39e;
+    --warn:#ffb454; --danger:#ff6b6b;
   }
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
-  ::selection{background:var(--ac2);color:#fff}
-  input::placeholder{color:var(--tx4)}
-
-  /* HEADER */
-  .hdr{padding:20px 32px 18px;display:flex;align-items:center;justify-content:space-between;background:var(--white);border-bottom:1px solid var(--bd);box-shadow:var(--shadow)}
-  .brand{display:flex;align-items:center;gap:12px}
-  .brand-mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--ac2),var(--ac3));display:flex;align-items:center;justify-content:center;font-size:17px;color:#fff;font-family:'Instrument Serif',serif;font-weight:400;box-shadow:0 2px 8px rgba(154,115,64,0.25)}
-  .brand h1{font-family:'Instrument Serif',serif;font-size:22px;font-weight:400;color:var(--tx);letter-spacing:-0.01em}
-  .brand span{font-size:10px;color:var(--tx3);letter-spacing:0.08em;text-transform:uppercase;display:block;margin-top:-1px}
-  .db-s{font-size:10.5px;font-family:'Geist Mono',monospace;color:var(--tx3);display:flex;align-items:center;gap:6px}
-  .dot{width:7px;height:7px;border-radius:50%}
-  .dot.ok{background:var(--gn);box-shadow:0 0 5px rgba(42,125,82,0.35)}
-  .dot.err{background:var(--rd)}
-
-  /* SEARCH */
-  .search-area{padding:20px 32px 22px;background:var(--sf)}
-  .search-main{display:flex;gap:10px;margin-bottom:16px}
-  .search-pill{
-    flex:1;padding:11px 22px;
-    background:var(--pill);border:1.5px solid var(--pill-bd);
-    border-radius:var(--r);color:var(--tx);
-    font-size:14px;font-family:'Outfit',sans-serif;
-    outline:none;transition:all .2s;
-    box-shadow:var(--shadow);
-  }
-  .search-pill:focus{border-color:var(--pill-focus);box-shadow:0 0 0 3px rgba(184,136,77,0.12)}
-  .btn-search{
-    padding:11px 32px;border:none;border-radius:var(--r);
-    background:var(--ac);color:#fff;
-    font-size:14px;font-weight:600;font-family:'Outfit',sans-serif;
-    cursor:pointer;letter-spacing:0.02em;
-    box-shadow:0 2px 8px rgba(154,115,64,0.25);
-    transition:all .15s;
-  }
-  .btn-search:hover{background:var(--ac2);transform:translateY(-1px);box-shadow:0 4px 14px rgba(154,115,64,0.3)}
-  .btn-search:active{transform:translateY(0)}
-  .btn-search:disabled{opacity:.5;cursor:wait;transform:none}
-
-  /* FILTER BUBBLES */
-  .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-  .bubble{position:relative;display:inline-flex;flex-direction:column}
-  .bubble label{
-    font-size:8.5px;font-weight:600;color:var(--tx4);
-    text-transform:uppercase;letter-spacing:0.1em;
-    margin-bottom:3px;padding-left:12px;
-  }
-  .bubble select, .bubble input{
-    padding:8px 16px;
-    background:var(--pill);border:1.5px solid var(--pill-bd);
-    border-radius:var(--r);color:var(--tx);
-    font-size:12px;font-family:'Outfit',sans-serif;
-    outline:none;transition:all .2s;
-    box-shadow:var(--shadow);
-    min-width:0;
-    -webkit-appearance:none;
-    appearance:none;
-  }
-  .bubble select{
-    padding-right:30px;
-    background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8278' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;
-    background-position:right 12px center;
-  }
-  .bubble select:focus, .bubble input:focus{
-    border-color:var(--pill-focus);
-    box-shadow:0 0 0 3px rgba(184,136,77,0.1);
-  }
-  .bubble input.mono{font-family:'Geist Mono',monospace;font-size:12px}
-  .bubble-sm select, .bubble-sm input{padding:8px 12px;min-width:60px}
-  .grade-group{display:flex;align-items:end;gap:4px}
-  .grade-group .sep{color:var(--tx4);font-size:11px;padding-bottom:10px}
-
-  .toggle-pill{
-    display:inline-flex;align-items:center;gap:6px;
-    padding:8px 16px;
-    background:var(--pill);border:1.5px solid var(--pill-bd);
-    border-radius:var(--r);
-    font-size:11.5px;color:var(--tx3);
-    cursor:pointer;user-select:none;
-    box-shadow:var(--shadow);
-    transition:all .2s;
-  }
-  .toggle-pill:hover{border-color:var(--bd2)}
-  .toggle-pill.on{border-color:var(--ac);color:var(--ac);background:rgba(154,115,64,0.06)}
-  .toggle-pill .ck{
-    width:14px;height:14px;border-radius:50%;
-    border:1.5px solid var(--bd2);
-    display:flex;align-items:center;justify-content:center;
-    font-size:9px;transition:all .15s;
-  }
-  .toggle-pill.on .ck{border-color:var(--ac);background:var(--ac);color:#fff}
-
-  .btn-clear{
-    padding:8px 16px;border-radius:var(--r);
-    background:transparent;border:1.5px solid var(--bd);
-    font-size:11px;color:var(--tx3);cursor:pointer;
-    font-family:'Outfit',sans-serif;transition:all .15s;
-  }
-  .btn-clear:hover{border-color:var(--tx3);color:var(--tx2)}
-
-  /* RESULTS SUMMARY */
-  .summary{
-    display:flex;align-items:center;justify-content:space-between;
-    padding:10px 32px;background:var(--white);
-    border-bottom:1px solid var(--bd);
-    flex-wrap:wrap;gap:8px;font-size:13px;color:var(--tx2);
-  }
-  .summary strong{color:var(--tx);font-weight:600}
-
-  .est{
-    display:flex;gap:16px;align-items:center;
-    background:var(--sf);border:1px solid var(--bd);
-    border-radius:var(--r2);padding:8px 18px;
-    box-shadow:var(--shadow);
-  }
-  .est-lbl{font-size:8px;font-weight:700;color:var(--tx4);text-transform:uppercase;letter-spacing:0.12em}
-  .est-val{font-size:20px;font-weight:600;color:var(--ac3);font-family:'Geist Mono',monospace}
-  .est-sep{width:1px;height:28px;background:var(--bd)}
-  .est-stats{font-size:10.5px;color:var(--tx3);font-family:'Geist Mono',monospace;line-height:1.7}
-  .est-n{font-size:10.5px;color:var(--tx4);font-weight:500}
-
-  .err-bar{padding:10px 32px;font-size:12px;background:#fef2f2;border-bottom:1px solid #fecaca;color:var(--rd)}
-
-  /* TABLE */
-  .table-wrap{overflow-x:auto;background:var(--white)}
-  table{width:100%;border-collapse:collapse;font-size:11.5px}
-  thead th{
-    padding:10px 8px;text-align:left;cursor:pointer;
-    font-size:9.5px;font-weight:600;text-transform:uppercase;
-    letter-spacing:0.08em;color:var(--tx4);
-    border-bottom:2px solid var(--bd);
-    white-space:nowrap;user-select:none;
-    position:sticky;top:0;background:var(--white);z-index:2;
-    transition:color .15s;
-  }
-  thead th:hover{color:var(--tx2)}
-  thead th.act{color:var(--ac);border-bottom-color:var(--ac)}
-  thead th.r{text-align:right}
-  tbody td{padding:9px 8px;border-bottom:1px solid var(--sf2);white-space:nowrap}
-  tbody tr:hover{background:var(--sf)!important}
-  .mono{font-family:'Geist Mono',monospace}
-  .dim{color:var(--tx3)}.r{text-align:right}.c{text-align:center}
-  .dc{max-width:300px;overflow:hidden;text-overflow:ellipsis;font-size:11px}
-  .dc a{color:var(--tx);text-decoration:none;transition:color .12s}
-  .dc a:hover{color:var(--ac2)}
-  .gh{color:var(--gn);font-weight:600}
-  .gm{color:var(--bl);font-weight:600}
-  .py{color:var(--ac3);font-weight:600}
-  .pn{color:var(--tx4)}
-  .star{color:var(--ac4)}
-  .cat-pill{
-    font-size:9.5px;color:var(--tx2);
-    background:var(--sf2);padding:2px 8px;
-    border-radius:10px;display:inline-block;
-  }
-
-  /* PAGER */
-  .pager{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 32px;background:var(--white);border-top:1px solid var(--bd)}
-  .pager button{
-    padding:5px 12px;font-size:13px;
-    background:var(--sf);border:1px solid var(--bd);
-    border-radius:var(--r2);color:var(--tx2);cursor:pointer;
-    transition:all .12s;
-  }
-  .pager button:hover:not(:disabled){background:var(--sf2);border-color:var(--bd2)}
-  .pager button:disabled{color:var(--tx4);opacity:.35;cursor:default}
-  .pager .pi{font-size:11px;color:var(--tx3);font-family:'Geist Mono',monospace;padding:0 10px}
-
-  /* EMPTY */
-  .ey{padding:70px 32px;text-align:center}
-  .ey .ic{font-size:44px;margin-bottom:18px;opacity:.25}
-  .ey h2{font-family:'Instrument Serif',serif;font-size:22px;font-weight:400;margin:0 0 10px;color:var(--tx)}
-  .ey p{color:var(--tx3);font-size:13px;max-width:420px;margin:0 auto;line-height:1.7}
-  .ey kbd{
-    display:inline-block;padding:2px 10px;
-    background:var(--white);border:1px solid var(--bd);
-    border-radius:6px;font-family:'Geist Mono',monospace;
-    font-size:11px;color:var(--ac);
-    box-shadow:var(--shadow);
-  }
-
-  @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-  .fade{animation:fadeUp .3s ease-out}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{margin:0;font-size:18px;font-weight:600}
+  .stat-pill{background:var(--panel);border:1px solid var(--border);padding:6px 10px;border-radius:8px;color:var(--muted);font-size:12px}
+  .stat-pill b{color:var(--text);font-weight:600}
+  main{display:grid;grid-template-columns:300px 1fr;gap:0;height:calc(100vh - 53px)}
+  aside{background:var(--panel);border-right:1px solid var(--border);padding:14px;overflow-y:auto}
+  aside h3{margin:14px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  aside h3:first-child{margin-top:0}
+  .field{margin-bottom:8px}
+  .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+  .field input,.field select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px;font:inherit}
+  .field input:focus,.field select:focus{outline:1px solid var(--accent);border-color:var(--accent)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .chip-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .chip{padding:3px 8px;border-radius:99px;background:var(--panel2);border:1px solid var(--border);font-size:11px;cursor:pointer;user-select:none}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#0b1a30;font-weight:600}
+  button.btn{background:var(--accent);color:#0b1a30;border:0;padding:8px 12px;border-radius:6px;font-weight:600;cursor:pointer;width:100%;margin-top:8px}
+  button.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+  section.content{display:flex;flex-direction:column;overflow:hidden}
+  .estimate-panel{padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+  .estimate-panel .num{font-size:22px;font-weight:700;color:var(--accent2)}
+  .estimate-panel .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  .estimate-panel .grp{display:flex;flex-direction:column}
+  .estimate-panel .grp.sub .num{color:var(--text);font-size:16px;font-weight:600}
+  table{width:100%;border-collapse:collapse}
+  thead th{position:sticky;top:0;background:var(--panel2);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
+  thead th.sort-asc::after{content:" \u25B2";color:var(--accent)}
+  thead th.sort-desc::after{content:" \u25BC";color:var(--accent)}
+  tbody td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+  tbody tr:hover{background:var(--panel)}
+  td.thumb img{width:52px;height:26px;object-fit:cover;border-radius:3px;background:#000;display:block}
+  td.thumb .placeholder{width:52px;height:26px;background:var(--panel2);border-radius:3px;display:inline-block}
+  td.title{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  td.title a{color:var(--text);text-decoration:none}
+  td.title a:hover{color:var(--accent);text-decoration:underline}
+  td.price{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+  td.date{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .grade-cell{display:flex;flex-direction:column;line-height:1.15}
+  .grade-cell .co{font-size:10px;color:var(--muted);text-transform:uppercase}
+  .grade-cell .gr{font-weight:600}
+  .grade-cell .pq{font-size:10px;color:var(--accent2)}
+  .star{color:var(--warn);font-size:16px;text-align:center}
+  .table-wrap{flex:1;overflow:auto}
+  .footer-bar{padding:10px 18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--panel);font-size:12px;color:var(--muted)}
+  .footer-bar button{background:var(--panel2);color:var(--text);border:1px solid var(--border);padding:5px 10px;border-radius:5px;cursor:pointer;margin-left:6px}
+  .footer-bar button:disabled{opacity:.4;cursor:not-allowed}
+  .empty{padding:40px;text-align:center;color:var(--muted)}
+  .err{padding:14px 20px;background:#3b1518;border-left:3px solid var(--danger);color:#ffb4b4;margin:14px 18px;border-radius:6px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap}
 </style>
 </head>
 <body>
 
-<div class="hdr">
-  <div class="brand">
-    <div class="brand-mark">C</div>
-    <div><h1>Currency Comps</h1><span>Auction Price Intelligence</span></div>
-  </div>
-  <div class="db-s"><span class="dot" id="dd"></span><span id="dt">Connecting…</span></div>
-</div>
+<header>
+  <h1>Currency Comps</h1>
+  <span class="stat-pill">Source: <b>Stack's Bowers Archive</b></span>
+  <span class="stat-pill">Matching: <b id="match-count">\u2014</b></span>
+  <span class="stat-pill">Total in DB: <b id="total-count">\u2014</b></span>
+  <span style="margin-left:auto;color:var(--muted);font-size:11px">v2.0</span>
+</header>
 
-<div class="search-area">
-  <div class="search-main">
-    <input class="search-pill" type="text" id="sT" placeholder="Search — e.g. Fr. 598, 1902 Red Seal, Charter 1386…">
-    <button class="btn-search" id="bG" onclick="doS()">Search</button>
-  </div>
-  <div class="filters">
-    <div class="bubble"><label>Category</label><select id="fC"></select></div>
-    <div class="bubble"><label>Fr. Number</label><input class="mono" id="fF" placeholder="598"></div>
-    <div class="bubble"><label>Denomination</label><select id="fD"></select></div>
-    <div class="grade-group">
-      <div class="bubble bubble-sm"><label>Grade ≥</label><input class="mono" id="gN" placeholder="1" type="number"></div>
-      <span class="sep">–</span>
-      <div class="bubble bubble-sm"><label>Grade ≤</label><input class="mono" id="gX" placeholder="70" type="number"></div>
+<main>
+  <aside>
+    <h3>Search</h3>
+    <div class="field"><label>Title contains</label><input id="f-q" placeholder="e.g. grand watermelon"></div>
+    <div class="field"><label>Friedberg #</label><input id="f-fr" placeholder="e.g. 379a"></div>
+
+    <h3>Series</h3>
+    <div class="row2">
+      <div class="field"><label>Year</label><input id="f-year" placeholder="1934"></div>
+      <div class="field"><label>Letter</label><input id="f-letter" placeholder="A" maxlength="1"></div>
     </div>
-    <div class="bubble"><label>State</label><select id="fS"></select></div>
-    <div class="bubble"><label>Charter #</label><input class="mono" id="fH" placeholder="1386"></div>
-    <div class="toggle-pill" id="tS" onclick="tc('star')"><div class="ck"></div>★ Star</div>
-    <div class="toggle-pill" id="tP" onclick="tc('priced')"><div class="ck"></div>$ Priced</div>
-    <button class="btn-clear" id="bR" onclick="rA()" style="display:none">Clear filters</button>
-  </div>
-</div>
 
-<div class="err-bar" id="eM" style="display:none"></div>
-<div class="summary" id="sU" style="display:none"></div>
-<div class="table-wrap" id="tW"><table><thead><tr id="tH"></tr></thead><tbody id="tB"></tbody></table></div>
-<div class="pager" id="pG" style="display:none"></div>
-<div class="ey" id="eY"></div>
+    <h3>Denomination</h3>
+    <div class="field">
+      <select id="f-denom">
+        <option value="">\u2014 any \u2014</option>
+        <option>$1</option><option>$2</option><option>$5</option><option>$10</option>
+        <option>$20</option><option>$50</option><option>$100</option>
+        <option>$500</option><option>$1000</option><option>$5000</option><option>$10000</option>
+      </select>
+    </div>
+
+    <h3>Type / Category</h3>
+    <div class="chip-row" id="f-type-chips"></div>
+
+    <h3>Grading</h3>
+    <div class="row2">
+      <div class="field">
+        <label>Company</label>
+        <select id="f-grading-co">
+          <option value="">any</option>
+          <option value="PMG">PMG</option>
+          <option value="PCGS">PCGS</option>
+          <option value="NGC">NGC</option>
+          <option value="raw">raw</option>
+          <option value="unknown">unknown</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>PPQ/EPQ</label>
+        <select id="f-pq">
+          <option value="">any</option>
+          <option value="PPQ">PPQ</option>
+          <option value="EPQ">EPQ</option>
+          <option value="none">none</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Grade min</label><input id="f-grade-min" type="number" min="1" max="70"></div>
+      <div class="field"><label>Grade max</label><input id="f-grade-max" type="number" min="1" max="70"></div>
+    </div>
+
+    <h3>Sold Price</h3>
+    <div class="row2">
+      <div class="field"><label>Min $</label><input id="f-price-min" type="number"></div>
+      <div class="field"><label>Max $</label><input id="f-price-max" type="number"></div>
+    </div>
+
+    <h3>Sold Date</h3>
+    <div class="row2">
+      <div class="field"><label>From</label><input id="f-date-from" type="date"></div>
+      <div class="field"><label>To</label><input id="f-date-to" type="date"></div>
+    </div>
+
+    <h3>National Banks <span style="color:var(--muted);font-weight:normal;font-size:10px;text-transform:none;letter-spacing:0">(enrichment pending)</span></h3>
+    <div class="row2">
+      <div class="field"><label>State</label><input id="f-state" placeholder="OH" maxlength="2"></div>
+      <div class="field"><label>Charter #</label><input id="f-charter" placeholder="2961"></div>
+    </div>
+
+    <h3>Flags</h3>
+    <div class="field"><label style="font-size:12px;color:var(--text)"><input type="checkbox" id="f-star"> \u2605 Star notes only</label></div>
+
+    <button class="btn" id="btn-apply">Apply filters</button>
+    <button class="btn ghost" id="btn-clear">Clear all</button>
+  </aside>
+
+  <section class="content">
+    <div class="estimate-panel">
+      <div class="grp"><span class="lbl">Current Estimated Price</span><span class="num" id="est-median">\u2014</span></div>
+      <div class="grp sub"><span class="lbl">Mean</span><span class="num" id="est-mean">\u2014</span></div>
+      <div class="grp sub"><span class="lbl">Low / High</span><span class="num" id="est-range">\u2014</span></div>
+      <div class="grp sub"><span class="lbl">Sample size</span><span class="num" id="est-n">\u2014</span></div>
+      <div style="margin-left:auto;color:var(--muted);font-size:11px;max-width:240px">Median used; mitigates outliers like census-grade rarities.</div>
+    </div>
+
+    <div id="err-host"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-sort="thumbnail_url" style="width:60px"></th>
+            <th data-sort="title">Title</th>
+            <th data-sort="friedberg_number_normalized">Friedberg</th>
+            <th data-sort="series_date">Series</th>
+            <th data-sort="denomination">Denom</th>
+            <th data-sort="type_class">Type</th>
+            <th data-sort="grade_numeric">Grading</th>
+            <th data-sort="is_star_note" style="width:30px">\u2605</th>
+            <th data-sort="price_realized" class="sort-desc">Sold</th>
+            <th data-sort="sold_on">Date</th>
+          </tr>
+        </thead>
+        <tbody id="rows"><tr><td colspan="10" class="empty">Loading\u2026</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="footer-bar">
+      <span id="page-info">\u2014</span>
+      <div>
+        <button id="btn-prev">\u2039 Prev</button>
+        <button id="btn-next">Next \u203A</button>
+      </div>
+    </div>
+  </section>
+</main>
 
 <script>
-const U="https://lreoyedcvotkwmzplucd.supabase.co",K="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxyZW95ZWRjdm90a3dtenBsdWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MzIxMjAsImV4cCI6MjA5NDAwODEyMH0.UDNFyIsHM4fdH6Fev_JLCpIiaum5q1qxKI29vJyFU70",PS=50;
-let Z={star:false,priced:false,sf:"sale_date",sd:"desc",pg:0,tot:0,ok:false,n:0};
-const CATS=[["","All Categories"],["Federal Reserve Notes","Federal Reserve Notes"],["National Bank Notes","National Bank Notes"],["Silver Certificates","Silver Certificates"],["Legal Tender Notes","Legal Tender Notes"],["Gold Certificates","Gold Certificates"],["Treasury Notes","Treasury Notes"],["Colonial Notes","Colonial Notes"],["Confederate Notes","Confederate Notes"],["Fractional Currency","Fractional Currency"],["Obsoletes By State","Obsoletes By State"],["Error Notes","Error Notes"],["Military Payment Certificates","Military Payment Certs"],["Federal Reserve Bank Notes","Fed Reserve Bank Notes"],["Encased Postage","Encased Postage"]];
-const DENS=[["","All"],["1","$1"],["2","$2"],["3","$3"],["5","$5"],["10","$10"],["20","$20"],["50","$50"],["100","$100"],["500","$500"],["1000","$1,000"]];
-const US={AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",DC:"D.C.",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"N. Carolina",ND:"N. Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"S. Carolina",SD:"S. Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"W. Virginia",WI:"Wisconsin",WY:"Wyoming"};
-const CL=[["sale_date","Date",84],["category_path","Category",0],["friedberg_number","Fr#",56],["denomination","Denom",48],["series_date","Series",50],["title","Description",0],["grade","Grade",120],["grade_numeric","#",32],["realized_price","Price",82],["state","St",28],["charter_number","Ch#",50]];
-const $=id=>document.getElementById(id),fP=n=>n==null?"—":"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0}),fD=n=>n==null?"—":"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}),mA=d=>d?(Date.now()-new Date(d).getTime())/(30.44*86400*1000):999,esc=s=>{const d=document.createElement("div");d.textContent=s;return d.innerHTML};
-function fSel(el,o){o.forEach(([v,l])=>{const op=document.createElement("option");op.value=v;op.textContent=l;el.appendChild(op)})}
-fSel($("fC"),CATS);fSel($("fD"),DENS);fSel($("fS"),[["","All"],...Object.entries(US).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>[k,k+" — "+v])]);
-document.querySelectorAll(".search-area input").forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")doS()}));
+// Config - Comp Tool v1.0 Supabase
+const SB_URL = 'https://wqizwluccqqfkedpgvve.supabase.co';
+const SB_KEY = 'sb_publishable_9DiOeDQje6yiSEITD7WUrw_S2Q-2xyS';
+const TABLE  = 'lots_currency';
+const PAGE   = 50;
 
-function tc(w){Z[w]=!Z[w];const el=w==="star"?$("tS"):$("tP");el.classList.toggle("on",Z[w]);el.querySelector(".ck").textContent=Z[w]?"✓":""}
+const TYPE_CLASSES = [
+  ['large_size','Large Size'],
+  ['small_size','Small Size'],
+  ['federal_reserve_note','Federal Reserve'],
+  ['silver_certificate','Silver Cert'],
+  ['gold_certificate','Gold Cert'],
+  ['legal_tender','Legal Tender'],
+  ['national_bank_note','National Bank'],
+  ['treasury_note','Treasury'],
+  ['federal_reserve_bank_note','FRBN'],
+  ['demand_note','Demand'],
+  ['interest_bearing_note','Interest Bearing'],
+  ['refunding_certificate','Refunding'],
+  ['fractional','Fractional'],
+  ['encased_postage','Encased Postage'],
+  ['confederate','Confederate'],
+  ['colonial_continental','Colonial'],
+  ['obsolete','Obsolete'],
+  ['world_currency','World'],
+  ['mpc_military','MPC / Military'],
+  ['error_note','Error'],
+  ['other','Other'],
+];
 
-function bU(sel,ex={}){
-  const u=new URL(U+"/rest/v1/lots");u.searchParams.set("select",sel);
-  const q=$("sT").value.trim();if(q)q.split(/\s+/).forEach(t=>u.searchParams.append("title","ilike.*"+t+"*"));
-  const c=$("fC").value;if(c)u.searchParams.set("category_path","ilike.*"+c+"*");
-  const f=$("fF").value.replace(/^fr\.?\s*/i,"").trim();if(f){const fs=f.replace(/\s+/g,'');u.searchParams.append("or",`(friedberg_number.eq.${fs},friedberg_number.eq.Fr.${fs},friedberg_number.eq.Fr.-${fs},friedberg_number.ilike.*${fs}*)`);}
-  const d=$("fD").value;if(d)u.searchParams.set("denomination","eq."+d);
-  const gn=$("gN").value;if(gn)u.searchParams.set("grade_numeric","gte."+gn);
-  const gx=$("gX").value;if(gx)u.searchParams.append("grade_numeric","lte."+gx);
-  const s=$("fS").value;if(s)u.searchParams.set("state","eq."+s);
-  const h=$("fH").value.trim();if(h)u.searchParams.set("charter_number","eq."+h);
-  if(Z.star)u.searchParams.set("is_star","eq.true");
-  if(Z.priced||ex.priced)u.searchParams.set("realized_price","gt.0");
-  Object.entries(ex).forEach(([k,v])=>{if(k!=="priced")u.searchParams.set(k,v)});return u;
+const state = {
+  page: 0,
+  sort: { col: 'sold_on', dir: 'desc' },
+  selectedTypes: new Set(),
+  totalMatching: 0,
+};
+
+const $ = (s) => document.querySelector(s);
+const fmt$ = (n) => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+const fmtDate = (s) => !s ? '—' : new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+const esc = (s) => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function buildSeries(row) {
+  const y = row.series_date || '';
+  const t = (row.series_type || '').trim();
+  if (!y && !t) return '—';
+  const m = t.match(/([A-Z])s*$/);
+  return y + (m ? m[1] : '');
 }
-async function sf(u){return fetch(u.toString(),{headers:{apikey:K,Authorization:"Bearer "+K,Prefer:"count=exact"}})}
 
-(async()=>{try{const r=await sf(bU("id",{limit:"1"}));if(!r.ok)throw 0;const c=r.headers.get("content-range")?.split("/")?.[1];Z.n=c?parseInt(c):0;Z.ok=true;$("dd").classList.add("ok");$("dt").textContent=Z.n.toLocaleString()+" lots";$("eY").innerHTML='<div class="ic">⌕</div><h2>Search auction records</h2><p>Use the filters above and press <kbd>Search</kbd> or <kbd>Enter</kbd> to query '+Z.n.toLocaleString()+' lots with time-weighted price estimates.</p>'}catch{$("dd").classList.add("err");$("dt").textContent="Connection failed";$("eY").innerHTML='<div class="ic">⚠</div><h2 style="color:var(--rd)">Unable to connect</h2><p>Verify the lots table exists and Row Level Security allows public SELECT.</p>'}})();
-
-function hF(){return $("sT").value||$("fC").value||$("fF").value||$("fD").value||$("gN").value||$("gX").value||$("fS").value||$("fH").value||Z.star||Z.priced}
-
-async function doS(pg=0){
-  $("bG").disabled=true;$("bG").textContent="…";$("eM").style.display="none";
-  try{
-    const u=bU("auction_event,lot_number,category_path,friedberg_number,denomination,series_date,title,grading_company,grade,grade_numeric,grade_details,is_star,realized_price,sale_date,lot_url,state,city,bank_name,charter_number",{order:Z.sf+"."+Z.sd+".nullslast",limit:String(PS),offset:String(pg*PS)});
-    const r=await sf(u);if(!r.ok)throw new Error((await r.json())?.message||"Query failed");
-    const cn=r.headers.get("content-range")?.split("/")?.[1],rows=await r.json();
-    Z.tot=cn?parseInt(cn):0;Z.pg=pg;
-    rT(rows);rSu();rPg();$("eY").style.display="none";$("bR").style.display=hF()?"inline":"none";
-    const eu=bU("realized_price,sale_date",{limit:"2000",priced:true}),er=await sf(eu);
-    if(er.ok){const ed=await er.json(),ps=ed.map(x=>parseFloat(x.realized_price)).filter(p=>p>0).sort((a,b)=>a-b);
-      if(ps.length>=3){const dr=Math.log(2)/24;let sw=0,sp=0;ed.forEach(x=>{const p=parseFloat(x.realized_price);if(p>0){const w=Math.exp(-dr*Math.max(mA(x.sale_date),0));sw+=w;sp+=w*p}});
-        aE({n:ps.length,wa:sw>0?sp/sw:null,med:ps[Math.floor(ps.length/2)],mn:ps[0],mx:ps[ps.length-1]})}
-      else if(ps.length>0)$("sU").innerHTML+=` <span style="font-size:11px;color:var(--tx4);font-style:italic">${ps.length} comp${ps.length>1?"s":""} — need 3+ for estimate</span>`}
-  }catch(e){$("eM").textContent=e.message;$("eM").style.display="block"}
-  finally{$("bG").disabled=false;$("bG").textContent="Search"}
+function buildGradeCell(row) {
+  const co = row.grading_company && row.grading_company !== 'unknown' ? row.grading_company : '';
+  const gr = row.grade_numeric != null ? row.grade_numeric : (row.grade_raw || '');
+  const pq = row.ppq_epq && row.ppq_epq !== 'none' ? row.ppq_epq : '';
+  if (!co && gr === '' && !pq) return '—';
+  return '<div class="grade-cell">'
+    + (co ? '<span class="co">' + esc(co) + '</span>' : '')
+    + (gr !== '' ? '<span class="gr">' + esc(gr) + '</span>' : '')
+    + (pq ? '<span class="pq">' + esc(pq) + '</span>' : '')
+    + '</div>';
 }
 
-function rA(){$("sT").value="";$("fC").value="";$("fF").value="";$("fD").value="";$("gN").value="";$("gX").value="";$("fS").value="";$("fH").value="";Z.star=false;Z.priced=false;["tS","tP"].forEach(id=>{$(id).classList.remove("on");$(id).querySelector(".ck").textContent=""});$("sU").style.display="none";$("tB").innerHTML="";$("tH").innerHTML="";$("pG").style.display="none";$("bR").style.display="none";$("eY").style.display="block";$("eY").innerHTML='<div class="ic">⌕</div><h2>Search auction records</h2><p>Use the filters above and press <kbd>Search</kbd> or <kbd>Enter</kbd>.</p>'}
+function typeLabel(tc) {
+  const m = TYPE_CLASSES.find(([k]) => k === tc);
+  return m ? m[1] : (tc || '—');
+}
 
-function rSu(){$("sU").style.display="flex";$("sU").className="summary fade";$("sU").innerHTML=`<span><strong>${Z.tot.toLocaleString()}</strong> lots match</span>`}
+function applyFiltersToParams(p) {
+  const q       = $('#f-q').value.trim();
+  const fr      = $('#f-fr').value.trim();
+  const year    = $('#f-year').value.trim();
+  const letter  = $('#f-letter').value.trim().toUpperCase();
+  const denom   = $('#f-denom').value;
+  const gco     = $('#f-grading-co').value;
+  const pq      = $('#f-pq').value;
+  const gmin    = $('#f-grade-min').value;
+  const gmax    = $('#f-grade-max').value;
+  const pmin    = $('#f-price-min').value;
+  const pmax    = $('#f-price-max').value;
+  const dfrom   = $('#f-date-from').value;
+  const dto     = $('#f-date-to').value;
+  const star    = $('#f-star').checked;
+  const stCode  = $('#f-state').value.trim().toUpperCase();
+  const charter = $('#f-charter').value.trim();
 
-function aE(e){$("sU").innerHTML+=`<div class="est fade"><div style="text-align:center"><div class="est-lbl">Weighted Estimate</div><div class="est-val">${fP(e.wa)}</div></div><div class="est-sep"></div><div class="est-stats"><div>Median ${fP(e.med)}</div><div>${fP(e.mn)} – ${fP(e.mx)}</div></div><div class="est-n">${e.n} comps</div></div>`}
+  if (q)       p.append('title', 'ilike.*' + q + '*');
+  if (fr)      p.append('friedberg_number_normalized', 'ilike.*' + fr.toLowerCase().replace(/\s/g,'') + '*');
+  if (year)    p.append('series_date', 'eq.' + year);
+  if (letter)  p.append('series_type', 'ilike.*' + letter + '*');
+  if (denom)   p.append('denomination', 'eq.' + denom);
+  if (gco)     p.append('grading_company', 'eq.' + gco);
+  if (pq)      p.append('ppq_epq', 'eq.' + pq);
+  if (gmin)    p.append('grade_numeric', 'gte.' + gmin);
+  if (gmax)    p.append('grade_numeric', 'lte.' + gmax);
+  if (pmin)    p.append('price_realized', 'gte.' + pmin);
+  if (pmax)    p.append('price_realized', 'lte.' + pmax);
+  if (dfrom)   p.append('sold_on', 'gte.' + dfrom);
+  if (dto)     p.append('sold_on', 'lte.' + dto);
+  if (star)    p.append('is_star_note', 'eq.true');
+  if (stCode)  p.append('state_code', 'eq.' + stCode);
+  if (charter) p.append('charter_number', 'eq.' + charter);
+  if (state.selectedTypes.size) p.append('type_class', 'in.(' + [...state.selectedTypes].join(',') + ')');
+}
 
-function rT(rows){
-  let h="";CL.forEach(([k,l,w])=>{const cls=(Z.sf===k?"act":"")+(k==="realized_price"?" r":""),arr=Z.sf===k?(Z.sd==="asc"?" ↑":" ↓"):"",sty=w?`min-width:${w}px`:"";h+=`<th class="${cls}" style="${sty}" onclick="sB('${k}')">${l}${arr}</th>`});$("tH").innerHTML=h;
-  let b="";
-  if(!rows.length)b='<tr><td colspan="11" style="padding:44px;text-align:center;color:var(--tx4)">No matching lots found</td></tr>';
-  else rows.forEach(r=>{const g=r.grade_numeric?parseInt(r.grade_numeric):null,p=r.realized_price?parseFloat(r.realized_price):null,gc=g>=63?"gh":g>=40?"gm":"",dn=r.denomination?"$"+r.denomination:"—",d=r.title||"—",dh=r.lot_url?`<a href="${r.lot_url}" target="_blank">${esc(d)}</a>`:esc(d),st=r.is_star===true?' <span class="star">★</span>':"",cat=(r.category_path||"—").split("»")[0].trim();
-    b+=`<tr><td class="mono dim" style="font-size:10.5px">${r.sale_date||"—"}</td><td><span class="cat-pill">${esc(cat)}</span></td><td class="mono" style="color:var(--bl);font-size:11px">${r.friedberg_number||"—"}</td><td class="mono" style="font-weight:600">${dn}</td><td class="mono dim" style="font-size:10.5px">${r.series_date||"—"}</td><td class="dc">${dh}</td><td style="font-size:10.5px"><span class="dim">${r.grading_company||""}</span> ${esc(r.grade||"")}${st}</td><td class="mono c ${gc}" style="font-weight:600">${g??"—"}</td><td class="mono r ${p?"py":"pn"}" style="font-weight:600">${p?fD(p):"—"}</td><td class="c dim" style="font-size:9.5px">${r.state||""}</td><td class="mono dim" style="font-size:10.5px">${r.charter_number||""}</td></tr>`});
-  $("tB").innerHTML=b}
+function buildRowsQuery() {
+  const p = new URLSearchParams();
+  p.set('select', 'id,title,lot_url,thumbnail_url,friedberg_number,friedberg_number_normalized,series_date,series_type,denomination,type_class,grading_company,grade_numeric,grade_raw,ppq_epq,is_star_note,price_realized,sold_on,state_code,charter_number');
+  applyFiltersToParams(p);
+  p.set('order', state.sort.col + '.' + state.sort.dir + '.nullslast');
+  p.set('limit', PAGE);
+  p.set('offset', state.page * PAGE);
+  return p.toString();
+}
 
-function rPg(){const tp=Math.ceil(Z.tot/PS);if(tp<=1){$("pG").style.display="none";return}$("pG").style.display="flex";$("pG").innerHTML=`<button ${Z.pg===0?"disabled":""} onclick="doS(0)">«</button><button ${Z.pg===0?"disabled":""} onclick="doS(${Z.pg-1})">‹</button><span class="pi">${Z.pg+1} / ${tp}</span><button ${Z.pg>=tp-1?"disabled":""} onclick="doS(${Z.pg+1})">›</button><button ${Z.pg>=tp-1?"disabled":""} onclick="doS(${tp-1})">»</button>`}
+function buildStatsQuery() {
+  const p = new URLSearchParams();
+  p.set('select', 'price_realized');
+  applyFiltersToParams(p);
+  p.append('price_realized', 'not.is.null');
+  p.set('order', 'price_realized.asc');
+  p.set('limit', 2000);
+  return p.toString();
+}
 
-function sB(f){if(Z.sf===f)Z.sd=Z.sd==="asc"?"desc":"asc";else{Z.sf=f;Z.sd="desc"}if(Z.ok)doS(0)}
+async function sbFetch(qs, opts = {}) {
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
+  if (opts.count) headers.Prefer = 'count=exact';
+  const r = await fetch(SB_URL + '/rest/v1/' + TABLE + '?' + qs, { headers });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error('Supabase ' + r.status + ': ' + t);
+  }
+  const data = await r.json();
+  let total = null;
+  if (opts.count) {
+    const cr = r.headers.get('content-range') || '';
+    const m = cr.match(/\/(\d+|\*)$/);
+    if (m) total = m[1] === '*' ? null : parseInt(m[1], 10);
+  }
+  return { data, total };
+}
+
+function showError(msg) { $('#err-host').innerHTML = '<div class="err">' + esc(msg) + '</div>'; }
+function clearError() { $('#err-host').innerHTML = ''; }
+
+async function loadTotalCount() {
+  try {
+    const { total } = await sbFetch('select=id&limit=1', { count: true });
+    $('#total-count').textContent = (total ?? 0).toLocaleString();
+  } catch (e) { showError(String(e.message || e)); }
+}
+
+async function loadRows() {
+  $('#rows').innerHTML = '<tr><td colspan="10" class="empty">Loading…</td></tr>';
+  try {
+    clearError();
+    const { data, total } = await sbFetch(buildRowsQuery(), { count: true });
+    state.totalMatching = total ?? data.length;
+    $('#match-count').textContent = state.totalMatching.toLocaleString();
+    renderRows(data);
+    updatePager();
+    loadStats();
+  } catch (e) {
+    showError(String(e.message || e));
+    $('#rows').innerHTML = '<tr><td colspan="10" class="empty">Failed to load.</td></tr>';
+  }
+}
+
+async function loadStats() {
+  try {
+    const { data } = await sbFetch(buildStatsQuery());
+    const prices = data.map(r => Number(r.price_realized)).filter(n => Number.isFinite(n));
+    if (!prices.length) {
+      $('#est-median').textContent = '—';
+      $('#est-mean').textContent = '—';
+      $('#est-range').textContent = '—';
+      $('#est-n').textContent = '0';
+      return;
+    }
+    prices.sort((a,b) => a - b);
+    const median = prices.length % 2 === 1
+      ? prices[(prices.length - 1) / 2]
+      : (prices[prices.length/2 - 1] + prices[prices.length/2]) / 2;
+    const mean = prices.reduce((s,n) => s + n, 0) / prices.length;
+    $('#est-median').textContent = fmt$(median);
+    $('#est-mean').textContent   = fmt$(mean);
+    $('#est-range').textContent  = fmt$(prices[0]) + ' / ' + fmt$(prices[prices.length-1]);
+    $('#est-n').textContent      = prices.length.toLocaleString() + (prices.length >= 2000 ? '+' : '');
+  } catch (e) {}
+}
+
+function renderRows(rows) {
+  if (!rows.length) {
+    $('#rows').innerHTML = '<tr><td colspan="10" class="empty">No matches. Try widening filters.</td></tr>';
+    return;
+  }
+  $('#rows').innerHTML = rows.map(r => {
+    const thumb = r.thumbnail_url
+      ? '<img src="' + esc(r.thumbnail_url) + '" loading="lazy" alt="">'
+      : '<span class="placeholder"></span>';
+    const titleCell = r.lot_url
+      ? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || '—') + '</a>'
+      : esc(r.title || '—');
+    return '<tr>'
+      + '<td class="thumb">' + thumb + '</td>'
+      + '<td class="title" title="' + esc(r.title || '') + '">' + titleCell + '</td>'
+      + '<td>' + esc(r.friedberg_number || '—') + '</td>'
+      + '<td>' + esc(buildSeries(r)) + '</td>'
+      + '<td>' + esc(r.denomination || '—') + '</td>'
+      + '<td>' + esc(typeLabel(r.type_class)) + '</td>'
+      + '<td>' + buildGradeCell(r) + '</td>'
+      + '<td class="star">' + (r.is_star_note ? '★' : '') + '</td>'
+      + '<td class="price">' + fmt$(r.price_realized) + '</td>'
+      + '<td class="date">' + fmtDate(r.sold_on) + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function updatePager() {
+  const from = state.totalMatching === 0 ? 0 : state.page * PAGE + 1;
+  const to   = Math.min((state.page + 1) * PAGE, state.totalMatching);
+  $('#page-info').textContent = 'Showing ' + from.toLocaleString() + '–' + to.toLocaleString() + ' of ' + state.totalMatching.toLocaleString();
+  $('#btn-prev').disabled = state.page === 0;
+  $('#btn-next').disabled = (state.page + 1) * PAGE >= state.totalMatching;
+}
+
+function renderTypeChips() {
+  $('#f-type-chips').innerHTML = TYPE_CLASSES.map(([k, lbl]) =>
+    '<span class="chip" data-tc="' + k + '">' + esc(lbl) + '</span>'
+  ).join('');
+  $('#f-type-chips').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    const tc = chip.dataset.tc;
+    if (state.selectedTypes.has(tc)) state.selectedTypes.delete(tc);
+    else state.selectedTypes.add(tc);
+    chip.classList.toggle('on');
+  });
+}
+
+function wireSortHeaders() {
+  document.querySelectorAll('thead th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (!col) return;
+      if (state.sort.col === col) {
+        state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.sort.col = col;
+        state.sort.dir = 'desc';
+      }
+      document.querySelectorAll('thead th').forEach(h => h.classList.remove('sort-asc','sort-desc'));
+      th.classList.add('sort-' + state.sort.dir);
+      state.page = 0;
+      loadRows();
+    });
+  });
+}
+
+function wireFilters() {
+  $('#btn-apply').addEventListener('click', () => { state.page = 0; loadRows(); });
+  $('#btn-clear').addEventListener('click', () => {
+    document.querySelectorAll('aside input, aside select').forEach(el => {
+      if (el.type === 'checkbox') el.checked = false; else el.value = '';
+    });
+    state.selectedTypes.clear();
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+    state.page = 0;
+    loadRows();
+  });
+  document.querySelectorAll('aside input, aside select').forEach(el => {
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') { state.page = 0; loadRows(); } });
+  });
+  $('#btn-prev').addEventListener('click', () => { if (state.page > 0) { state.page--; loadRows(); } });
+  $('#btn-next').addEventListener('click', () => {
+    if ((state.page + 1) * PAGE < state.totalMatching) { state.page++; loadRows(); }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderTypeChips();
+  wireSortHeaders();
+  wireFilters();
+  loadTotalCount();
+  loadRows();
+});
 </script>
 </body>
 </html>
