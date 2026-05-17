@@ -230,14 +230,14 @@ const state = {
 };
 
 const $ = (s) => document.querySelector(s);
-const fmt$ = (n) => n == null ? 'â' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
-const fmtDate = (s) => !s ? 'â' : new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+const fmt$ = (n) => n == null ? '\u2014' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+const fmtDate = (s) => !s ? '\u2014' : new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
 const esc = (s) => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function buildSeries(row) {
   const y = row.series_date || '';
   const t = (row.series_type || '').trim();
-  if (!y && !t) return 'â';
+  if (!y && !t) return '\u2014';
   const m = t.match(/([A-Z])s*$/);
   return y + (m ? m[1] : '');
 }
@@ -246,7 +246,7 @@ function buildGradeCell(row) {
   const co = row.grading_company && row.grading_company !== 'unknown' ? row.grading_company : '';
   const gr = row.grade_numeric != null ? row.grade_numeric : (row.grade_raw || '');
   const pq = row.ppq_epq && row.ppq_epq !== 'none' ? row.ppq_epq : '';
-  if (!co && gr === '' && !pq) return 'â';
+  if (!co && gr === '' && !pq) return '\u2014';
   return '<div class="grade-cell">'
     + (co ? '<span class="co">' + esc(co) + '</span>' : '')
     + (gr !== '' ? '<span class="gr">' + esc(gr) + '</span>' : '')
@@ -256,7 +256,7 @@ function buildGradeCell(row) {
 
 function typeLabel(tc) {
   const m = TYPE_CLASSES.find(([k]) => k === tc);
-  return m ? m[1] : (tc || 'â');
+  return m ? m[1] : (tc || '\u2014');
 }
 
 function applyFiltersToParams(p) {
@@ -345,7 +345,7 @@ async function loadTotalCount() {
 }
 
 async function loadRows() {
-  $('#rows').innerHTML = '<tr><td colspan="10" class="empty">Loadingâ¦</td></tr>';
+  $('#rows').innerHTML = '<tr><td colspan="10" class="empty">Loading\u2026</td></tr>';
   try {
     clearError();
     const { data, total } = await sbFetch(buildRowsQuery(), { count: true });
@@ -365,9 +365,9 @@ async function loadStats() {
     const { data } = await sbFetch(buildStatsQuery());
     const prices = data.map(r => Number(r.price_realized)).filter(n => Number.isFinite(n));
     if (!prices.length) {
-      $('#est-median').textContent = 'â';
-      $('#est-mean').textContent = 'â';
-      $('#est-range').textContent = 'â';
+      $('#est-median').textContent = '\u2014';
+      $('#est-mean').textContent = '\u2014';
+      $('#est-range').textContent = '\u2014';
       $('#est-n').textContent = '0';
       return;
     }
@@ -393,17 +393,17 @@ function renderRows(rows) {
       ? '<img src="' + esc(r.thumbnail_url) + '" loading="lazy" alt="">'
       : '<span class="placeholder"></span>';
     const titleCell = r.lot_url
-      ? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || 'â') + '</a>'
-      : esc(r.title || 'â');
+      ? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || '\u2014') + '</a>'
+      : esc(r.title || '\u2014');
     return '<tr>'
       + '<td class="thumb">' + thumb + '</td>'
       + '<td class="title" title="' + esc(r.title || '') + '">' + titleCell + '</td>'
-      + '<td>' + esc(r.friedberg_number || 'â') + '</td>'
+      + '<td>' + esc(r.friedberg_number || '\u2014') + '</td>'
       + '<td>' + esc(buildSeries(r)) + '</td>'
-      + '<td>' + esc(r.denomination || 'â') + '</td>'
+      + '<td>' + esc(r.denomination || '\u2014') + '</td>'
       + '<td>' + esc(typeLabel(r.type_class)) + '</td>'
       + '<td>' + buildGradeCell(r) + '</td>'
-      + '<td class="star">' + (r.is_star_note ? 'â' : '') + '</td>'
+      + '<td class="star">' + (r.is_star_note ? '\u2605' : '') + '</td>'
       + '<td class="price">' + fmt$(r.price_realized) + '</td>'
       + '<td class="date">' + fmtDate(r.sold_on) + '</td>'
       + '</tr>';
@@ -413,7 +413,7 @@ function renderRows(rows) {
 function updatePager() {
   const from = state.totalMatching === 0 ? 0 : state.page * PAGE + 1;
   const to   = Math.min((state.page + 1) * PAGE, state.totalMatching);
-  $('#page-info').textContent = 'Showing ' + from.toLocaleString() + 'â' + to.toLocaleString() + ' of ' + state.totalMatching.toLocaleString();
+  $('#page-info').textContent = 'Showing ' + from.toLocaleString() + '\u2013' + to.toLocaleString() + ' of ' + state.totalMatching.toLocaleString();
   $('#btn-prev').disabled = state.page === 0;
   $('#btn-next').disabled = (state.page + 1) * PAGE >= state.totalMatching;
 }
