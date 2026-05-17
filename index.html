@@ -38,8 +38,8 @@
   .estimate-panel .grp.sub .num{color:var(--text);font-size:16px;font-weight:600}
   table{width:100%;border-collapse:collapse}
   thead th{position:sticky;top:0;background:var(--panel2);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
-  thead th.sort-asc::after{content:" \u25B2";color:var(--accent)}
-  thead th.sort-desc::after{content:" \u25BC";color:var(--accent)}
+  thead th.sort-asc::after{content:" ▲";color:var(--accent)}
+  thead th.sort-desc::after{content:" ▼";color:var(--accent)}
   tbody td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
   tbody tr:hover{background:var(--panel)}
   td.thumb img{width:52px;height:26px;object-fit:cover;border-radius:3px;background:#000;display:block}
@@ -67,8 +67,8 @@
 <header>
   <h1>Currency Comps</h1>
   <span class="stat-pill">Source: <b>Stack's Bowers Archive</b></span>
-  <span class="stat-pill">Matching: <b id="match-count">\u2014</b></span>
-  <span class="stat-pill">Total in DB: <b id="total-count">\u2014</b></span>
+  <span class="stat-pill">Matching: <b id="match-count">—</b></span>
+  <span class="stat-pill">Total in DB: <b id="total-count">—</b></span>
   <span style="margin-left:auto;color:var(--muted);font-size:11px">v2.0</span>
 </header>
 
@@ -87,7 +87,7 @@
     <h3>Denomination</h3>
     <div class="field">
       <select id="f-denom">
-        <option value="">\u2014 any \u2014</option>
+        <option value="">— any —</option>
         <option>$1</option><option>$2</option><option>$5</option><option>$10</option>
         <option>$20</option><option>$50</option><option>$100</option>
         <option>$500</option><option>$1000</option><option>$5000</option><option>$10000</option>
@@ -144,7 +144,7 @@
     </div>
 
     <h3>Flags</h3>
-    <div class="field"><label style="font-size:12px;color:var(--text)"><input type="checkbox" id="f-star"> \u2605 Star notes only</label></div>
+    <div class="field"><label style="font-size:12px;color:var(--text)"><input type="checkbox" id="f-star"> ★ Star notes only</label></div>
 
     <button class="btn" id="btn-apply">Apply filters</button>
     <button class="btn ghost" id="btn-clear">Clear all</button>
@@ -152,10 +152,10 @@
 
   <section class="content">
     <div class="estimate-panel">
-      <div class="grp"><span class="lbl">Current Estimated Price</span><span class="num" id="est-median">\u2014</span></div>
-      <div class="grp sub"><span class="lbl">Mean</span><span class="num" id="est-mean">\u2014</span></div>
-      <div class="grp sub"><span class="lbl">Low / High</span><span class="num" id="est-range">\u2014</span></div>
-      <div class="grp sub"><span class="lbl">Sample size</span><span class="num" id="est-n">\u2014</span></div>
+      <div class="grp"><span class="lbl">Current Estimated Price</span><span class="num" id="est-median">—</span></div>
+      <div class="grp sub"><span class="lbl">Mean</span><span class="num" id="est-mean">—</span></div>
+      <div class="grp sub"><span class="lbl">Low / High</span><span class="num" id="est-range">—</span></div>
+      <div class="grp sub"><span class="lbl">Sample size</span><span class="num" id="est-n">—</span></div>
       <div style="margin-left:auto;color:var(--muted);font-size:11px;max-width:240px">Median used; mitigates outliers like census-grade rarities.</div>
     </div>
 
@@ -172,20 +172,20 @@
             <th data-sort="denomination">Denom</th>
             <th data-sort="type_class">Type</th>
             <th data-sort="grade_numeric">Grading</th>
-            <th data-sort="is_star_note" style="width:30px">\u2605</th>
+            <th data-sort="is_star_note" style="width:30px">★</th>
             <th data-sort="price_realized" class="sort-desc">Sold</th>
             <th data-sort="sold_on">Date</th>
           </tr>
         </thead>
-        <tbody id="rows"><tr><td colspan="10" class="empty">Loading\u2026</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
 
     <div class="footer-bar">
-      <span id="page-info">\u2014</span>
+      <span id="page-info">—</span>
       <div>
-        <button id="btn-prev">\u2039 Prev</button>
-        <button id="btn-next">Next \u203A</button>
+        <button id="btn-prev">‹ Prev</button>
+        <button id="btn-next">Next ›</button>
       </div>
     </div>
   </section>
@@ -230,14 +230,14 @@ const state = {
 };
 
 const $ = (s) => document.querySelector(s);
-const fmt$ = (n) => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
-const fmtDate = (s) => !s ? '—' : new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+const fmt$ = (n) => n == null ? 'â' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+const fmtDate = (s) => !s ? 'â' : new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
 const esc = (s) => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function buildSeries(row) {
   const y = row.series_date || '';
   const t = (row.series_type || '').trim();
-  if (!y && !t) return '—';
+  if (!y && !t) return 'â';
   const m = t.match(/([A-Z])s*$/);
   return y + (m ? m[1] : '');
 }
@@ -246,7 +246,7 @@ function buildGradeCell(row) {
   const co = row.grading_company && row.grading_company !== 'unknown' ? row.grading_company : '';
   const gr = row.grade_numeric != null ? row.grade_numeric : (row.grade_raw || '');
   const pq = row.ppq_epq && row.ppq_epq !== 'none' ? row.ppq_epq : '';
-  if (!co && gr === '' && !pq) return '—';
+  if (!co && gr === '' && !pq) return 'â';
   return '<div class="grade-cell">'
     + (co ? '<span class="co">' + esc(co) + '</span>' : '')
     + (gr !== '' ? '<span class="gr">' + esc(gr) + '</span>' : '')
@@ -256,7 +256,7 @@ function buildGradeCell(row) {
 
 function typeLabel(tc) {
   const m = TYPE_CLASSES.find(([k]) => k === tc);
-  return m ? m[1] : (tc || '—');
+  return m ? m[1] : (tc || 'â');
 }
 
 function applyFiltersToParams(p) {
@@ -345,7 +345,7 @@ async function loadTotalCount() {
 }
 
 async function loadRows() {
-  $('#rows').innerHTML = '<tr><td colspan="10" class="empty">Loading…</td></tr>';
+  $('#rows').innerHTML = '<tr><td colspan="10" class="empty">Loadingâ¦</td></tr>';
   try {
     clearError();
     const { data, total } = await sbFetch(buildRowsQuery(), { count: true });
@@ -365,9 +365,9 @@ async function loadStats() {
     const { data } = await sbFetch(buildStatsQuery());
     const prices = data.map(r => Number(r.price_realized)).filter(n => Number.isFinite(n));
     if (!prices.length) {
-      $('#est-median').textContent = '—';
-      $('#est-mean').textContent = '—';
-      $('#est-range').textContent = '—';
+      $('#est-median').textContent = 'â';
+      $('#est-mean').textContent = 'â';
+      $('#est-range').textContent = 'â';
       $('#est-n').textContent = '0';
       return;
     }
@@ -393,17 +393,17 @@ function renderRows(rows) {
       ? '<img src="' + esc(r.thumbnail_url) + '" loading="lazy" alt="">'
       : '<span class="placeholder"></span>';
     const titleCell = r.lot_url
-      ? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || '—') + '</a>'
-      : esc(r.title || '—');
+      ? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || 'â') + '</a>'
+      : esc(r.title || 'â');
     return '<tr>'
       + '<td class="thumb">' + thumb + '</td>'
       + '<td class="title" title="' + esc(r.title || '') + '">' + titleCell + '</td>'
-      + '<td>' + esc(r.friedberg_number || '—') + '</td>'
+      + '<td>' + esc(r.friedberg_number || 'â') + '</td>'
       + '<td>' + esc(buildSeries(r)) + '</td>'
-      + '<td>' + esc(r.denomination || '—') + '</td>'
+      + '<td>' + esc(r.denomination || 'â') + '</td>'
       + '<td>' + esc(typeLabel(r.type_class)) + '</td>'
       + '<td>' + buildGradeCell(r) + '</td>'
-      + '<td class="star">' + (r.is_star_note ? '★' : '') + '</td>'
+      + '<td class="star">' + (r.is_star_note ? 'â' : '') + '</td>'
       + '<td class="price">' + fmt$(r.price_realized) + '</td>'
       + '<td class="date">' + fmtDate(r.sold_on) + '</td>'
       + '</tr>';
@@ -413,7 +413,7 @@ function renderRows(rows) {
 function updatePager() {
   const from = state.totalMatching === 0 ? 0 : state.page * PAGE + 1;
   const to   = Math.min((state.page + 1) * PAGE, state.totalMatching);
-  $('#page-info').textContent = 'Showing ' + from.toLocaleString() + '–' + to.toLocaleString() + ' of ' + state.totalMatching.toLocaleString();
+  $('#page-info').textContent = 'Showing ' + from.toLocaleString() + 'â' + to.toLocaleString() + ' of ' + state.totalMatching.toLocaleString();
   $('#btn-prev').disabled = state.page === 0;
   $('#btn-next').disabled = (state.page + 1) * PAGE >= state.totalMatching;
 }
