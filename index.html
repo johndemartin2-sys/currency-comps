@@ -44,7 +44,7 @@
   tbody tr:hover{background:var(--panel)}
   td.thumb img{width:52px;height:26px;object-fit:cover;border-radius:3px;background:#000;display:block}
   td.thumb .placeholder{width:52px;height:26px;background:var(--panel2);border-radius:3px;display:inline-block}
-  td.title{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  td.title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   td.title a{color:var(--text);text-decoration:none}
   td.title a:hover{color:var(--accent);text-decoration:underline}
   td.price{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
@@ -231,7 +231,7 @@ const state = {
 
 const $ = (s) => document.querySelector(s);
 const fmt$ = (n) => n == null ? '\u2014' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
-const fmtDate = (s) => !s ? '\u2014' : new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+const fmtDate = (s) => { if (!s) return '\u2014'; const d = new Date(s + (s.length === 10 ? 'T00:00:00' : '')); const mo = d.toLocaleDateString('en-US', { month:'short' }); return mo + ' ' + d.getDate() + " '" + String(d.getFullYear()).slice(2); };
 const esc = (s) => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function buildSeries(row) {
