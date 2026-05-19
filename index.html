@@ -5,88 +5,106 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Currency Comps</title>
 <style>
-  :root {
-    --bg:#0f1115; --panel:#171a21; --panel2:#1f242e; --border:#2a3140;
-    --text:#e7ecf3; --muted:#9aa3b2; --accent:#6aa8ff; --accent2:#43d39e;
-    --warn:#ffb454; --danger:#ff6b6b;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-  header h1{margin:0;font-size:18px;font-weight:600}
-  .stat-pill{background:var(--panel);border:1px solid var(--border);padding:6px 10px;border-radius:8px;color:var(--muted);font-size:12px}
-  .stat-pill b{color:var(--text);font-weight:600}
-  main{display:grid;grid-template-columns:300px 1fr;gap:0;height:calc(100vh - 53px)}
-  aside{background:var(--panel);border-right:1px solid var(--border);padding:14px;overflow-y:auto}
-  aside h3{margin:14px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-  aside h3:first-child{margin-top:0}
-  .field{margin-bottom:8px}
-  .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
-  .field input,.field select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px;font:inherit}
-  .field input:focus,.field select:focus{outline:1px solid var(--accent);border-color:var(--accent)}
-  .row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-  .chip-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
-  .chip{padding:3px 8px;border-radius:99px;background:var(--panel2);border:1px solid var(--border);font-size:11px;cursor:pointer;user-select:none}
-  .chip.on{background:var(--accent);border-color:var(--accent);color:#0b1a30;font-weight:600}
-  button.btn{background:var(--accent);color:#0b1a30;border:0;padding:8px 12px;border-radius:6px;font-weight:600;cursor:pointer;width:100%;margin-top:8px}
-  button.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
-  section.content{display:flex;flex-direction:column;overflow:hidden}
-  .estimate-panel{padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;gap:22px;align-items:center;flex-wrap:wrap}
-  .estimate-panel .num{font-size:22px;font-weight:700;color:var(--accent2)}
-  .estimate-panel .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
-  .estimate-panel .grp{display:flex;flex-direction:column}
-  .estimate-panel .grp.sub .num{color:var(--text);font-size:16px;font-weight:600}
-  table{width:100%;border-collapse:collapse}
-  thead th{position:sticky;top:0;background:var(--panel2);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
-  thead th.sort-asc::after{content:" ▲";color:var(--accent)}
-  thead th.sort-desc::after{content:" ▼";color:var(--accent)}
-  tbody td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
-  tbody tr:hover{background:var(--panel)}
-  td.thumb img{width:52px;height:26px;object-fit:cover;border-radius:3px;background:#000;display:block}
-  td.thumb .placeholder{width:52px;height:26px;background:var(--panel2);border-radius:3px;display:inline-block}
-  td.title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  td.title a{color:var(--text);text-decoration:none}
-  td.title a:hover{color:var(--accent);text-decoration:underline}
-  td.price{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
-  td.date{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
-  .grade-cell{display:flex;flex-direction:column;line-height:1.15}
-  .grade-cell .co{font-size:10px;color:var(--muted);text-transform:uppercase}
-  .grade-cell .gr{font-weight:600}
-  .grade-cell .pq{font-size:10px;color:var(--accent2)}
-  .star{color:var(--warn);font-size:16px;text-align:center}
-  .table-wrap{flex:1;overflow:auto}
-  .footer-bar{padding:10px 18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--panel);font-size:12px;color:var(--muted)}
-  .footer-bar button{background:var(--panel2);color:var(--text);border:1px solid var(--border);padding:5px 10px;border-radius:5px;cursor:pointer;margin-left:6px}
-  .footer-bar button:disabled{opacity:.4;cursor:not-allowed}
-  .empty{padding:40px;text-align:center;color:var(--muted)}
-  .err{padding:14px 20px;background:#3b1518;border-left:3px solid var(--danger);color:#ffb4b4;margin:14px 18px;border-radius:6px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap}
+:root {
+--bg:#0f1115; --panel:#171a21; --panel2:#1f242e; --border:#2a3140;
+--text:#e7ecf3; --muted:#9aa3b2; --accent:#6aa8ff; --accent2:#43d39e;
+--warn:#ffb454; --danger:#ff6b6b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{margin:0;font-size:18px;font-weight:600}
+.stat-pill{background:var(--panel);border:1px solid var(--border);padding:6px 10px;border-radius:8px;color:var(--muted);font-size:12px}
+.stat-pill b{color:var(--text);font-weight:600}
+.stat-pill.ha b{color:#ff8a4c}
+.stat-pill.sb b{color:#6aa8ff}
+.heartbeat{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent2);margin-left:6px;vertical-align:middle;opacity:.3;transition:opacity .3s}
+.heartbeat.on{opacity:1}
+.src-select{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font:inherit;font-size:12px}
+main{display:grid;grid-template-columns:300px 1fr;gap:0;height:calc(100vh - 53px)}
+aside{background:var(--panel);border-right:1px solid var(--border);padding:14px;overflow-y:auto}
+aside h3{margin:14px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+aside h3:first-child{margin-top:0}
+.field{margin-bottom:8px}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+.field input,.field select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px;font:inherit}
+.field input:focus,.field select:focus{outline:1px solid var(--accent);border-color:var(--accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.chip-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.chip{padding:3px 8px;border-radius:99px;background:var(--panel2);border:1px solid var(--border);font-size:11px;cursor:pointer;user-select:none}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#0b1a30;font-weight:600}
+button.btn{background:var(--accent);color:#0b1a30;border:0;padding:8px 12px;border-radius:6px;font-weight:600;cursor:pointer;width:100%;margin-top:8px}
+button.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+section.content{display:flex;flex-direction:column;overflow:hidden}
+.estimate-panel{padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.estimate-panel .num{font-size:22px;font-weight:700;color:var(--accent2)}
+.estimate-panel .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.estimate-panel .grp{display:flex;flex-direction:column}
+.estimate-panel .grp.sub .num{color:var(--text);font-size:16px;font-weight:600}
+#grade-chart{height:54px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;display:block}
+.chart-wrap{display:flex;flex-direction:column;gap:3px}
+.chart-wrap .lbl-row{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
+table{width:100%;border-collapse:collapse}
+thead th{position:sticky;top:0;background:var(--panel2);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
+thead th.sort-asc::after{content:" ▲";color:var(--accent)}
+thead th.sort-desc::after{content:" ▼";color:var(--accent)}
+tbody td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:hover{background:var(--panel);cursor:pointer}
+td.thumb img{width:52px;height:26px;object-fit:cover;border-radius:3px;background:#000;display:block}
+td.thumb .placeholder{width:52px;height:26px;background:var(--panel2);border-radius:3px;display:inline-block}
+td.title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.title a{color:var(--text);text-decoration:none}
+td.title a:hover{color:var(--accent);text-decoration:underline}
+td.price{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+td.date{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+td.src{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td.src.ha{color:#ff8a4c}
+td.src.sb{color:#6aa8ff}
+.grade-cell{display:flex;flex-direction:column;line-height:1.15}
+.grade-cell .co{font-size:10px;color:var(--muted);text-transform:uppercase}
+.grade-cell .gr{font-weight:600}
+.grade-cell .pq{font-size:10px;color:var(--accent2)}
+.star{color:var(--warn);font-size:16px;text-align:center}
+.table-wrap{flex:1;overflow:auto}
+.footer-bar{padding:10px 18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--panel);font-size:12px;color:var(--muted);gap:10px}
+.footer-bar button{background:var(--panel2);color:var(--text);border:1px solid var(--border);padding:5px 10px;border-radius:5px;cursor:pointer;margin-left:6px}
+.footer-bar button:disabled{opacity:.4;cursor:not-allowed}
+.footer-bar button.csv{background:var(--accent2);color:#0b1a30;border-color:var(--accent2);font-weight:600}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+.err{padding:14px 20px;background:#3b1518;border-left:3px solid var(--danger);color:#ffb4b4;margin:14px 18px;border-radius:6px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap}
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Currency Comps</h1>
-  <span class="stat-pill">Source: <b>Stack's Bowers Archive</b></span>
-  <span class="stat-pill">Matching: <b id="match-count">—</b></span>
-  <span class="stat-pill">Total in DB: <b id="total-count">—</b></span>
-  <span style="margin-left:auto;color:var(--muted);font-size:11px">v2.0</span>
+<h1>Currency Comps</h1>
+<select id="f-source" class="src-select" title="Filter by source">
+<option value="">All sources</option>
+<option value="heritage_auctions">Heritage Auctions</option>
+<option value="stacks_bowers">Stack's Bowers</option>
+</select>
+<span class="stat-pill ha">HA: <b id="ha-count">—</b></span>
+<span class="stat-pill sb">SB: <b id="sb-count">—</b></span>
+<span class="stat-pill">Total: <b id="total-count">—</b><span class="heartbeat" id="heartbeat"></span></span>
+<span class="stat-pill">Matching: <b id="match-count">—</b></span>
+<span style="margin-left:auto;color:var(--muted);font-size:11px">v2.1</span>
 </header>
 
 <main>
-  <aside>
-    <h3>Search</h3>
-    <div class="field"><label>Title contains</label><input id="f-q" placeholder="e.g. grand watermelon"></div>
-    <div class="field"><label>Friedberg #</label><input id="f-fr" placeholder="e.g. 379a"></div>
+<aside>
+<h3>Search</h3>
+<div class="field"><label>Title contains</label><input id="f-q" placeholder="e.g. grand watermelon"></div>
+<div class="field"><label>Friedberg #</label><input id="f-fr" placeholder="e.g. 379a"></div>
 
-    <h3>Series</h3>
-    <div class="row2">
-      <div class="field"><label>Year</label><input id="f-year" placeholder="1934"></div>
-      <div class="field"><label>Letter</label><input id="f-letter" placeholder="A" maxlength="1"></div>
-    </div>
+<h3>Series</h3>
+<div class="row2">
+<div class="field"><label>Year</label><input id="f-year" placeholder="1934"></div>
+<div class="field"><label>Letter</label><input id="f-letter" placeholder="A" maxlength="1"></div>
+</div>
 
-    <h3>Denomination</h3>
-    <div class="field">
-      <select id="f-denom">
+<h3>Denomination</h3>
+<div class="field">
+<select id="f-denom">
 <option value="">— any —</option>
 <option value="1">$1</option>
 <option value="2">$2</option>
@@ -99,142 +117,148 @@
 <option value="1000">$1000</option>
 <option value="5000">$5000</option>
 <option value="10000">$10000</option>
-      </select>
-    </div>
+</select>
+</div>
 
-    <h3>Type / Category</h3>
-    <div class="chip-row" id="f-type-chips"></div>
+<h3>Type / Category</h3>
+<div class="chip-row" id="f-type-chips"></div>
 
-    <h3>Grading</h3>
-    <div class="row2">
-      <div class="field">
-        <label>Company</label>
-        <select id="f-grading-co">
-          <option value="">any</option>
-          <option value="PMG">PMG</option>
-          <option value="PCGS">PCGS</option>
-          <option value="NGC">NGC</option>
-          <option value="raw">raw</option>
-          <option value="unknown">unknown</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>PPQ/EPQ</label>
-        <select id="f-pq">
-          <option value="">any</option>
-          <option value="PPQ">PPQ</option>
-          <option value="EPQ">EPQ</option>
-          <option value="none">none</option>
-        </select>
-      </div>
-    </div>
-    <div class="row2">
-      <div class="field"><label>Grade min</label><input id="f-grade-min" type="number" min="1" max="70"></div>
-      <div class="field"><label>Grade max</label><input id="f-grade-max" type="number" min="1" max="70"></div>
-    </div>
+<h3>Grading</h3>
+<div class="row2">
+<div class="field">
+<label>Company</label>
+<select id="f-grading-co">
+<option value="">any</option>
+<option value="PMG">PMG</option>
+<option value="PCGS">PCGS</option>
+<option value="NGC">NGC</option>
+<option value="raw">raw</option>
+<option value="unknown">unknown</option>
+</select>
+</div>
+<div class="field">
+<label>PPQ/EPQ</label>
+<select id="f-pq">
+<option value="">any</option>
+<option value="PPQ">PPQ</option>
+<option value="EPQ">EPQ</option>
+<option value="none">none</option>
+</select>
+</div>
+</div>
+<div class="row2">
+<div class="field"><label>Grade min</label><input id="f-grade-min" type="number" min="1" max="70"></div>
+<div class="field"><label>Grade max</label><input id="f-grade-max" type="number" min="1" max="70"></div>
+</div>
 
-    <h3>Sold Price</h3>
-    <div class="row2">
-      <div class="field"><label>Min $</label><input id="f-price-min" type="number"></div>
-      <div class="field"><label>Max $</label><input id="f-price-max" type="number"></div>
-    </div>
+<h3>Sold Price</h3>
+<div class="row2">
+<div class="field"><label>Min $</label><input id="f-price-min" type="number"></div>
+<div class="field"><label>Max $</label><input id="f-price-max" type="number"></div>
+</div>
 
-    <h3>Sold Date</h3>
-    <div class="row2">
-      <div class="field"><label>From</label><input id="f-date-from" type="date"></div>
-      <div class="field"><label>To</label><input id="f-date-to" type="date"></div>
-    </div>
+<h3>Sold Date</h3>
+<div class="row2">
+<div class="field"><label>From</label><input id="f-date-from" type="date"></div>
+<div class="field"><label>To</label><input id="f-date-to" type="date"></div>
+</div>
 
-    <h3>National Banks <span style="color:var(--muted);font-weight:normal;font-size:10px;text-transform:none;letter-spacing:0">(enrichment pending)</span></h3>
-    <div class="row2">
-      <div class="field"><label>State</label><input id="f-state" placeholder="OH" maxlength="2"></div>
-      <div class="field"><label>Charter #</label><input id="f-charter" placeholder="2961"></div>
-    </div>
+<h3>National Banks <span style="color:var(--muted);font-weight:normal;font-size:10px;text-transform:none;letter-spacing:0">(enrichment pending)</span></h3>
+<div class="row2">
+<div class="field"><label>State</label><input id="f-state" placeholder="OH" maxlength="2"></div>
+<div class="field"><label>Charter #</label><input id="f-charter" placeholder="2961"></div>
+</div>
 
-    <h3>Flags</h3>
-    <div class="field"><label style="font-size:12px;color:var(--text)"><input type="checkbox" id="f-star"> ★ Star notes only</label></div>
+<h3>Flags</h3>
+<div class="field"><label style="font-size:12px;color:var(--text)"><input type="checkbox" id="f-star"> ★ Star notes only</label></div>
 
-    <button class="btn" id="btn-apply">Apply filters</button>
-    <button class="btn ghost" id="btn-clear">Clear all</button>
-  </aside>
+<button class="btn" id="btn-apply">Apply filters</button>
+<button class="btn ghost" id="btn-clear">Clear all</button>
+</aside>
 
-  <section class="content">
-    <div class="estimate-panel">
-      <div class="grp"><span class="lbl">Current Estimated Price</span><span class="num" id="est-median">—</span></div>
-      <div class="grp sub"><span class="lbl">Mean</span><span class="num" id="est-mean">—</span></div>
-      <div class="grp sub"><span class="lbl">Low / High</span><span class="num" id="est-range">—</span></div>
-      <div class="grp sub"><span class="lbl">Sample size</span><span class="num" id="est-n">—</span></div>
-      <div style="margin-left:auto;color:var(--muted);font-size:11px;max-width:240px">Median used; mitigates outliers like census-grade rarities.</div>
-    </div>
+<section class="content">
+<div class="estimate-panel">
+<div class="grp"><span class="lbl">Current Estimated Price</span><span class="num" id="est-median">—</span></div>
+<div class="grp sub"><span class="lbl">Mean</span><span class="num" id="est-mean">—</span></div>
+<div class="grp sub"><span class="lbl">Low / High</span><span class="num" id="est-range">—</span></div>
+<div class="grp sub"><span class="lbl">Sample size</span><span class="num" id="est-n">—</span></div>
+<div class="chart-wrap" style="flex:1;min-width:240px;max-width:480px">
+<div class="lbl-row"><span>Median by grade</span><span id="chart-info">—</span></div>
+<canvas id="grade-chart" width="480" height="54"></canvas>
+</div>
+</div>
 
-    <div id="err-host"></div>
+<div id="err-host"></div>
 
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th data-sort="thumbnail_url" style="width:60px"></th>
-            <th data-sort="title">Title</th>
-            <th data-sort="friedberg_number_normalized">Friedberg</th>
-            <th data-sort="series_date">Series</th>
-            <th data-sort="denomination">Denom</th>
-            <th data-sort="type_class">Type</th>
-            <th data-sort="grade_numeric">Grading</th>
-            <th data-sort="is_star_note" style="width:30px">★</th>
-            <th data-sort="price_realized" class="sort-desc">Sold</th>
-            <th data-sort="sold_on">Date</th>
-          </tr>
-        </thead>
-        <tbody id="rows"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
-      </table>
-    </div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th data-sort="thumbnail_url" style="width:60px"></th>
+<th data-sort="source" style="width:40px">Src</th>
+<th data-sort="title">Title</th>
+<th data-sort="friedberg_number_normalized">Friedberg</th>
+<th data-sort="series_date">Series</th>
+<th data-sort="denomination">Denom</th>
+<th data-sort="type_class">Type</th>
+<th data-sort="grade_numeric">Grading</th>
+<th data-sort="is_star_note" style="width:30px">★</th>
+<th data-sort="price_realized" class="sort-desc">Sold</th>
+<th data-sort="sold_on">Date</th>
+</tr>
+</thead>
+<tbody id="rows"><tr><td colspan="11" class="empty">Loading…</td></tr></tbody>
+</table>
+</div>
 
-    <div class="footer-bar">
-      <span id="page-info">—</span>
-      <div>
-        <button id="btn-prev">‹ Prev</button>
-        <button id="btn-next">Next ›</button>
-      </div>
-    </div>
-  </section>
+<div class="footer-bar">
+<span id="page-info">—</span>
+<div>
+<button id="btn-csv" class="csv">⬇ Export CSV</button>
+<button id="btn-prev">‹ Prev</button>
+<button id="btn-next">Next ›</button>
+</div>
+</div>
+</section>
 </main>
 
 <script>
 // Config - Comp Tool v1.0 Supabase
 const SB_URL = 'https://wqizwluccqqfkedpgvve.supabase.co';
 const SB_KEY = 'sb_publishable_9DiOeDQje6yiSEITD7WUrw_S2Q-2xyS';
-const TABLE  = 'lots_currency';
-const PAGE   = 50;
+const TABLE = 'lots_currency';
+const PAGE = 50;
 
 const TYPE_CLASSES = [
-  ['large_size','Large Size'],
-  ['small_size','Small Size'],
-  ['federal_reserve_note','Federal Reserve'],
-  ['silver_certificate','Silver Cert'],
-  ['gold_certificate','Gold Cert'],
-  ['legal_tender','Legal Tender'],
-  ['national_bank_note','National Bank'],
-  ['treasury_note','Treasury'],
-  ['federal_reserve_bank_note','FRBN'],
-  ['demand_note','Demand'],
-  ['interest_bearing_note','Interest Bearing'],
-  ['refunding_certificate','Refunding'],
-  ['fractional','Fractional'],
-  ['encased_postage','Encased Postage'],
-  ['confederate','Confederate'],
-  ['colonial_continental','Colonial'],
-  ['obsolete','Obsolete'],
-  ['world_currency','World'],
-  ['mpc_military','MPC / Military'],
-  ['error_note','Error'],
-  ['other','Other'],
+['large_size','Large Size'],
+['small_size','Small Size'],
+['federal_reserve_note','Federal Reserve'],
+['silver_certificate','Silver Cert'],
+['gold_certificate','Gold Cert'],
+['legal_tender','Legal Tender'],
+['national_bank_note','National Bank'],
+['treasury_note','Treasury'],
+['federal_reserve_bank_note','FRBN'],
+['demand_note','Demand'],
+['interest_bearing_note','Interest Bearing'],
+['refunding_certificate','Refunding'],
+['fractional','Fractional'],
+['encased_postage','Encased Postage'],
+['confederate','Confederate'],
+['colonial_continental','Colonial'],
+['obsolete','Obsolete'],
+['world_currency','World'],
+['mpc_military','MPC / Military'],
+['error_note','Error'],
+['other','Other'],
 ];
 
 const state = {
-  page: 0,
-  sort: { col: 'sold_on', dir: 'desc' },
-  selectedTypes: new Set(),
-  totalMatching: 0,
+page: 0,
+sort: { col: 'sold_on', dir: 'desc' },
+selectedTypes: new Set(),
+totalMatching: 0,
+lastStatsRows: [],
 };
 
 const $ = (s) => document.querySelector(s);
@@ -243,248 +267,352 @@ const fmtDate = (s) => { if (!s) return '\u2014'; const d = new Date(s + (s.leng
 const esc = (s) => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function buildSeries(row) {
-  const y = row.series_date || '';
-  const t = (row.series_type || '').trim();
-  if (!y && !t) return '\u2014';
-  const m = t.match(/([A-Z])s*$/);
-  return y + (m ? m[1] : '');
+const y = row.series_date || '';
+const t = (row.series_type || '').trim();
+if (!y && !t) return '\u2014';
+return y;
 }
 
 function buildGradeCell(row) {
-  const co = row.grading_company && row.grading_company !== 'unknown' ? row.grading_company : '';
-  const gr = row.grade_numeric != null ? row.grade_numeric : (row.grade_raw || '');
-  const pq = row.ppq_epq && row.ppq_epq !== 'none' ? row.ppq_epq : '';
-  if (!co && gr === '' && !pq) return '\u2014';
-  return '<div class="grade-cell">'
-    + (co ? '<span class="co">' + esc(co) + '</span>' : '')
-    + (gr !== '' ? '<span class="gr">' + esc(gr) + '</span>' : '')
-    + (pq ? '<span class="pq">' + esc(pq) + '</span>' : '')
-    + '</div>';
+const co = row.grading_company && row.grading_company !== 'unknown' ? row.grading_company : '';
+const gr = row.grade_numeric != null ? row.grade_numeric : (row.grade_raw || '');
+const pq = row.ppq_epq && row.ppq_epq !== 'none' ? row.ppq_epq : '';
+if (!co && gr === '' && !pq) return '\u2014';
+return '<div class="grade-cell">'
++ (co ? '<span class="co">' + esc(co) + '</span>' : '')
++ (gr !== '' ? '<span class="gr">' + esc(gr) + '</span>' : '')
++ (pq ? '<span class="pq">' + esc(pq) + '</span>' : '')
++ '</div>';
 }
 
 function typeLabel(tc) {
-  const m = TYPE_CLASSES.find(([k]) => k === tc);
-  return m ? m[1] : (tc || '\u2014');
+const m = TYPE_CLASSES.find(([k]) => k === tc);
+return m ? m[1] : (tc || '\u2014');
+}
+
+function srcLabel(s) {
+if (s === 'heritage_auctions') return { cls: 'ha', txt: 'HA' };
+if (s === 'stacks_bowers') return { cls: 'sb', txt: 'SB' };
+return { cls: '', txt: s || '\u2014' };
 }
 
 function applyFiltersToParams(p) {
-  const q       = $('#f-q').value.trim();
-  const fr      = $('#f-fr').value.trim();
-  const year    = $('#f-year').value.trim();
-  const letter  = $('#f-letter').value.trim().toUpperCase();
-  const denom   = $('#f-denom').value;
-  const gco     = $('#f-grading-co').value;
-  const pq      = $('#f-pq').value;
-  const gmin    = $('#f-grade-min').value;
-  const gmax    = $('#f-grade-max').value;
-  const pmin    = $('#f-price-min').value;
-  const pmax    = $('#f-price-max').value;
-  const dfrom   = $('#f-date-from').value;
-  const dto     = $('#f-date-to').value;
-  const star    = $('#f-star').checked;
-  const stCode  = $('#f-state').value.trim().toUpperCase();
-  const charter = $('#f-charter').value.trim();
+const q = $('#f-q').value.trim();
+const fr = $('#f-fr').value.trim();
+const year = $('#f-year').value.trim();
+const letter = $('#f-letter').value.trim().toUpperCase();
+const denom = $('#f-denom').value;
+const gco = $('#f-grading-co').value;
+const pq = $('#f-pq').value;
+const gmin = $('#f-grade-min').value;
+const gmax = $('#f-grade-max').value;
+const pmin = $('#f-price-min').value;
+const pmax = $('#f-price-max').value;
+const dfrom = $('#f-date-from').value;
+const dto = $('#f-date-to').value;
+const star = $('#f-star').checked;
+const stCode = $('#f-state').value.trim().toUpperCase();
+const charter = $('#f-charter').value.trim();
+const source = $('#f-source').value;
 
-  if (q)       p.append('title', 'ilike.*' + q + '*');
-  if (fr)      p.append('friedberg_number_normalized', 'ilike.*' + fr.toLowerCase().replace(/\s/g,'') + '*');
-  if (year)    p.append('series_date', 'eq.' + year);
-  if (letter)  p.append('series_type', 'ilike.*' + letter + '*');
-  if (denom)   p.append('denomination', 'eq.' + denom);
-  if (gco)     p.append('grading_company', 'eq.' + gco);
-  if (pq)      p.append('ppq_epq', 'eq.' + pq);
-  if (gmin)    p.append('grade_numeric', 'gte.' + gmin);
-  if (gmax)    p.append('grade_numeric', 'lte.' + gmax);
-  if (pmin)    p.append('price_realized', 'gte.' + pmin);
-  if (pmax)    p.append('price_realized', 'lte.' + pmax);
-  if (dfrom)   p.append('sold_on', 'gte.' + dfrom);
-  if (dto)     p.append('sold_on', 'lte.' + dto);
-  if (star)    p.append('is_star_note', 'eq.true');
-  if (stCode)  p.append('state_code', 'eq.' + stCode);
-  if (charter) p.append('charter_number', 'eq.' + charter);
-  if (state.selectedTypes.size) p.append('type_class', 'in.(' + [...state.selectedTypes].join(',') + ')');
+if (source) p.append('source', 'eq.' + source);
+if (q) p.append('title', 'ilike.*' + q + '*');
+if (fr) p.append('friedberg_number_normalized', 'ilike.*' + fr.toLowerCase().replace(/\s/g,'') + '*');
+// B-fix: year now uses LIKE so 1934 matches 1934, 1934A, 1934B, 1934C
+if (year && letter) {
+p.append('series_date', 'like.' + year + letter);
+} else if (year) {
+p.append('series_date', 'like.' + year + '*');
+} else if (letter) {
+p.append('series_date', 'like.*' + letter);
+}
+if (denom) p.append('denomination', 'eq.' + denom);
+if (gco) p.append('grading_company', 'eq.' + gco);
+if (pq) p.append('ppq_epq', 'eq.' + pq);
+if (gmin) p.append('grade_numeric', 'gte.' + gmin);
+if (gmax) p.append('grade_numeric', 'lte.' + gmax);
+if (pmin) p.append('price_realized', 'gte.' + pmin);
+if (pmax) p.append('price_realized', 'lte.' + pmax);
+if (dfrom) p.append('sold_on', 'gte.' + dfrom);
+if (dto) p.append('sold_on', 'lte.' + dto);
+if (star) p.append('is_star_note', 'eq.true');
+if (stCode) p.append('state_code', 'eq.' + stCode);
+if (charter) p.append('charter_number', 'eq.' + charter);
+if (state.selectedTypes.size) p.append('type_class', 'in.(' + [...state.selectedTypes].join(',') + ')');
 }
 
 function buildRowsQuery() {
-  const p = new URLSearchParams();
-  p.set('select', 'id,title,lot_url,thumbnail_url,friedberg_number,friedberg_number_normalized,series_date,series_type,denomination,type_class,grading_company,grade_numeric,grade_raw,ppq_epq,is_star_note,price_realized,sold_on,state_code,charter_number');
-  applyFiltersToParams(p);
-  p.set('order', state.sort.col + '.' + state.sort.dir + '.nullslast');
-  p.set('limit', PAGE);
-  p.set('offset', state.page * PAGE);
-  return p.toString();
+const p = new URLSearchParams();
+p.set('select', 'id,source,title,lot_url,thumbnail_url,friedberg_number,friedberg_number_normalized,series_date,series_type,denomination,type_class,grading_company,grade_numeric,grade_raw,ppq_epq,is_star_note,price_realized,sold_on,state_code,charter_number');
+applyFiltersToParams(p);
+p.set('order', state.sort.col + '.' + state.sort.dir + '.nullslast');
+p.set('limit', PAGE);
+p.set('offset', state.page * PAGE);
+return p.toString();
 }
 
 function buildStatsQuery() {
-  const p = new URLSearchParams();
-  p.set('select', 'price_realized');
-  applyFiltersToParams(p);
-  p.append('price_realized', 'not.is.null');
-  p.set('order', 'price_realized.asc');
-  p.set('limit', 2000);
-  return p.toString();
+const p = new URLSearchParams();
+p.set('select', 'price_realized,grade_numeric');
+applyFiltersToParams(p);
+p.append('price_realized', 'not.is.null');
+p.set('order', 'price_realized.asc');
+p.set('limit', 2000);
+return p.toString();
 }
 
 async function sbFetch(qs, opts = {}) {
-  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
-  if (opts.count) headers.Prefer = 'count=exact';
-  const r = await fetch(SB_URL + '/rest/v1/' + TABLE + '?' + qs, { headers });
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error('Supabase ' + r.status + ': ' + t);
-  }
-  const data = await r.json();
-  let total = null;
-  if (opts.count) {
-    const cr = r.headers.get('content-range') || '';
-    const m = cr.match(/\/(\d+|\*)$/);
-    if (m) total = m[1] === '*' ? null : parseInt(m[1], 10);
-  }
-  return { data, total };
+const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
+if (opts.count) headers.Prefer = 'count=exact';
+const r = await fetch(SB_URL + '/rest/v1/' + TABLE + '?' + qs, { headers });
+if (!r.ok) {
+const t = await r.text();
+throw new Error('Supabase ' + r.status + ': ' + t);
+}
+const data = await r.json();
+let total = null;
+if (opts.count) {
+const cr = r.headers.get('content-range') || '';
+const m = cr.match(/\/(\d+|\*)$/);
+if (m) total = m[1] === '*' ? null : parseInt(m[1], 10);
+}
+return { data, total };
 }
 
 function showError(msg) { $('#err-host').innerHTML = '<div class="err">' + esc(msg) + '</div>'; }
 function clearError() { $('#err-host').innerHTML = ''; }
 
-async function loadTotalCount() {
-  try {
-    const { total } = await sbFetch('select=id&limit=1', { count: true });
-    $('#total-count').textContent = (total ?? 0).toLocaleString();
-  } catch (e) { showError(String(e.message || e)); }
+// E: live DB counter — poll HA / SB / total every 30s, heartbeat blip
+async function loadCounters() {
+const hb = $('#heartbeat');
+try {
+const [ha, sb, total] = await Promise.all([
+sbFetch('select=id&source=eq.heritage_auctions&limit=1', { count: true }),
+sbFetch('select=id&source=eq.stacks_bowers&limit=1', { count: true }),
+sbFetch('select=id&limit=1', { count: true }),
+]);
+$('#ha-count').textContent = (ha.total ?? 0).toLocaleString();
+$('#sb-count').textContent = (sb.total ?? 0).toLocaleString();
+$('#total-count').textContent = (total.total ?? 0).toLocaleString();
+hb.classList.add('on');
+setTimeout(() => hb.classList.remove('on'), 600);
+} catch (e) { /* silent */ }
 }
 
 async function loadRows() {
-  $('#rows').innerHTML = '<tr><td colspan="10" class="empty">Loading\u2026</td></tr>';
-  try {
-    clearError();
-    const { data, total } = await sbFetch(buildRowsQuery(), { count: true });
-    state.totalMatching = total ?? data.length;
-    $('#match-count').textContent = state.totalMatching.toLocaleString();
-    renderRows(data);
-    updatePager();
-    loadStats();
-  } catch (e) {
-    showError(String(e.message || e));
-    $('#rows').innerHTML = '<tr><td colspan="10" class="empty">Failed to load.</td></tr>';
-  }
+$('#rows').innerHTML = '<tr><td colspan="11" class="empty">Loading\u2026</td></tr>';
+try {
+clearError();
+const { data, total } = await sbFetch(buildRowsQuery(), { count: true });
+state.totalMatching = total ?? data.length;
+$('#match-count').textContent = state.totalMatching.toLocaleString();
+renderRows(data);
+updatePager();
+loadStats();
+} catch (e) {
+showError(String(e.message || e));
+$('#rows').innerHTML = '<tr><td colspan="11" class="empty">Failed to load.</td></tr>';
+}
 }
 
 async function loadStats() {
-  try {
-    const { data } = await sbFetch(buildStatsQuery());
-    const prices = data.map(r => Number(r.price_realized)).filter(n => Number.isFinite(n));
-    if (!prices.length) {
-      $('#est-median').textContent = '\u2014';
-      $('#est-mean').textContent = '\u2014';
-      $('#est-range').textContent = '\u2014';
-      $('#est-n').textContent = '0';
-      return;
-    }
-    prices.sort((a,b) => a - b);
-    const median = prices.length % 2 === 1
-      ? prices[(prices.length - 1) / 2]
-      : (prices[prices.length/2 - 1] + prices[prices.length/2]) / 2;
-    const mean = prices.reduce((s,n) => s + n, 0) / prices.length;
-    $('#est-median').textContent = fmt$(median);
-    $('#est-mean').textContent   = fmt$(mean);
-    $('#est-range').textContent  = fmt$(prices[0]) + ' / ' + fmt$(prices[prices.length-1]);
-    $('#est-n').textContent      = prices.length.toLocaleString() + (prices.length >= 2000 ? '+' : '');
-  } catch (e) {}
+try {
+const { data } = await sbFetch(buildStatsQuery());
+state.lastStatsRows = data;
+const prices = data.map(r => Number(r.price_realized)).filter(n => Number.isFinite(n));
+if (!prices.length) {
+$('#est-median').textContent = '\u2014';
+$('#est-mean').textContent = '\u2014';
+$('#est-range').textContent = '\u2014';
+$('#est-n').textContent = '0';
+drawGradeChart([]);
+return;
+}
+prices.sort((a,b) => a - b);
+const median = prices.length % 2 === 1
+? prices[(prices.length - 1) / 2]
+: (prices[prices.length/2 - 1] + prices[prices.length/2]) / 2;
+const mean = prices.reduce((s,n) => s + n, 0) / prices.length;
+$('#est-median').textContent = fmt$(median);
+$('#est-mean').textContent = fmt$(mean);
+$('#est-range').textContent = fmt$(prices[0]) + ' / ' + fmt$(prices[prices.length-1]);
+$('#est-n').textContent = prices.length.toLocaleString() + (prices.length >= 2000 ? '+' : '');
+drawGradeChart(data);
+} catch (e) {}
+}
+
+// C: price-per-grade chart — group by grade_numeric, plot median bars
+function drawGradeChart(rows) {
+const canvas = $('#grade-chart');
+if (!canvas) return;
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const w = canvas.clientWidth || 480;
+const h = canvas.clientHeight || 54;
+canvas.width = w * dpr; canvas.height = h * dpr;
+ctx.setTransform(dpr,0,0,dpr,0,0);
+ctx.clearRect(0,0,w,h);
+const byGrade = new Map();
+for (const r of rows) {
+const g = r.grade_numeric;
+const p = Number(r.price_realized);
+if (g == null || !Number.isFinite(p)) continue;
+if (!byGrade.has(g)) byGrade.set(g, []);
+byGrade.get(g).push(p);
+}
+if (!byGrade.size) {
+ctx.fillStyle = '#9aa3b2'; ctx.font = '11px sans-serif';
+ctx.fillText('no grade data', 10, h/2 + 4);
+$('#chart-info').textContent = '\u2014';
+return;
+}
+const grades = [...byGrade.keys()].sort((a,b) => a - b);
+const medians = grades.map(g => { const a = byGrade.get(g).sort((x,y) => x - y); return a.length % 2 ? a[(a.length-1)/2] : (a[a.length/2-1]+a[a.length/2])/2; });
+const maxP = Math.max(...medians);
+const minG = grades[0], maxG = grades[grades.length-1];
+const padX = 6, padY = 4, barW = Math.max(3, (w - padX*2) / grades.length - 2);
+ctx.fillStyle = '#43d39e';
+grades.forEach((g, i) => {
+const x = padX + i * ((w - padX*2) / grades.length);
+const barH = Math.max(2, (medians[i] / maxP) * (h - padY*2));
+ctx.fillRect(x, h - padY - barH, barW, barH);
+});
+$('#chart-info').textContent = 'grades ' + minG + '\u2013' + maxG + ' (' + grades.length + ' buckets)';
 }
 
 function renderRows(rows) {
-  if (!rows.length) {
-    $('#rows').innerHTML = '<tr><td colspan="10" class="empty">No matches. Try widening filters.</td></tr>';
-    return;
-  }
-  $('#rows').innerHTML = rows.map(r => {
-    const thumb = r.thumbnail_url
-      ? '<img src="' + esc(r.thumbnail_url) + '" loading="lazy" alt="">'
-      : '<span class="placeholder"></span>';
-    const titleCell = r.lot_url
-      ? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || '\u2014') + '</a>'
-      : esc(r.title || '\u2014');
-    return '<tr>'
-      + '<td class="thumb">' + thumb + '</td>'
-      + '<td class="title" title="' + esc(r.title || '') + '">' + titleCell + '</td>'
-      + '<td>' + esc(r.friedberg_number || '\u2014') + '</td>'
-      + '<td>' + esc(buildSeries(r)) + '</td>'
-      + '<td>' + esc(r.denomination || '\u2014') + '</td>'
-      + '<td>' + esc(typeLabel(r.type_class)) + '</td>'
-      + '<td>' + buildGradeCell(r) + '</td>'
-      + '<td class="star">' + (r.is_star_note ? '\u2605' : '') + '</td>'
-      + '<td class="price">' + fmt$(r.price_realized) + '</td>'
-      + '<td class="date">' + fmtDate(r.sold_on) + '</td>'
-      + '</tr>';
-  }).join('');
+if (!rows.length) {
+$('#rows').innerHTML = '<tr><td colspan="11" class="empty">No matches. Try widening filters.</td></tr>';
+return;
+}
+$('#rows').innerHTML = rows.map(r => {
+const thumb = r.thumbnail_url
+? '<img src="' + esc(r.thumbnail_url) + '" loading="lazy" alt="">'
+: '<span class="placeholder"></span>';
+const titleCell = r.lot_url
+? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || '\u2014') + '</a>'
+: esc(r.title || '\u2014');
+const src = srcLabel(r.source);
+return '<tr data-url="' + esc(r.lot_url || '') + '">'
++ '<td class="thumb">' + thumb + '</td>'
++ '<td class="src ' + src.cls + '">' + esc(src.txt) + '</td>'
++ '<td class="title" title="' + esc(r.title || '') + '">' + titleCell + '</td>'
++ '<td>' + esc(r.friedberg_number || '\u2014') + '</td>'
++ '<td>' + esc(buildSeries(r)) + '</td>'
++ '<td>' + esc(r.denomination || '\u2014') + '</td>'
++ '<td>' + esc(typeLabel(r.type_class)) + '</td>'
++ '<td>' + buildGradeCell(r) + '</td>'
++ '<td class="star">' + (r.is_star_note ? '\u2605' : '') + '</td>'
++ '<td class="price">' + fmt$(r.price_realized) + '</td>'
++ '<td class="date">' + fmtDate(r.sold_on) + '</td>'
++ '</tr>';
+}).join('');
 }
 
 function updatePager() {
-  const from = state.totalMatching === 0 ? 0 : state.page * PAGE + 1;
-  const to   = Math.min((state.page + 1) * PAGE, state.totalMatching);
-  $('#page-info').textContent = 'Showing ' + from.toLocaleString() + '\u2013' + to.toLocaleString() + ' of ' + state.totalMatching.toLocaleString();
-  $('#btn-prev').disabled = state.page === 0;
-  $('#btn-next').disabled = (state.page + 1) * PAGE >= state.totalMatching;
+const from = state.totalMatching === 0 ? 0 : state.page * PAGE + 1;
+const to = Math.min((state.page + 1) * PAGE, state.totalMatching);
+$('#page-info').textContent = 'Showing ' + from.toLocaleString() + '\u2013' + to.toLocaleString() + ' of ' + state.totalMatching.toLocaleString();
+$('#btn-prev').disabled = state.page === 0;
+$('#btn-next').disabled = (state.page + 1) * PAGE >= state.totalMatching;
 }
 
 function renderTypeChips() {
-  $('#f-type-chips').innerHTML = TYPE_CLASSES.map(([k, lbl]) =>
-    '<span class="chip" data-tc="' + k + '">' + esc(lbl) + '</span>'
-  ).join('');
-  $('#f-type-chips').addEventListener('click', e => {
-    const chip = e.target.closest('.chip');
-    if (!chip) return;
-    const tc = chip.dataset.tc;
-    if (state.selectedTypes.has(tc)) state.selectedTypes.delete(tc);
-    else state.selectedTypes.add(tc);
-    chip.classList.toggle('on');
-  });
+$('#f-type-chips').innerHTML = TYPE_CLASSES.map(([k, lbl]) =>
+'<span class="chip" data-tc="' + k + '">' + esc(lbl) + '</span>'
+).join('');
+$('#f-type-chips').addEventListener('click', e => {
+const chip = e.target.closest('.chip');
+if (!chip) return;
+const tc = chip.dataset.tc;
+if (state.selectedTypes.has(tc)) state.selectedTypes.delete(tc);
+else state.selectedTypes.add(tc);
+chip.classList.toggle('on');
+});
 }
 
 function wireSortHeaders() {
-  document.querySelectorAll('thead th[data-sort]').forEach(th => {
-    th.addEventListener('click', () => {
-      const col = th.dataset.sort;
-      if (!col) return;
-      if (state.sort.col === col) {
-        state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
-      } else {
-        state.sort.col = col;
-        state.sort.dir = 'desc';
-      }
-      document.querySelectorAll('thead th').forEach(h => h.classList.remove('sort-asc','sort-desc'));
-      th.classList.add('sort-' + state.sort.dir);
-      state.page = 0;
-      loadRows();
-    });
-  });
+document.querySelectorAll('thead th[data-sort]').forEach(th => {
+th.addEventListener('click', () => {
+const col = th.dataset.sort;
+if (!col) return;
+if (state.sort.col === col) {
+state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+} else {
+state.sort.col = col;
+state.sort.dir = 'desc';
+}
+document.querySelectorAll('thead th').forEach(h => h.classList.remove('sort-asc','sort-desc'));
+th.classList.add('sort-' + state.sort.dir);
+state.page = 0;
+loadRows();
+});
+});
+}
+
+// D: CSV export — pull current filtered set up to 5000 rows, download as CSV
+async function exportCsv() {
+const btn = $('#btn-csv');
+const oldTxt = btn.textContent;
+btn.textContent = 'Exporting\u2026'; btn.disabled = true;
+try {
+const p = new URLSearchParams();
+p.set('select', 'id,source,title,lot_url,friedberg_number,friedberg_number_normalized,series_date,denomination,type_class,grading_company,grade_numeric,grade_raw,ppq_epq,is_star_note,price_realized,sold_on,state_code,charter_number');
+applyFiltersToParams(p);
+p.set('order', state.sort.col + '.' + state.sort.dir + '.nullslast');
+p.set('limit', 5000);
+const r = await fetch(SB_URL + '/rest/v1/' + TABLE + '?' + p.toString(), { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+const data = await r.json();
+if (!data.length) { alert('No rows to export.'); return; }
+const cols = Object.keys(data[0]);
+const escCsv = v => { if (v == null) return ''; const s = String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+const lines = [cols.join(',')].concat(data.map(row => cols.map(c => escCsv(row[c])).join(',')));
+const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = 'currency-comps-' + new Date().toISOString().slice(0,10) + '.csv';
+a.click();
+setTimeout(() => URL.revokeObjectURL(url), 1000);
+} catch (e) { alert('Export failed: ' + (e.message || e)); }
+finally { btn.textContent = oldTxt; btn.disabled = false; }
 }
 
 function wireFilters() {
-  $('#btn-apply').addEventListener('click', () => { state.page = 0; loadRows(); });
-  $('#btn-clear').addEventListener('click', () => {
-    document.querySelectorAll('aside input, aside select').forEach(el => {
-      if (el.type === 'checkbox') el.checked = false; else el.value = '';
-    });
-    state.selectedTypes.clear();
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
-    state.page = 0;
-    loadRows();
-  });
-  document.querySelectorAll('aside input, aside select').forEach(el => {
-    el.addEventListener('keydown', e => { if (e.key === 'Enter') { state.page = 0; loadRows(); } });
-  });
-  $('#btn-prev').addEventListener('click', () => { if (state.page > 0) { state.page--; loadRows(); } });
-  $('#btn-next').addEventListener('click', () => {
-    if ((state.page + 1) * PAGE < state.totalMatching) { state.page++; loadRows(); }
-  });
+$('#btn-apply').addEventListener('click', () => { state.page = 0; loadRows(); });
+$('#btn-clear').addEventListener('click', () => {
+document.querySelectorAll('aside input, aside select').forEach(el => {
+if (el.type === 'checkbox') el.checked = false; else el.value = '';
+});
+state.selectedTypes.clear();
+document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+state.page = 0;
+loadRows();
+});
+$('#f-source').addEventListener('change', () => { state.page = 0; loadRows(); });
+document.querySelectorAll('aside input, aside select').forEach(el => {
+el.addEventListener('keydown', e => { if (e.key === 'Enter') { state.page = 0; loadRows(); } });
+});
+$('#btn-prev').addEventListener('click', () => { if (state.page > 0) { state.page--; loadRows(); } });
+$('#btn-next').addEventListener('click', () => {
+if ((state.page + 1) * PAGE < state.totalMatching) { state.page++; loadRows(); }
+});
+$('#btn-csv').addEventListener('click', exportCsv);
+// Click row to open lot URL
+$('#rows').addEventListener('click', e => {
+if (e.target.closest('a')) return;
+const tr = e.target.closest('tr[data-url]');
+if (tr && tr.dataset.url) window.open(tr.dataset.url, '_blank', 'noopener');
+});
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  renderTypeChips();
-  wireSortHeaders();
-  wireFilters();
-  loadTotalCount();
-  loadRows();
+renderTypeChips();
+wireSortHeaders();
+wireFilters();
+loadCounters();
+setInterval(loadCounters, 30000);
+loadRows();
 });
 </script>
 </body>
