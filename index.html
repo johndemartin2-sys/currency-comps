@@ -1,44 +1,75 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Currency Comps</title>
 <style>
-:root {
+:root[data-theme="dark"] {
 --bg:#0f1115; --panel:#171a21; --panel2:#1f242e; --border:#2a3140;
 --text:#e7ecf3; --muted:#9aa3b2; --accent:#6aa8ff; --accent2:#43d39e;
---warn:#ffb454; --danger:#ff6b6b;
+--warn:#ffb454; --danger:#ff6b6b; --row-hover:#1c2129;
+--accent-fg:#0b1a30;
+}
+:root[data-theme="light"] {
+--bg:#f6f7f9; --panel:#ffffff; --panel2:#eef1f5; --border:#d6dbe2;
+--text:#1a2230; --muted:#5b6577; --accent:#2563eb; --accent2:#0f8a5a;
+--warn:#b76a00; --danger:#c83532; --row-hover:#f1f4f8;
+--accent-fg:#ffffff;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;transition:background .2s,color .2s}
+header{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel)}
 header h1{margin:0;font-size:18px;font-weight:600}
-.stat-pill{background:var(--panel);border:1px solid var(--border);padding:6px 10px;border-radius:8px;color:var(--muted);font-size:12px}
+.stat-pill{background:var(--panel2);border:1px solid var(--border);padding:6px 10px;border-radius:8px;color:var(--muted);font-size:12px}
 .stat-pill b{color:var(--text);font-weight:600}
 .stat-pill .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent2);margin-right:4px;vertical-align:middle;animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
-main{display:grid;grid-template-columns:300px 1fr;gap:0;height:calc(100vh - 53px)}
-aside{background:var(--panel);border-right:1px solid var(--border);padding:14px;overflow-y:auto}
-aside h3{margin:14px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-aside h3:first-child{margin-top:0}
-.field{margin-bottom:8px}
-.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
-.field input,.field select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px;font:inherit}
-.field input:focus,.field select:focus{outline:1px solid var(--accent);border-color:var(--accent)}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.chip-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
-.chip{padding:3px 8px;border-radius:99px;background:var(--panel2);border:1px solid var(--border);font-size:11px;cursor:pointer;user-select:none}
-.chip.on{background:var(--accent);border-color:var(--accent);color:#0b1a30;font-weight:600}
-button.btn{background:var(--accent);color:#0b1a30;border:0;padding:8px 12px;border-radius:6px;font-weight:600;cursor:pointer;width:100%;margin-top:8px}
+.icon-btn{background:var(--panel2);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.icon-btn:hover{border-color:var(--accent)}
+
+main{display:flex;flex-direction:column;height:calc(100vh - 53px);overflow:hidden}
+
+/* TOP FILTER BAR */
+.filter-bar{background:var(--panel);border-bottom:1px solid var(--border);padding:10px 14px}
+.filter-row{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-end}
+.filter-row .field{display:flex;flex-direction:column;min-width:0}
+.filter-row .field label{font-size:10px;color:var(--muted);margin-bottom:2px;text-transform:uppercase;letter-spacing:.06em}
+.filter-row .field input,
+.filter-row .field select{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font:inherit;height:30px}
+.filter-row .field input:focus,
+.filter-row .field select:focus{outline:1px solid var(--accent);border-color:var(--accent)}
+.filter-row .field.w-q input{width:200px}
+.filter-row .field.w-fr input{width:90px}
+.filter-row .field.w-yr input{width:70px}
+.filter-row .field.w-lt input{width:50px}
+.filter-row .field.w-st input{width:55px}
+.filter-row .field.w-ch input{width:90px}
+.filter-row .field.w-src select{width:160px}
+.filter-row .field.w-dn select{width:90px}
+.filter-row .field.w-co select{width:90px}
+.filter-row .field.w-pq select{width:80px}
+.filter-row .field.w-num input{width:75px}
+.filter-row .field.w-date input{width:130px}
+.filter-row .star-toggle{display:inline-flex;align-items:center;gap:5px;font-size:12px;height:30px;padding:0 8px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;cursor:pointer;user-select:none;color:var(--text)}
+.filter-row .star-toggle input{margin:0}
+
+.chip-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.chip{padding:3px 9px;border-radius:99px;background:var(--panel2);border:1px solid var(--border);font-size:11px;cursor:pointer;user-select:none;color:var(--text)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+
+.button-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+button.btn{background:var(--accent);color:var(--accent-fg);border:0;padding:7px 14px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px}
 button.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
 button.btn.sec{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
-section.content{display:flex;flex-direction:column;overflow:hidden}
-.estimate-panel{padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;gap:22px;align-items:center;flex-wrap:wrap}
-.estimate-panel .num{font-size:22px;font-weight:700;color:var(--accent2)}
-.estimate-panel .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+button.btn:disabled{opacity:.5;cursor:not-allowed}
+
+section.content{display:flex;flex-direction:column;overflow:hidden;flex:1}
+.estimate-panel{padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.estimate-panel .num{font-size:20px;font-weight:700;color:var(--accent2)}
+.estimate-panel .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .estimate-panel .grp{display:flex;flex-direction:column}
-.estimate-panel .grp.sub .num{color:var(--text);font-size:16px;font-weight:600}
+.estimate-panel .grp.sub .num{color:var(--text);font-size:15px;font-weight:600}
 .gchart{display:flex;align-items:flex-end;gap:3px;height:42px;margin-left:auto;padding-left:14px;border-left:1px solid var(--border)}
 .gchart .bar-col{display:flex;flex-direction:column;align-items:center;gap:2px}
 .gchart .bar{width:18px;background:var(--accent);border-radius:2px 2px 0 0;position:relative;min-height:2px}
@@ -46,15 +77,16 @@ section.content{display:flex;flex-direction:column;overflow:hidden}
 .gchart .bar .tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#000;color:#fff;font-size:10px;padding:3px 6px;border-radius:3px;white-space:nowrap;display:none;pointer-events:none;z-index:5}
 .gchart .bar:hover .tip{display:block}
 .gchart .lab{font-size:9px;color:var(--muted)}
+
 table{width:100%;border-collapse:collapse}
 thead th{position:sticky;top:0;background:var(--panel2);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
 thead th.sort-asc::after{content:" ▲";color:var(--accent)}
 thead th.sort-desc::after{content:" ▼";color:var(--accent)}
 tbody td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
-tbody tr:hover{background:var(--panel)}
+tbody tr:hover{background:var(--row-hover)}
 td.thumb img{width:52px;height:26px;object-fit:cover;border-radius:3px;background:#000;display:block}
 td.thumb .placeholder{width:52px;height:26px;background:var(--panel2);border-radius:3px;display:inline-block}
-td.title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.title{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 td.title a{color:var(--text);text-decoration:none}
 td.title a:hover{color:var(--accent);text-decoration:underline}
 td.price{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
@@ -71,44 +103,57 @@ td.source{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spac
 .footer-bar button:disabled{opacity:.4;cursor:not-allowed}
 .empty{padding:40px;text-align:center;color:var(--muted)}
 .err{padding:14px 20px;background:#3b1518;border-left:3px solid var(--danger);color:#ffb4b4;margin:14px 18px;border-radius:6px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap}
+:root[data-theme="light"] .err{background:#fde8e8;color:#811919}
+
+details.adv-banks summary{cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:4px 0;list-style:none}
+details.adv-banks summary::-webkit-details-marker{display:none}
+details.adv-banks summary::before{content:"▸";display:inline-block;margin-right:5px;transition:transform .15s}
+details.adv-banks[open] summary::before{transform:rotate(90deg)}
+details.adv-banks .filter-row{margin-top:6px}
 </style>
 </head>
 <body>
-
 <header>
 <h1>Currency Comps</h1>
 <span class="stat-pill"><span class="dot"></span>HA: <b id="cnt-ha">—</b></span>
 <span class="stat-pill">SB: <b id="cnt-sb">—</b></span>
 <span class="stat-pill">Total: <b id="cnt-total">—</b></span>
 <span class="stat-pill">Matching: <b id="match-count">—</b></span>
-<span style="margin-left:auto;color:var(--muted);font-size:11px">v2.1</span>
+<button id="btn-theme" class="icon-btn" title="Toggle light/dark mode" aria-label="Toggle theme">☾</button>
+<span style="margin-left:auto;color:var(--muted);font-size:11px">v2.2</span>
 </header>
 
 <main>
-<aside>
-<h3>Source</h3>
-<div class="field">
+<div class="filter-bar">
+<div class="filter-row">
+<div class="field w-src">
+<label>Source</label>
 <select id="f-source">
 <option value="">All sources</option>
 <option value="heritage_auctions">Heritage Auctions</option>
 <option value="stacks_bowers">Stack's Bowers</option>
 </select>
 </div>
-
-<h3>Search</h3>
-<div class="field"><label>Title contains</label><input id="f-q" placeholder="e.g. grand watermelon"></div>
-<div class="field"><label>Friedberg #</label><input id="f-fr" placeholder="e.g. 379a"></div>
-
-<h3>Series</h3>
-<div class="row2">
-<div class="field"><label>Year</label><input id="f-year" placeholder="1934"></div>
-<div class="field"><label>Letter</label><input id="f-letter" placeholder="A" maxlength="1"></div>
+<div class="field w-q">
+<label>Title contains</label>
+<input id="f-q" placeholder="e.g. grand watermelon">
 </div>
-
-<h3>Denomination</h3>
-<div class="field">
+<div class="field w-fr">
+<label>Friedberg #</label>
+<input id="f-fr" placeholder="379a">
+</div>
+<div class="field w-yr">
+<label>Year</label>
+<input id="f-year" placeholder="1934">
+</div>
+<div class="field w-lt">
+<label>Letter</label>
+<input id="f-letter" placeholder="A" maxlength="1">
+</div>
+<div class="field w-dn">
+<label>Denom</label>
 <select id="f-denom">
-<option value="">— any —</option>
+<option value="">any</option>
 <option value="1">$1</option>
 <option value="2">$2</option>
 <option value="5">$5</option>
@@ -122,14 +167,8 @@ td.source{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spac
 <option value="10000">$10000</option>
 </select>
 </div>
-
-<h3>Type / Category</h3>
-<div class="chip-row" id="f-type-chips"></div>
-
-<h3>Grading</h3>
-<div class="row2">
-<div class="field">
-<label>Company</label>
+<div class="field w-co">
+<label>Co.</label>
 <select id="f-grading-co">
 <option value="">any</option>
 <option value="PMG">PMG</option>
@@ -139,7 +178,7 @@ td.source{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spac
 <option value="unknown">unknown</option>
 </select>
 </div>
-<div class="field">
+<div class="field w-pq">
 <label>PPQ/EPQ</label>
 <select id="f-pq">
 <option value="">any</option>
@@ -148,37 +187,55 @@ td.source{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spac
 <option value="none">none</option>
 </select>
 </div>
+<div class="field w-num">
+<label>Grade min</label>
+<input id="f-grade-min" type="number" min="1" max="70">
 </div>
-<div class="row2">
-<div class="field"><label>Grade min</label><input id="f-grade-min" type="number" min="1" max="70"></div>
-<div class="field"><label>Grade max</label><input id="f-grade-max" type="number" min="1" max="70"></div>
+<div class="field w-num">
+<label>Grade max</label>
+<input id="f-grade-max" type="number" min="1" max="70">
+</div>
+<div class="field w-num">
+<label>Price min</label>
+<input id="f-price-min" type="number">
+</div>
+<div class="field w-num">
+<label>Price max</label>
+<input id="f-price-max" type="number">
+</div>
+<div class="field w-date">
+<label>From</label>
+<input id="f-date-from" type="date">
+</div>
+<div class="field w-date">
+<label>To</label>
+<input id="f-date-to" type="date">
+</div>
+<label class="star-toggle"><input type="checkbox" id="f-star"> ★ Star only</label>
 </div>
 
-<h3>Sold Price</h3>
-<div class="row2">
-<div class="field"><label>Min $</label><input id="f-price-min" type="number"></div>
-<div class="field"><label>Max $</label><input id="f-price-max" type="number"></div>
+<details class="adv-banks">
+<summary>National Banks (charter / state)</summary>
+<div class="filter-row">
+<div class="field w-st">
+<label>State</label>
+<input id="f-state" placeholder="OH" maxlength="2">
 </div>
-
-<h3>Sold Date</h3>
-<div class="row2">
-<div class="field"><label>From</label><input id="f-date-from" type="date"></div>
-<div class="field"><label>To</label><input id="f-date-to" type="date"></div>
+<div class="field w-ch">
+<label>Charter #</label>
+<input id="f-charter" placeholder="2961">
 </div>
-
-<h3>National Banks <span style="color:var(--muted);font-weight:normal;font-size:10px;text-transform:none;letter-spacing:0">(enrichment pending)</span></h3>
-<div class="row2">
-<div class="field"><label>State</label><input id="f-state" placeholder="OH" maxlength="2"></div>
-<div class="field"><label>Charter #</label><input id="f-charter" placeholder="2961"></div>
 </div>
+</details>
 
-<h3>Flags</h3>
-<div class="field"><label style="font-size:12px;color:var(--text)"><input type="checkbox" id="f-star"> ★ Star notes only</label></div>
+<div class="chip-row" id="f-type-chips"></div>
 
+<div class="button-row">
 <button class="btn" id="btn-apply">Apply filters</button>
-<button class="btn ghost" id="btn-clear">Clear all</button>
-<button class="btn sec" id="btn-csv">Export CSV (filtered)</button>
-</aside>
+<button class="btn ghost" id="btn-clear">Clear</button>
+<button class="btn sec" id="btn-csv">Export CSV</button>
+</div>
+</div>
 
 <section class="content">
 <div class="estimate-panel">
@@ -222,12 +279,12 @@ td.source{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spac
 </section>
 </main>
 <script>
-// Config - Comp Tool v1.0 Supabase
 const SB_URL = 'https://wqizwluccqqfkedpgvve.supabase.co';
 const SB_KEY = 'sb_publishable_9DiOeDQje6yiSEITD7WUrw_S2Q-2xyS';
 const TABLE = 'lots_currency';
 const PAGE = 50;
 const COUNTER_REFRESH_MS = 30000;
+const THEME_KEY = 'cc_theme';
 
 const TYPE_CLASSES = [
 ['large_size','Large Size'],
@@ -265,8 +322,24 @@ const fmt$ = (n) => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', 
 const fmtDate = (s) => { if (!s) return '—'; const d = new Date(s + (s.length === 10 ? 'T00:00:00' : '')); const mo = d.toLocaleDateString('en-US', { month:'short' }); return mo + ' ' + d.getDate() + " '" + String(d.getFullYear()).slice(2); };
 const esc = (s) => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+// Theme
+function applyTheme(t) {
+document.documentElement.setAttribute('data-theme', t);
+const btn = $('#btn-theme');
+if (btn) btn.textContent = t === 'light' ? '☼' : '☾';
+}
+function initTheme() {
+const saved = localStorage.getItem(THEME_KEY) || 'dark';
+applyTheme(saved);
+}
+function toggleTheme() {
+const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+const next = cur === 'dark' ? 'light' : 'dark';
+localStorage.setItem(THEME_KEY, next);
+applyTheme(next);
+}
+
 function buildSeries(row) {
-// series_date now carries the full year+letter token (e.g. 1934A), use it directly
 return row.series_date || '—';
 }
 
@@ -312,21 +385,13 @@ const star = $('#f-star').checked;
 const stCode = $('#f-state').value.trim().toUpperCase();
 const charter = $('#f-charter').value.trim();
 
-// A: source filter
 if (src) p.append('source', 'eq.' + src);
 if (q) p.append('title', 'ilike.*' + q + '*');
 if (fr) p.append('friedberg_number_normalized', 'ilike.*' + fr.toLowerCase().replace(/\s/g,'') + '*');
-// B fix: year is a prefix on series_date (e.g. '1934' matches '1934', '1934A', '1934B', '1934C')
 if (year) {
-if (letter) {
-// Exact match year+letter (e.g. '1934A')
-p.append('series_date', 'eq.' + year + letter);
-} else {
-// All variants of year
-p.append('series_date', 'like.' + year + '*');
-}
+if (letter) p.append('series_date', 'eq.' + year + letter);
+else p.append('series_date', 'like.' + year + '*');
 } else if (letter) {
-// Letter filter without year: any series_date ending in letter
 p.append('series_date', 'like.*' + letter);
 }
 if (denom) p.append('denomination', 'eq.' + denom);
@@ -377,10 +442,7 @@ async function sbFetch(qs, opts = {}) {
 const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
 if (opts.count) headers.Prefer = 'count=exact';
 const r = await fetch(SB_URL + '/rest/v1/' + TABLE + '?' + qs, { headers });
-if (!r.ok) {
-const t = await r.text();
-throw new Error('Supabase ' + r.status + ': ' + t);
-}
+if (!r.ok) { const t = await r.text(); throw new Error('Supabase ' + r.status + ': ' + t); }
 const data = await r.json();
 let total = null;
 if (opts.count) {
@@ -394,7 +456,6 @@ return { data, total };
 function showError(msg) { $('#err-host').innerHTML = '<div class="err">' + esc(msg) + '</div>'; }
 function clearError() { $('#err-host').innerHTML = ''; }
 
-// E: live counter pills (HA / SB / Total) polled every 30s
 async function refreshCounters() {
 try {
 const opts = { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, Prefer: 'count=exact' } };
@@ -440,29 +501,25 @@ $('#grade-chart').innerHTML = '';
 return;
 }
 const sorted = prices.slice().sort((a,b) => a - b);
-const median = sorted.length % 2 === 1
-? sorted[(sorted.length - 1) / 2]
-: (sorted[sorted.length/2 - 1] + sorted[sorted.length/2]) / 2;
+const median = sorted.length % 2 === 1 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length/2 - 1] + sorted[sorted.length/2]) / 2;
 const mean = sorted.reduce((s,n) => s + n, 0) / sorted.length;
 $('#est-median').textContent = fmt$(median);
 $('#est-mean').textContent = fmt$(mean);
 $('#est-range').textContent = fmt$(sorted[0]) + ' / ' + fmt$(sorted[sorted.length-1]);
 $('#est-n').textContent = sorted.length.toLocaleString() + (sorted.length >= 5000 ? '+' : '');
-// C: price-per-grade chart
 renderGradeChart(data);
 } catch (e) {}
 }
 
 function renderGradeChart(rows) {
-// Bucket grades into ranges and compute median per bucket
 const buckets = [
-{ label: '1-19', lo: 1, hi: 19, prices: [] },
-{ label: '20-39', lo: 20, hi: 39, prices: [] },
-{ label: '40-49', lo: 40, hi: 49, prices: [] },
-{ label: '50-59', lo: 50, hi: 59, prices: [] },
-{ label: '60-64', lo: 60, hi: 64, prices: [] },
-{ label: '65-68', lo: 65, hi: 68, prices: [] },
-{ label: '69-70', lo: 69, hi: 70, prices: [] },
+{ label:'1-19', lo:1, hi:19, prices:[] },
+{ label:'20-39', lo:20, hi:39, prices:[] },
+{ label:'40-49', lo:40, hi:49, prices:[] },
+{ label:'50-59', lo:50, hi:59, prices:[] },
+{ label:'60-64', lo:60, hi:64, prices:[] },
+{ label:'65-68', lo:65, hi:68, prices:[] },
+{ label:'69-70', lo:69, hi:70, prices:[] },
 ];
 for (const r of rows) {
 const g = Number(r.grade_numeric);
@@ -472,10 +529,10 @@ const b = buckets.find(b => g >= b.lo && g <= b.hi);
 if (b) b.prices.push(p);
 }
 const stats = buckets.map(b => {
-if (!b.prices.length) return { label: b.label, median: 0, n: 0 };
+if (!b.prices.length) return { label:b.label, median:0, n:0 };
 const sorted = b.prices.slice().sort((a,b) => a - b);
 const med = sorted.length % 2 === 1 ? sorted[(sorted.length-1)/2] : (sorted[sorted.length/2-1] + sorted[sorted.length/2])/2;
-return { label: b.label, median: med, n: sorted.length };
+return { label:b.label, median:med, n:sorted.length };
 });
 const maxMed = Math.max(...stats.map(s => s.median), 1);
 const host = $('#grade-chart');
@@ -492,12 +549,8 @@ $('#rows').innerHTML = '<tr><td colspan="11" class="empty">No matches. Try widen
 return;
 }
 $('#rows').innerHTML = rows.map(r => {
-const thumb = r.thumbnail_url
-? '<img src="' + esc(r.thumbnail_url) + '" loading="lazy" alt="">'
-: '<span class="placeholder"></span>';
-const titleCell = r.lot_url
-? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || '—') + '</a>'
-: esc(r.title || '—');
+const thumb = r.thumbnail_url ? '<img src="' + esc(r.thumbnail_url) + '" loading="lazy" alt="">' : '<span class="placeholder"></span>';
+const titleCell = r.lot_url ? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || '—') + '</a>' : esc(r.title || '—');
 return '<tr>'
 + '<td class="thumb">' + thumb + '</td>'
 + '<td class="title" title="' + esc(r.title || '') + '">' + titleCell + '</td>'
@@ -523,9 +576,7 @@ $('#btn-next').disabled = (state.page + 1) * PAGE >= state.totalMatching;
 }
 
 function renderTypeChips() {
-$('#f-type-chips').innerHTML = TYPE_CLASSES.map(([k, lbl]) =>
-'<span class="chip" data-tc="' + k + '">' + esc(lbl) + '</span>'
-).join('');
+$('#f-type-chips').innerHTML = TYPE_CLASSES.map(([k, lbl]) => '<span class="chip" data-tc="' + k + '">' + esc(lbl) + '</span>').join('');
 $('#f-type-chips').addEventListener('click', e => {
 const chip = e.target.closest('.chip');
 if (!chip) return;
@@ -541,12 +592,8 @@ document.querySelectorAll('thead th[data-sort]').forEach(th => {
 th.addEventListener('click', () => {
 const col = th.dataset.sort;
 if (!col) return;
-if (state.sort.col === col) {
-state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
-} else {
-state.sort.col = col;
-state.sort.dir = 'desc';
-}
+if (state.sort.col === col) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+else { state.sort.col = col; state.sort.dir = 'desc'; }
 document.querySelectorAll('thead th').forEach(h => h.classList.remove('sort-asc','sort-desc'));
 th.classList.add('sort-' + state.sort.dir);
 state.page = 0;
@@ -558,7 +605,7 @@ loadRows();
 function wireFilters() {
 $('#btn-apply').addEventListener('click', () => { state.page = 0; loadRows(); });
 $('#btn-clear').addEventListener('click', () => {
-document.querySelectorAll('aside input, aside select').forEach(el => {
+document.querySelectorAll('.filter-bar input, .filter-bar select').forEach(el => {
 if (el.type === 'checkbox') el.checked = false; else el.value = '';
 });
 state.selectedTypes.clear();
@@ -566,18 +613,16 @@ document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
 state.page = 0;
 loadRows();
 });
-document.querySelectorAll('aside input, aside select').forEach(el => {
+document.querySelectorAll('.filter-bar input, .filter-bar select').forEach(el => {
 el.addEventListener('keydown', e => { if (e.key === 'Enter') { state.page = 0; loadRows(); } });
 });
 $('#btn-prev').addEventListener('click', () => { if (state.page > 0) { state.page--; loadRows(); } });
-$('#btn-next').addEventListener('click', () => {
-if ((state.page + 1) * PAGE < state.totalMatching) { state.page++; loadRows(); }
-});
+$('#btn-next').addEventListener('click', () => { if ((state.page + 1) * PAGE < state.totalMatching) { state.page++; loadRows(); } });
 $('#btn-csv').addEventListener('click', exportCsv);
 $('#f-source').addEventListener('change', () => { state.page = 0; loadRows(); refreshCounters(); });
+$('#btn-theme').addEventListener('click', toggleTheme);
 }
 
-// D: CSV export of currently-filtered result set (up to 10,000 rows)
 async function exportCsv() {
 const btn = $('#btn-csv');
 const orig = btn.textContent;
@@ -587,12 +632,7 @@ try {
 const { data } = await sbFetch(buildCsvQuery());
 if (!data.length) { btn.textContent = 'No data'; setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500); return; }
 const cols = ['source','title','lot_url','friedberg_number','friedberg_number_normalized','series_date','denomination','type_class','grading_company','grade_numeric','grade_raw','ppq_epq','is_star_note','price_realized','sold_on','state_code','charter_number'];
-const escapeCsv = (v) => {
-if (v == null) return '';
-const s = String(v);
-if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
-return s;
-};
+const escapeCsv = (v) => { if (v == null) return ''; const s = String(v); if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"'; return s; };
 const lines = [cols.join(',')];
 for (const r of data) lines.push(cols.map(c => escapeCsv(r[c])).join(','));
 const csv = lines.join('\n');
@@ -616,6 +656,7 @@ btn.disabled = false;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+initTheme();
 renderTypeChips();
 wireSortHeaders();
 wireFilters();
