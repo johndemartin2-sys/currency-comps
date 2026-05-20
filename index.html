@@ -527,24 +527,23 @@ for (const r of rows) {
 const g = Number(r.grade_numeric);
 const p = Number(r.price_realized);
 if (!Number.isFinite(g) || !Number.isFinite(p)) continue;
-const b = buckets.find(b => g >= b.lo && g <= b.hi);
+const b = buckets.find(x => g >= x.lo && g <= x.hi);
 if (b) b.prices.push(p);
 }
 const stats = buckets.map(b => {
 if (!b.prices.length) return { label:b.label, median:0, n:0 };
-const sorted = b.prices.slice().sort((a,b) => a - b);
+const sorted = b.prices.slice().sort((a,b)=>a-b);
 const med = sorted.length % 2 === 1 ? sorted[(sorted.length-1)/2] : (sorted[sorted.length/2-1] + sorted[sorted.length/2])/2;
 return { label:b.label, median:med, n:sorted.length };
 });
-const maxMed = Math.max(...stats.map(s => s.median), 1);
 const host = $('#grade-chart');
+const maxMed = Math.max(1, ...stats.map(s => s.median));
 host.innerHTML = stats.map(s => {
-if (!s.n) return '<div class="bar-col"><div class="bar" style="height:2px;background:transparent"></div><div class="lab">' + s.label + '</div></div>';
-const h = Math.max(2, Math.round((s.median / maxMed) * 38));
-return '<div class="bar-col"><div class="bar" style="height:' + h + 'px"><span class="tip">' + s.label + ': ' + fmt$(s.median) + ' (n=' + s.n + ')</span></div><div class="lab">' + s.label + '</div></div>';
+const h = s.median > 0 ? Math.max(4, Math.round((s.median / maxMed) * 60)) : 2;
+const lbl = s.median > 0 ? fmt$(s.median) : '';
+return '<div class="bar-col"><div class="bar" style="height:' + h + 'px"><span class="val">' + lbl + '</span><span class="tip">' + s.label + ': ' + fmt$(s.median) + ' median (n=' + s.n + ')</span></div><div class="lab">' + s.label + '</div><div class="nlab">n=' + s.n + '</div></div>';
 }).join('');
 }
-
 function renderRows(rows) {
 if (!rows.length) {
 $('#rows').innerHTML = '<tr><td colspan="11" class="empty">No matches. Try widening filters.</td></tr>';
