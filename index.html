@@ -70,13 +70,15 @@ section.content{display:flex;flex-direction:column;overflow:hidden;flex:1}
 .estimate-panel .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .estimate-panel .grp{display:flex;flex-direction:column}
 .estimate-panel .grp.sub .num{color:var(--text);font-size:15px;font-weight:600}
-.gchart{display:flex;align-items:flex-end;gap:3px;height:42px;margin-left:auto;padding-left:14px;border-left:1px solid var(--border)}
-.gchart .bar-col{display:flex;flex-direction:column;align-items:center;gap:2px}
-.gchart .bar{width:18px;background:var(--accent);border-radius:2px 2px 0 0;position:relative;min-height:2px}
+.gchart{display:flex;align-items:flex-end;gap:8px;height:90px;margin-left:auto;padding:18px 4px 0 14px;border-left:1px solid var(--border)}
+.gchart .bar-col{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:36px}
+.gchart .bar{width:30px;background:var(--accent);border-radius:3px 3px 0 0;position:relative;min-height:2px;display:flex;justify-content:center}
 .gchart .bar:hover{background:var(--accent2)}
-.gchart .bar .tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#000;color:#fff;font-size:10px;padding:3px 6px;border-radius:3px;white-space:nowrap;display:none;pointer-events:none;z-index:5}
+.gchart .bar .val{position:absolute;bottom:100%;margin-bottom:2px;font-size:10px;font-weight:600;color:var(--text);white-space:nowrap}
+.gchart .bar .tip{position:absolute;bottom:calc(100% + 16px);left:50%;transform:translateX(-50%);background:#000;color:#fff;font-size:10px;padding:3px 6px;border-radius:3px;white-space:nowrap;display:none;pointer-events:none;z-index:5}
 .gchart .bar:hover .tip{display:block}
-.gchart .lab{font-size:9px;color:var(--muted)}
+.gchart .lab{font-size:10px;color:var(--muted);font-weight:600}
+.gchart .nlab{font-size:9px;color:var(--muted);opacity:.7}
 
 table{width:100%;border-collapse:collapse}
 thead th{position:sticky;top:0;background:var(--panel2);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
@@ -120,7 +122,7 @@ details.adv-banks .filter-row{margin-top:6px}
 <span class="stat-pill">Total: <b id="cnt-total">—</b></span>
 <span class="stat-pill">Matching: <b id="match-count">—</b></span>
 <button id="btn-theme" class="icon-btn" title="Toggle light/dark mode" aria-label="Toggle theme">☾</button>
-<span style="margin-left:auto;color:var(--muted);font-size:11px">v2.2</span>
+<span style="margin-left:auto;color:var(--muted);font-size:11px">v2.3</span>
 </header>
 
 <main>
