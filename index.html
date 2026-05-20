@@ -12,15 +12,12 @@
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 header h1{margin:0;font-size:18px;font-weight:600}
 .stat-pill{background:var(--panel);border:1px solid var(--border);padding:6px 10px;border-radius:8px;color:var(--muted);font-size:12px}
 .stat-pill b{color:var(--text);font-weight:600}
-.stat-pill.ha b{color:#ff8a4c}
-.stat-pill.sb b{color:#6aa8ff}
-.heartbeat{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent2);margin-left:6px;vertical-align:middle;opacity:.3;transition:opacity .3s}
-.heartbeat.on{opacity:1}
-.src-select{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font:inherit;font-size:12px}
+.stat-pill .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent2);margin-right:4px;vertical-align:middle;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 main{display:grid;grid-template-columns:300px 1fr;gap:0;height:calc(100vh - 53px)}
 aside{background:var(--panel);border-right:1px solid var(--border);padding:14px;overflow-y:auto}
 aside h3{margin:14px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
@@ -35,21 +32,26 @@ aside h3:first-child{margin-top:0}
 .chip.on{background:var(--accent);border-color:var(--accent);color:#0b1a30;font-weight:600}
 button.btn{background:var(--accent);color:#0b1a30;border:0;padding:8px 12px;border-radius:6px;font-weight:600;cursor:pointer;width:100%;margin-top:8px}
 button.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+button.btn.sec{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
 section.content{display:flex;flex-direction:column;overflow:hidden}
 .estimate-panel{padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;gap:22px;align-items:center;flex-wrap:wrap}
 .estimate-panel .num{font-size:22px;font-weight:700;color:var(--accent2)}
 .estimate-panel .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .estimate-panel .grp{display:flex;flex-direction:column}
 .estimate-panel .grp.sub .num{color:var(--text);font-size:16px;font-weight:600}
-#grade-chart{height:54px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;display:block}
-.chart-wrap{display:flex;flex-direction:column;gap:3px}
-.chart-wrap .lbl-row{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
+.gchart{display:flex;align-items:flex-end;gap:3px;height:42px;margin-left:auto;padding-left:14px;border-left:1px solid var(--border)}
+.gchart .bar-col{display:flex;flex-direction:column;align-items:center;gap:2px}
+.gchart .bar{width:18px;background:var(--accent);border-radius:2px 2px 0 0;position:relative;min-height:2px}
+.gchart .bar:hover{background:var(--accent2)}
+.gchart .bar .tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#000;color:#fff;font-size:10px;padding:3px 6px;border-radius:3px;white-space:nowrap;display:none;pointer-events:none;z-index:5}
+.gchart .bar:hover .tip{display:block}
+.gchart .lab{font-size:9px;color:var(--muted)}
 table{width:100%;border-collapse:collapse}
 thead th{position:sticky;top:0;background:var(--panel2);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
 thead th.sort-asc::after{content:" ▲";color:var(--accent)}
 thead th.sort-desc::after{content:" ▼";color:var(--accent)}
 tbody td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
-tbody tr:hover{background:var(--panel);cursor:pointer}
+tbody tr:hover{background:var(--panel)}
 td.thumb img{width:52px;height:26px;object-fit:cover;border-radius:3px;background:#000;display:block}
 td.thumb .placeholder{width:52px;height:26px;background:var(--panel2);border-radius:3px;display:inline-block}
 td.title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -57,19 +59,16 @@ td.title a{color:var(--text);text-decoration:none}
 td.title a:hover{color:var(--accent);text-decoration:underline}
 td.price{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
 td.date{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
-td.src{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
-td.src.ha{color:#ff8a4c}
-td.src.sb{color:#6aa8ff}
+td.source{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .grade-cell{display:flex;flex-direction:column;line-height:1.15}
 .grade-cell .co{font-size:10px;color:var(--muted);text-transform:uppercase}
 .grade-cell .gr{font-weight:600}
 .grade-cell .pq{font-size:10px;color:var(--accent2)}
 .star{color:var(--warn);font-size:16px;text-align:center}
 .table-wrap{flex:1;overflow:auto}
-.footer-bar{padding:10px 18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--panel);font-size:12px;color:var(--muted);gap:10px}
+.footer-bar{padding:10px 18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--panel);font-size:12px;color:var(--muted)}
 .footer-bar button{background:var(--panel2);color:var(--text);border:1px solid var(--border);padding:5px 10px;border-radius:5px;cursor:pointer;margin-left:6px}
 .footer-bar button:disabled{opacity:.4;cursor:not-allowed}
-.footer-bar button.csv{background:var(--accent2);color:#0b1a30;border-color:var(--accent2);font-weight:600}
 .empty{padding:40px;text-align:center;color:var(--muted)}
 .err{padding:14px 20px;background:#3b1518;border-left:3px solid var(--danger);color:#ffb4b4;margin:14px 18px;border-radius:6px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap}
 </style>
@@ -78,20 +77,24 @@ td.src.sb{color:#6aa8ff}
 
 <header>
 <h1>Currency Comps</h1>
-<select id="f-source" class="src-select" title="Filter by source">
-<option value="">All sources</option>
-<option value="heritage_auctions">Heritage Auctions</option>
-<option value="stacks_bowers">Stack's Bowers</option>
-</select>
-<span class="stat-pill ha">HA: <b id="ha-count">—</b></span>
-<span class="stat-pill sb">SB: <b id="sb-count">—</b></span>
-<span class="stat-pill">Total: <b id="total-count">—</b><span class="heartbeat" id="heartbeat"></span></span>
+<span class="stat-pill"><span class="dot"></span>HA: <b id="cnt-ha">—</b></span>
+<span class="stat-pill">SB: <b id="cnt-sb">—</b></span>
+<span class="stat-pill">Total: <b id="cnt-total">—</b></span>
 <span class="stat-pill">Matching: <b id="match-count">—</b></span>
 <span style="margin-left:auto;color:var(--muted);font-size:11px">v2.1</span>
 </header>
 
 <main>
 <aside>
+<h3>Source</h3>
+<div class="field">
+<select id="f-source">
+<option value="">All sources</option>
+<option value="heritage_auctions">Heritage Auctions</option>
+<option value="stacks_bowers">Stack's Bowers</option>
+</select>
+</div>
+
 <h3>Search</h3>
 <div class="field"><label>Title contains</label><input id="f-q" placeholder="e.g. grand watermelon"></div>
 <div class="field"><label>Friedberg #</label><input id="f-fr" placeholder="e.g. 379a"></div>
@@ -174,6 +177,7 @@ td.src.sb{color:#6aa8ff}
 
 <button class="btn" id="btn-apply">Apply filters</button>
 <button class="btn ghost" id="btn-clear">Clear all</button>
+<button class="btn sec" id="btn-csv">Export CSV (filtered)</button>
 </aside>
 
 <section class="content">
@@ -182,10 +186,7 @@ td.src.sb{color:#6aa8ff}
 <div class="grp sub"><span class="lbl">Mean</span><span class="num" id="est-mean">—</span></div>
 <div class="grp sub"><span class="lbl">Low / High</span><span class="num" id="est-range">—</span></div>
 <div class="grp sub"><span class="lbl">Sample size</span><span class="num" id="est-n">—</span></div>
-<div class="chart-wrap" style="flex:1;min-width:240px;max-width:480px">
-<div class="lbl-row"><span>Median by grade</span><span id="chart-info">—</span></div>
-<canvas id="grade-chart" width="480" height="54"></canvas>
-</div>
+<div id="grade-chart" class="gchart" title="Median price by grade bucket"></div>
 </div>
 
 <div id="err-host"></div>
@@ -195,7 +196,6 @@ td.src.sb{color:#6aa8ff}
 <thead>
 <tr>
 <th data-sort="thumbnail_url" style="width:60px"></th>
-<th data-sort="source" style="width:40px">Src</th>
 <th data-sort="title">Title</th>
 <th data-sort="friedberg_number_normalized">Friedberg</th>
 <th data-sort="series_date">Series</th>
@@ -205,6 +205,7 @@ td.src.sb{color:#6aa8ff}
 <th data-sort="is_star_note" style="width:30px">★</th>
 <th data-sort="price_realized" class="sort-desc">Sold</th>
 <th data-sort="sold_on">Date</th>
+<th data-sort="source">Src</th>
 </tr>
 </thead>
 <tbody id="rows"><tr><td colspan="11" class="empty">Loading…</td></tr></tbody>
@@ -214,20 +215,19 @@ td.src.sb{color:#6aa8ff}
 <div class="footer-bar">
 <span id="page-info">—</span>
 <div>
-<button id="btn-csv" class="csv">⬇ Export CSV</button>
 <button id="btn-prev">‹ Prev</button>
 <button id="btn-next">Next ›</button>
 </div>
 </div>
 </section>
 </main>
-
 <script>
 // Config - Comp Tool v1.0 Supabase
 const SB_URL = 'https://wqizwluccqqfkedpgvve.supabase.co';
 const SB_KEY = 'sb_publishable_9DiOeDQje6yiSEITD7WUrw_S2Q-2xyS';
 const TABLE = 'lots_currency';
 const PAGE = 50;
+const COUNTER_REFRESH_MS = 30000;
 
 const TYPE_CLASSES = [
 ['large_size','Large Size'],
@@ -258,26 +258,29 @@ page: 0,
 sort: { col: 'sold_on', dir: 'desc' },
 selectedTypes: new Set(),
 totalMatching: 0,
-lastStatsRows: [],
 };
 
 const $ = (s) => document.querySelector(s);
-const fmt$ = (n) => n == null ? '\u2014' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
-const fmtDate = (s) => { if (!s) return '\u2014'; const d = new Date(s + (s.length === 10 ? 'T00:00:00' : '')); const mo = d.toLocaleDateString('en-US', { month:'short' }); return mo + ' ' + d.getDate() + " '" + String(d.getFullYear()).slice(2); };
+const fmt$ = (n) => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+const fmtDate = (s) => { if (!s) return '—'; const d = new Date(s + (s.length === 10 ? 'T00:00:00' : '')); const mo = d.toLocaleDateString('en-US', { month:'short' }); return mo + ' ' + d.getDate() + " '" + String(d.getFullYear()).slice(2); };
 const esc = (s) => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function buildSeries(row) {
-const y = row.series_date || '';
-const t = (row.series_type || '').trim();
-if (!y && !t) return '\u2014';
-return y;
+// series_date now carries the full year+letter token (e.g. 1934A), use it directly
+return row.series_date || '—';
+}
+
+function srcLabel(s) {
+if (s === 'heritage_auctions') return 'HA';
+if (s === 'stacks_bowers') return 'SB';
+return s || '';
 }
 
 function buildGradeCell(row) {
 const co = row.grading_company && row.grading_company !== 'unknown' ? row.grading_company : '';
 const gr = row.grade_numeric != null ? row.grade_numeric : (row.grade_raw || '');
 const pq = row.ppq_epq && row.ppq_epq !== 'none' ? row.ppq_epq : '';
-if (!co && gr === '' && !pq) return '\u2014';
+if (!co && gr === '' && !pq) return '—';
 return '<div class="grade-cell">'
 + (co ? '<span class="co">' + esc(co) + '</span>' : '')
 + (gr !== '' ? '<span class="gr">' + esc(gr) + '</span>' : '')
@@ -287,16 +290,11 @@ return '<div class="grade-cell">'
 
 function typeLabel(tc) {
 const m = TYPE_CLASSES.find(([k]) => k === tc);
-return m ? m[1] : (tc || '\u2014');
-}
-
-function srcLabel(s) {
-if (s === 'heritage_auctions') return { cls: 'ha', txt: 'HA' };
-if (s === 'stacks_bowers') return { cls: 'sb', txt: 'SB' };
-return { cls: '', txt: s || '\u2014' };
+return m ? m[1] : (tc || '—');
 }
 
 function applyFiltersToParams(p) {
+const src = $('#f-source').value;
 const q = $('#f-q').value.trim();
 const fr = $('#f-fr').value.trim();
 const year = $('#f-year').value.trim();
@@ -313,17 +311,22 @@ const dto = $('#f-date-to').value;
 const star = $('#f-star').checked;
 const stCode = $('#f-state').value.trim().toUpperCase();
 const charter = $('#f-charter').value.trim();
-const source = $('#f-source').value;
 
-if (source) p.append('source', 'eq.' + source);
+// A: source filter
+if (src) p.append('source', 'eq.' + src);
 if (q) p.append('title', 'ilike.*' + q + '*');
 if (fr) p.append('friedberg_number_normalized', 'ilike.*' + fr.toLowerCase().replace(/\s/g,'') + '*');
-// B-fix: year now uses LIKE so 1934 matches 1934, 1934A, 1934B, 1934C
-if (year && letter) {
-p.append('series_date', 'like.' + year + letter);
-} else if (year) {
+// B fix: year is a prefix on series_date (e.g. '1934' matches '1934', '1934A', '1934B', '1934C')
+if (year) {
+if (letter) {
+// Exact match year+letter (e.g. '1934A')
+p.append('series_date', 'eq.' + year + letter);
+} else {
+// All variants of year
 p.append('series_date', 'like.' + year + '*');
+}
 } else if (letter) {
+// Letter filter without year: any series_date ending in letter
 p.append('series_date', 'like.*' + letter);
 }
 if (denom) p.append('denomination', 'eq.' + denom);
@@ -357,7 +360,16 @@ p.set('select', 'price_realized,grade_numeric');
 applyFiltersToParams(p);
 p.append('price_realized', 'not.is.null');
 p.set('order', 'price_realized.asc');
-p.set('limit', 2000);
+p.set('limit', 5000);
+return p.toString();
+}
+
+function buildCsvQuery() {
+const p = new URLSearchParams();
+p.set('select', 'source,title,lot_url,friedberg_number,friedberg_number_normalized,series_date,denomination,type_class,grading_company,grade_numeric,grade_raw,ppq_epq,is_star_note,price_realized,sold_on,state_code,charter_number');
+applyFiltersToParams(p);
+p.set('order', state.sort.col + '.' + state.sort.dir + '.nullslast');
+p.set('limit', 10000);
 return p.toString();
 }
 
@@ -382,25 +394,25 @@ return { data, total };
 function showError(msg) { $('#err-host').innerHTML = '<div class="err">' + esc(msg) + '</div>'; }
 function clearError() { $('#err-host').innerHTML = ''; }
 
-// E: live DB counter — poll HA / SB / total every 30s, heartbeat blip
-async function loadCounters() {
-const hb = $('#heartbeat');
+// E: live counter pills (HA / SB / Total) polled every 30s
+async function refreshCounters() {
 try {
-const [ha, sb, total] = await Promise.all([
-sbFetch('select=id&source=eq.heritage_auctions&limit=1', { count: true }),
-sbFetch('select=id&source=eq.stacks_bowers&limit=1', { count: true }),
-sbFetch('select=id&limit=1', { count: true }),
+const opts = { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, Prefer: 'count=exact' } };
+const [haR, sbR, totalR] = await Promise.all([
+fetch(SB_URL + '/rest/v1/' + TABLE + '?source=eq.heritage_auctions&select=id&limit=1', opts),
+fetch(SB_URL + '/rest/v1/' + TABLE + '?source=eq.stacks_bowers&select=id&limit=1', opts),
+fetch(SB_URL + '/rest/v1/' + TABLE + '?select=id&limit=1', opts),
 ]);
-$('#ha-count').textContent = (ha.total ?? 0).toLocaleString();
-$('#sb-count').textContent = (sb.total ?? 0).toLocaleString();
-$('#total-count').textContent = (total.total ?? 0).toLocaleString();
-hb.classList.add('on');
-setTimeout(() => hb.classList.remove('on'), 600);
-} catch (e) { /* silent */ }
+const parseCount = (r) => { const cr = r.headers.get('content-range') || ''; const m = cr.match(/\/(\d+|\*)$/); return m && m[1] !== '*' ? parseInt(m[1], 10) : null; };
+const ha = parseCount(haR), sb = parseCount(sbR), tot = parseCount(totalR);
+$('#cnt-ha').textContent = ha != null ? ha.toLocaleString() : '—';
+$('#cnt-sb').textContent = sb != null ? sb.toLocaleString() : '—';
+$('#cnt-total').textContent = tot != null ? tot.toLocaleString() : '—';
+} catch (e) {}
 }
 
 async function loadRows() {
-$('#rows').innerHTML = '<tr><td colspan="11" class="empty">Loading\u2026</td></tr>';
+$('#rows').innerHTML = '<tr><td colspan="11" class="empty">Loading…</td></tr>';
 try {
 clearError();
 const { data, total } = await sbFetch(buildRowsQuery(), { count: true });
@@ -418,66 +430,60 @@ $('#rows').innerHTML = '<tr><td colspan="11" class="empty">Failed to load.</td><
 async function loadStats() {
 try {
 const { data } = await sbFetch(buildStatsQuery());
-state.lastStatsRows = data;
 const prices = data.map(r => Number(r.price_realized)).filter(n => Number.isFinite(n));
 if (!prices.length) {
-$('#est-median').textContent = '\u2014';
-$('#est-mean').textContent = '\u2014';
-$('#est-range').textContent = '\u2014';
+$('#est-median').textContent = '—';
+$('#est-mean').textContent = '—';
+$('#est-range').textContent = '—';
 $('#est-n').textContent = '0';
-drawGradeChart([]);
+$('#grade-chart').innerHTML = '';
 return;
 }
-prices.sort((a,b) => a - b);
-const median = prices.length % 2 === 1
-? prices[(prices.length - 1) / 2]
-: (prices[prices.length/2 - 1] + prices[prices.length/2]) / 2;
-const mean = prices.reduce((s,n) => s + n, 0) / prices.length;
+const sorted = prices.slice().sort((a,b) => a - b);
+const median = sorted.length % 2 === 1
+? sorted[(sorted.length - 1) / 2]
+: (sorted[sorted.length/2 - 1] + sorted[sorted.length/2]) / 2;
+const mean = sorted.reduce((s,n) => s + n, 0) / sorted.length;
 $('#est-median').textContent = fmt$(median);
 $('#est-mean').textContent = fmt$(mean);
-$('#est-range').textContent = fmt$(prices[0]) + ' / ' + fmt$(prices[prices.length-1]);
-$('#est-n').textContent = prices.length.toLocaleString() + (prices.length >= 2000 ? '+' : '');
-drawGradeChart(data);
+$('#est-range').textContent = fmt$(sorted[0]) + ' / ' + fmt$(sorted[sorted.length-1]);
+$('#est-n').textContent = sorted.length.toLocaleString() + (sorted.length >= 5000 ? '+' : '');
+// C: price-per-grade chart
+renderGradeChart(data);
 } catch (e) {}
 }
 
-// C: price-per-grade chart — group by grade_numeric, plot median bars
-function drawGradeChart(rows) {
-const canvas = $('#grade-chart');
-if (!canvas) return;
-const ctx = canvas.getContext('2d');
-const dpr = window.devicePixelRatio || 1;
-const w = canvas.clientWidth || 480;
-const h = canvas.clientHeight || 54;
-canvas.width = w * dpr; canvas.height = h * dpr;
-ctx.setTransform(dpr,0,0,dpr,0,0);
-ctx.clearRect(0,0,w,h);
-const byGrade = new Map();
+function renderGradeChart(rows) {
+// Bucket grades into ranges and compute median per bucket
+const buckets = [
+{ label: '1-19', lo: 1, hi: 19, prices: [] },
+{ label: '20-39', lo: 20, hi: 39, prices: [] },
+{ label: '40-49', lo: 40, hi: 49, prices: [] },
+{ label: '50-59', lo: 50, hi: 59, prices: [] },
+{ label: '60-64', lo: 60, hi: 64, prices: [] },
+{ label: '65-68', lo: 65, hi: 68, prices: [] },
+{ label: '69-70', lo: 69, hi: 70, prices: [] },
+];
 for (const r of rows) {
-const g = r.grade_numeric;
+const g = Number(r.grade_numeric);
 const p = Number(r.price_realized);
-if (g == null || !Number.isFinite(p)) continue;
-if (!byGrade.has(g)) byGrade.set(g, []);
-byGrade.get(g).push(p);
+if (!Number.isFinite(g) || !Number.isFinite(p)) continue;
+const b = buckets.find(b => g >= b.lo && g <= b.hi);
+if (b) b.prices.push(p);
 }
-if (!byGrade.size) {
-ctx.fillStyle = '#9aa3b2'; ctx.font = '11px sans-serif';
-ctx.fillText('no grade data', 10, h/2 + 4);
-$('#chart-info').textContent = '\u2014';
-return;
-}
-const grades = [...byGrade.keys()].sort((a,b) => a - b);
-const medians = grades.map(g => { const a = byGrade.get(g).sort((x,y) => x - y); return a.length % 2 ? a[(a.length-1)/2] : (a[a.length/2-1]+a[a.length/2])/2; });
-const maxP = Math.max(...medians);
-const minG = grades[0], maxG = grades[grades.length-1];
-const padX = 6, padY = 4, barW = Math.max(3, (w - padX*2) / grades.length - 2);
-ctx.fillStyle = '#43d39e';
-grades.forEach((g, i) => {
-const x = padX + i * ((w - padX*2) / grades.length);
-const barH = Math.max(2, (medians[i] / maxP) * (h - padY*2));
-ctx.fillRect(x, h - padY - barH, barW, barH);
+const stats = buckets.map(b => {
+if (!b.prices.length) return { label: b.label, median: 0, n: 0 };
+const sorted = b.prices.slice().sort((a,b) => a - b);
+const med = sorted.length % 2 === 1 ? sorted[(sorted.length-1)/2] : (sorted[sorted.length/2-1] + sorted[sorted.length/2])/2;
+return { label: b.label, median: med, n: sorted.length };
 });
-$('#chart-info').textContent = 'grades ' + minG + '\u2013' + maxG + ' (' + grades.length + ' buckets)';
+const maxMed = Math.max(...stats.map(s => s.median), 1);
+const host = $('#grade-chart');
+host.innerHTML = stats.map(s => {
+if (!s.n) return '<div class="bar-col"><div class="bar" style="height:2px;background:transparent"></div><div class="lab">' + s.label + '</div></div>';
+const h = Math.max(2, Math.round((s.median / maxMed) * 38));
+return '<div class="bar-col"><div class="bar" style="height:' + h + 'px"><span class="tip">' + s.label + ': ' + fmt$(s.median) + ' (n=' + s.n + ')</span></div><div class="lab">' + s.label + '</div></div>';
+}).join('');
 }
 
 function renderRows(rows) {
@@ -490,21 +496,20 @@ const thumb = r.thumbnail_url
 ? '<img src="' + esc(r.thumbnail_url) + '" loading="lazy" alt="">'
 : '<span class="placeholder"></span>';
 const titleCell = r.lot_url
-? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || '\u2014') + '</a>'
-: esc(r.title || '\u2014');
-const src = srcLabel(r.source);
-return '<tr data-url="' + esc(r.lot_url || '') + '">'
+? '<a href="' + esc(r.lot_url) + '" target="_blank" rel="noopener">' + esc(r.title || '—') + '</a>'
+: esc(r.title || '—');
+return '<tr>'
 + '<td class="thumb">' + thumb + '</td>'
-+ '<td class="src ' + src.cls + '">' + esc(src.txt) + '</td>'
 + '<td class="title" title="' + esc(r.title || '') + '">' + titleCell + '</td>'
-+ '<td>' + esc(r.friedberg_number || '\u2014') + '</td>'
++ '<td>' + esc(r.friedberg_number || '—') + '</td>'
 + '<td>' + esc(buildSeries(r)) + '</td>'
-+ '<td>' + esc(r.denomination || '\u2014') + '</td>'
++ '<td>' + esc(r.denomination || '—') + '</td>'
 + '<td>' + esc(typeLabel(r.type_class)) + '</td>'
 + '<td>' + buildGradeCell(r) + '</td>'
-+ '<td class="star">' + (r.is_star_note ? '\u2605' : '') + '</td>'
++ '<td class="star">' + (r.is_star_note ? '★' : '') + '</td>'
 + '<td class="price">' + fmt$(r.price_realized) + '</td>'
 + '<td class="date">' + fmtDate(r.sold_on) + '</td>'
++ '<td class="source">' + esc(srcLabel(r.source)) + '</td>'
 + '</tr>';
 }).join('');
 }
@@ -512,7 +517,7 @@ return '<tr data-url="' + esc(r.lot_url || '') + '">'
 function updatePager() {
 const from = state.totalMatching === 0 ? 0 : state.page * PAGE + 1;
 const to = Math.min((state.page + 1) * PAGE, state.totalMatching);
-$('#page-info').textContent = 'Showing ' + from.toLocaleString() + '\u2013' + to.toLocaleString() + ' of ' + state.totalMatching.toLocaleString();
+$('#page-info').textContent = 'Showing ' + from.toLocaleString() + '–' + to.toLocaleString() + ' of ' + state.totalMatching.toLocaleString();
 $('#btn-prev').disabled = state.page === 0;
 $('#btn-next').disabled = (state.page + 1) * PAGE >= state.totalMatching;
 }
@@ -550,34 +555,6 @@ loadRows();
 });
 }
 
-// D: CSV export — pull current filtered set up to 5000 rows, download as CSV
-async function exportCsv() {
-const btn = $('#btn-csv');
-const oldTxt = btn.textContent;
-btn.textContent = 'Exporting\u2026'; btn.disabled = true;
-try {
-const p = new URLSearchParams();
-p.set('select', 'id,source,title,lot_url,friedberg_number,friedberg_number_normalized,series_date,denomination,type_class,grading_company,grade_numeric,grade_raw,ppq_epq,is_star_note,price_realized,sold_on,state_code,charter_number');
-applyFiltersToParams(p);
-p.set('order', state.sort.col + '.' + state.sort.dir + '.nullslast');
-p.set('limit', 5000);
-const r = await fetch(SB_URL + '/rest/v1/' + TABLE + '?' + p.toString(), { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
-const data = await r.json();
-if (!data.length) { alert('No rows to export.'); return; }
-const cols = Object.keys(data[0]);
-const escCsv = v => { if (v == null) return ''; const s = String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-const lines = [cols.join(',')].concat(data.map(row => cols.map(c => escCsv(row[c])).join(',')));
-const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-const url = URL.createObjectURL(blob);
-const a = document.createElement('a');
-a.href = url;
-a.download = 'currency-comps-' + new Date().toISOString().slice(0,10) + '.csv';
-a.click();
-setTimeout(() => URL.revokeObjectURL(url), 1000);
-} catch (e) { alert('Export failed: ' + (e.message || e)); }
-finally { btn.textContent = oldTxt; btn.disabled = false; }
-}
-
 function wireFilters() {
 $('#btn-apply').addEventListener('click', () => { state.page = 0; loadRows(); });
 $('#btn-clear').addEventListener('click', () => {
@@ -589,7 +566,6 @@ document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
 state.page = 0;
 loadRows();
 });
-$('#f-source').addEventListener('change', () => { state.page = 0; loadRows(); });
 document.querySelectorAll('aside input, aside select').forEach(el => {
 el.addEventListener('keydown', e => { if (e.key === 'Enter') { state.page = 0; loadRows(); } });
 });
@@ -598,20 +574,53 @@ $('#btn-next').addEventListener('click', () => {
 if ((state.page + 1) * PAGE < state.totalMatching) { state.page++; loadRows(); }
 });
 $('#btn-csv').addEventListener('click', exportCsv);
-// Click row to open lot URL
-$('#rows').addEventListener('click', e => {
-if (e.target.closest('a')) return;
-const tr = e.target.closest('tr[data-url]');
-if (tr && tr.dataset.url) window.open(tr.dataset.url, '_blank', 'noopener');
-});
+$('#f-source').addEventListener('change', () => { state.page = 0; loadRows(); refreshCounters(); });
+}
+
+// D: CSV export of currently-filtered result set (up to 10,000 rows)
+async function exportCsv() {
+const btn = $('#btn-csv');
+const orig = btn.textContent;
+btn.textContent = 'Exporting…';
+btn.disabled = true;
+try {
+const { data } = await sbFetch(buildCsvQuery());
+if (!data.length) { btn.textContent = 'No data'; setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500); return; }
+const cols = ['source','title','lot_url','friedberg_number','friedberg_number_normalized','series_date','denomination','type_class','grading_company','grade_numeric','grade_raw','ppq_epq','is_star_note','price_realized','sold_on','state_code','charter_number'];
+const escapeCsv = (v) => {
+if (v == null) return '';
+const s = String(v);
+if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+return s;
+};
+const lines = [cols.join(',')];
+for (const r of data) lines.push(cols.map(c => escapeCsv(r[c])).join(','));
+const csv = lines.join('\n');
+const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+a.download = 'currency-comps-' + ts + '.csv';
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
+URL.revokeObjectURL(url);
+btn.textContent = 'Exported ' + data.length;
+setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+} catch (e) {
+showError(String(e.message || e));
+btn.textContent = orig;
+btn.disabled = false;
+}
 }
 
 document.addEventListener('DOMContentLoaded', () => {
 renderTypeChips();
 wireSortHeaders();
 wireFilters();
-loadCounters();
-setInterval(loadCounters, 30000);
+refreshCounters();
+setInterval(refreshCounters, COUNTER_REFRESH_MS);
 loadRows();
 });
 </script>
