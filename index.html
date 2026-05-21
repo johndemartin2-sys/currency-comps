@@ -4,155 +4,306 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Currency Comps</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-/* ── CONFIG: Update these if your Supabase project changes ── */
 :root {
-  --sb-url: "https://wqizwluccqqfkedpgvve.supabase.co";
-  /* anon key is set in JS below */
-
-  /* Theme */
-  --bg: #0e0e12;
-  --surface: #18181f;
-  --surface2: #1f1f28;
-  --border: #2a2a35;
-  --gold: #c8a84e;
+  --bg: #0b0b0f;
+  --surface: #141419;
+  --surface2: #1a1a22;
+  --surface3: #22222e;
+  --border: #2a2a38;
+  --border-hi: #3a3a4a;
+  --gold: #c9a84c;
   --gold-dim: #8a7535;
-  --text: #e8e4dc;
-  --muted: #8a8680;
-  --accent: #4a9eff;
-  --red: #e55;
-  --green: #4a4;
-  --font: 'Segoe UI', system-ui, sans-serif;
+  --gold-glow: #c9a84c22;
+  --text: #e4e0d8;
+  --text2: #b8b4ac;
+  --muted: #706c64;
+  --accent: #5ca0e8;
+  --red: #d44;
+  --green: #4a8;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
-body.light { --bg: #f4f1eb; --surface: #fff; --surface2: #f0ede6; --border: #d5d0c8; --text: #2a2520; --muted: #6a6560; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+body.light {
+  --bg: #f5f2ec; --surface: #ffffff; --surface2: #f0ede5; --surface3: #e8e4dc;
+  --border: #d5d0c5; --border-hi: #c0bbb0; --text: #1a1815; --text2: #4a4540;
+  --muted: #8a857e; --gold-glow: #c9a84c11;
+}
 
 /* ── HEADER ── */
-.hdr { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.hdr h1 { font-size: 22px; color: var(--gold); letter-spacing: 1px; }
-.hdr .stats { display: flex; gap: 14px; font-size: 13px; color: var(--muted); }
-.hdr .stats b { color: var(--text); }
-.conn-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-.conn-dot.ok { background: var(--green); }
-.conn-dot.err { background: var(--red); }
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky; top: 0; z-index: 100;
+}
+.hdr-left { display: flex; align-items: baseline; gap: 10px; }
+.hdr h1 {
+  font-family: var(--font-display); font-size: 24px; font-weight: 800;
+  color: var(--gold); letter-spacing: .5px;
+}
+.hdr .ver { font-size: 11px; color: var(--muted); font-weight: 500; }
+.hdr-right { display: flex; align-items: center; gap: 16px; font-size: 13px; }
+.stat { color: var(--muted); }
+.stat b { color: var(--text2); font-weight: 600; }
+.conn-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px 3px 8px; border-radius: 20px;
+  background: var(--surface2); border: 1px solid var(--border);
+  font-size: 12px; color: var(--muted); font-weight: 500;
+}
+.conn-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.conn-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.conn-dot.err { background: var(--red); box-shadow: 0 0 6px var(--red); }
 .conn-dot.loading { background: var(--gold); animation: pulse .8s infinite; }
-@keyframes pulse { 50% { opacity: .3; } }
-.theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); cursor: pointer; border-radius: 6px; padding: 4px 10px; font-size: 16px; }
-.ver { font-size: 11px; color: var(--muted); margin-left: 8px; }
+@keyframes pulse { 50% { opacity: .25; } }
+.theme-btn {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  cursor: pointer; border-radius: 6px; padding: 4px 10px; font-size: 15px;
+  transition: border-color .15s;
+}
+.theme-btn:hover { border-color: var(--gold-dim); }
 
-/* ── CONN BANNER ── */
-.conn-banner { background: #331a1a; color: #faa; padding: 10px 20px; font-size: 13px; display: none; align-items: center; gap: 10px; }
+/* ── ERROR BANNER ── */
+.conn-banner {
+  background: #2a1515; color: #faa; padding: 10px 24px; font-size: 13px;
+  display: none; align-items: center; gap: 12px;
+  border-bottom: 1px solid #4a2020;
+}
 .conn-banner.show { display: flex; }
-.conn-banner button { background: var(--red); color: #fff; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.conn-banner button {
+  background: var(--red); color: #fff; border: none; padding: 4px 14px;
+  border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;
+}
 
 /* ── FILTERS ── */
-.filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px; background: var(--surface); border-bottom: 1px solid var(--border); align-items: flex-end; }
-.fg { display: flex; flex-direction: column; gap: 2px; }
-.fg label { font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; }
-.fg input, .fg select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 4px; font-size: 13px; width: 110px; }
-.fg select { width: 120px; }
+.filters-wrap {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 16px 24px 0;
+}
+.filters {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+}
+.fg { display: flex; flex-direction: column; gap: 3px; }
+.fg label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .8px;
+  color: var(--muted); font-weight: 600;
+}
+.fg input, .fg select {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 6px 10px; border-radius: 5px;
+  font-size: 13px; font-family: var(--font-body); width: 120px;
+  transition: border-color .15s;
+}
 .fg input:focus, .fg select:focus { outline: none; border-color: var(--gold); }
 .fg.wide input { width: 200px; }
-.cat-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 20px 10px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.chip { padding: 4px 10px; border-radius: 12px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); transition: all .15s; }
-.chip.active { background: var(--gold); color: #000; border-color: var(--gold); }
-.chip:hover { border-color: var(--gold-dim); }
-.nbn-row { display: none; padding: 6px 20px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 8px; align-items: flex-end; }
+.fg.narrow input { width: 70px; }
+.fg.xs input { width: 55px; }
+
+/* ── CATEGORY CHIPS ── */
+.chips-row {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  padding: 10px 0 14px;
+}
+.chip {
+  padding: 4px 12px; border-radius: 14px; font-size: 12px; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border); background: var(--surface2);
+  color: var(--muted); transition: all .15s; user-select: none;
+}
+.chip.active { background: var(--gold); color: #0b0b0f; border-color: var(--gold); font-weight: 600; }
+.chip:hover:not(.active) { border-color: var(--gold-dim); color: var(--text2); }
+
+/* ── NATIONAL BANK SECTION ── */
+.nbn-toggle {
+  cursor: pointer; color: var(--gold-dim); font-size: 12px; font-weight: 500;
+  padding: 0 24px 4px; background: var(--surface); user-select: none;
+  letter-spacing: .3px;
+}
+.nbn-toggle:hover { color: var(--gold); }
+.nbn-row {
+  display: none; padding: 6px 24px 10px; background: var(--surface);
+  gap: 10px; align-items: flex-end;
+}
 .nbn-row.show { display: flex; }
-.nbn-toggle { cursor: pointer; color: var(--gold-dim); font-size: 12px; padding: 0 20px 6px; background: var(--surface); }
-.btn-row { display: flex; gap: 8px; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.btn { padding: 7px 18px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
-.btn-go { background: var(--gold); color: #000; }
+
+/* ── STAR TOGGLE ── */
+.star-toggle {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 13px; color: var(--gold); cursor: pointer; user-select: none;
+}
+.star-toggle input { accent-color: var(--gold); cursor: pointer; }
+
+/* ── BUTTON ROW ── */
+.btn-row {
+  display: flex; gap: 8px; padding: 12px 24px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.btn {
+  padding: 8px 20px; border-radius: 5px; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; font-family: var(--font-body);
+  transition: all .15s;
+}
+.btn-go { background: var(--gold); color: #0b0b0f; }
 .btn-go:hover { background: #d4b458; }
 .btn-clear { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.btn-clear:hover { border-color: var(--border-hi); }
 .btn-export { background: var(--surface2); color: var(--accent); border: 1px solid var(--border); }
-.star-toggle { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--gold); cursor: pointer; }
-.star-toggle input { accent-color: var(--gold); }
+.btn-export:hover { border-color: var(--accent); }
 
 /* ── ESTIMATE CARD ── */
-.est-card { margin: 14px 20px; padding: 12px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; display: flex; gap: 24px; align-items: center; font-size: 13px; }
-.est-card .price { font-size: 24px; font-weight: 700; color: var(--gold); }
-.est-card .meta { color: var(--muted); }
+.est-card {
+  margin: 16px 24px; padding: 14px 20px;
+  background: linear-gradient(135deg, var(--surface2), var(--surface3));
+  border: 1px solid var(--border); border-radius: 8px;
+  display: flex; gap: 30px; align-items: center;
+  box-shadow: 0 2px 12px var(--gold-glow);
+}
+.est-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; font-weight: 600; }
+.est-price { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--gold); margin-top: 2px; }
+.est-meta { color: var(--text2); font-size: 13px; line-height: 1.7; }
+.est-meta span { color: var(--muted); }
 
 /* ── TABLE ── */
-.tbl-wrap { overflow-x: auto; padding: 0 20px; }
-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
-th { text-align: left; padding: 8px 6px; border-bottom: 2px solid var(--border); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; white-space: nowrap; user-select: none; }
+.tbl-wrap { overflow-x: auto; padding: 0 24px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+thead { position: sticky; top: 58px; z-index: 10; background: var(--bg); }
+th {
+  text-align: left; padding: 9px 6px; border-bottom: 2px solid var(--border);
+  color: var(--muted); font-size: 10px; text-transform: uppercase;
+  letter-spacing: .7px; font-weight: 600; cursor: pointer;
+  white-space: nowrap; user-select: none; transition: color .12s;
+}
 th:hover { color: var(--gold); }
 th.sorted { color: var(--gold); }
-td { padding: 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th.sorted::after { content: ' ▾'; font-size: 9px; }
+th.sorted.asc::after { content: ' ▴'; }
+td {
+  padding: 7px 6px; border-bottom: 1px solid var(--border);
+  white-space: nowrap; font-size: 12px;
+}
 tr:hover td { background: var(--surface2); }
 td a { color: var(--accent); text-decoration: none; }
 td a:hover { text-decoration: underline; }
-.loading-row td { text-align: center; color: var(--muted); padding: 30px; font-size: 14px; }
-.empty-row td { text-align: center; color: var(--muted); padding: 30px; }
+.loading-row td { text-align: center; color: var(--muted); padding: 40px; font-size: 14px; }
+.empty-row td { text-align: center; color: var(--muted); padding: 40px; }
 
 /* ── PAGINATION ── */
-.pager { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 14px; font-size: 13px; color: var(--muted); }
-.pager button { background: var(--surface2); color: var(--text); border: 1px solid var(--border); padding: 5px 14px; border-radius: 4px; cursor: pointer; }
+.pager {
+  display: flex; justify-content: center; align-items: center;
+  gap: 14px; padding: 16px; font-size: 13px; color: var(--muted);
+}
+.pager button {
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  padding: 6px 16px; border-radius: 5px; cursor: pointer;
+  font-family: var(--font-body); font-weight: 500; transition: border-color .15s;
+}
+.pager button:hover:not(:disabled) { border-color: var(--gold-dim); }
 .pager button:disabled { opacity: .3; cursor: default; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .hdr { flex-direction: column; gap: 8px; align-items: flex-start; }
+  .hdr-right { flex-wrap: wrap; gap: 8px; }
+  .filters { gap: 6px; }
+  .fg input, .fg select { font-size: 14px; }
+  .est-card { flex-direction: column; gap: 10px; }
+}
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
+<!-- ═══ HEADER ═══ -->
 <div class="hdr">
-  <div style="display:flex;align-items:center;gap:8px;">
+  <div class="hdr-left">
     <h1>Currency Comps</h1>
-    <span class="ver">v2.4</span>
+    <span class="ver">v2.5</span>
   </div>
-  <div class="stats">
-    <span><span class="conn-dot loading" id="connDot"></span> <span id="connLabel">Connecting…</span></span>
-    <span>HA: <b id="haCount">—</b></span>
-    <span>SB: <b id="sbCount">—</b></span>
-    <span>Total: <b id="totalCount">—</b></span>
-    <span>Matching: <b id="matchCount">—</b></span>
+  <div class="hdr-right">
+    <span class="conn-pill"><span class="conn-dot loading" id="connDot"></span><span id="connLabel">Connecting…</span></span>
+    <span class="stat">HA: <b id="haCount">—</b></span>
+    <span class="stat">SB: <b id="sbCount">—</b></span>
+    <span class="stat">Total: <b id="totalCount">—</b></span>
+    <span class="stat">Matching: <b id="matchCount">—</b></span>
     <button class="theme-btn" onclick="toggleTheme()" title="Toggle light/dark">☾</button>
   </div>
 </div>
 
-<!-- CONNECTION ERROR BANNER -->
+<!-- ═══ ERROR BANNER ═══ -->
 <div class="conn-banner" id="connBanner">
   <span id="connError">Connection failed</span>
   <button onclick="initSupabase()">Retry</button>
 </div>
 
-<!-- FILTERS -->
-<div class="filters">
-  <div class="fg"><label>Source</label>
-    <select id="fSource"><option value="">All sources</option><option value="heritage">Heritage Auctions</option><option value="stacks">Stack's Bowers</option></select>
+<!-- ═══ FILTERS ═══ -->
+<div class="filters-wrap">
+  <div class="filters">
+    <div class="fg"><label>Source</label>
+      <select id="fSource">
+        <option value="">All sources</option>
+        <option value="heritage_auctions">Heritage Auctions</option>
+        <option value="stacks_bowers">Stack's Bowers</option>
+      </select>
+    </div>
+    <div class="fg wide"><label>Title contains</label><input id="fTitle" placeholder=""></div>
+    <div class="fg"><label>Friedberg #</label><input id="fFr" placeholder="" style="width:100px"></div>
+    <div class="fg narrow"><label>Year</label><input id="fYear" type="number" placeholder=""></div>
+    <div class="fg xs"><label>Letter</label><input id="fLetter" placeholder=""></div>
+    <div class="fg"><label>Denom</label>
+      <select id="fDenom">
+        <option value="">any</option>
+        <option>$1</option><option>$2</option><option>$5</option><option>$10</option>
+        <option>$20</option><option>$50</option><option>$100</option><option>$500</option>
+        <option>$1000</option><option>$5000</option><option>$10000</option>
+      </select>
+    </div>
+    <div class="fg"><label>Grading Co.</label>
+      <select id="fService">
+        <option value="">any</option>
+        <option value="PMG">PMG</option>
+        <option value="PCGS">PCGS</option>
+        <option value="NGC">NGC</option>
+        <option value="raw">raw</option>
+        <option value="unknown">unknown</option>
+      </select>
+    </div>
+    <div class="fg"><label>PPQ/EPQ</label>
+      <select id="fQual">
+        <option value="">any</option>
+        <option value="PPQ">PPQ</option>
+        <option value="EPQ">EPQ</option>
+        <option value="none">none</option>
+      </select>
+    </div>
+    <div class="fg narrow"><label>Grade min</label><input id="fGradeMin" type="number"></div>
+    <div class="fg narrow"><label>Grade max</label><input id="fGradeMax" type="number"></div>
+    <div class="fg"><label>Price min</label><input id="fPriceMin" type="number" style="width:95px"></div>
+    <div class="fg"><label>Price max</label><input id="fPriceMax" type="number" style="width:95px"></div>
+    <div class="fg"><label>From</label><input id="fDateFrom" type="date"></div>
+    <div class="fg"><label>To</label><input id="fDateTo" type="date"></div>
+    <label class="star-toggle"><input type="checkbox" id="fStar"> ★ Star only</label>
   </div>
-  <div class="fg wide"><label>Title contains</label><input id="fTitle" placeholder=""></div>
-  <div class="fg"><label>Friedberg #</label><input id="fFr" placeholder=""></div>
-  <div class="fg"><label>Year</label><input id="fYear" placeholder="" style="width:70px"></div>
-  <div class="fg"><label>Letter</label><input id="fLetter" placeholder="" style="width:50px"></div>
-  <div class="fg"><label>Denom</label>
-    <select id="fDenom"><option value="">any</option><option>$1</option><option>$2</option><option>$5</option><option>$10</option><option>$20</option><option>$50</option><option>$100</option><option>$500</option><option>$1000</option><option>$5000</option><option>$10000</option></select>
-  </div>
-  <div class="fg"><label>Co.</label>
-    <select id="fService"><option value="">any</option><option>PMG</option><option>PCGS</option><option>NGC</option><option value="raw">raw</option><option value="unknown">unknown</option></select>
-  </div>
-  <div class="fg"><label>PPQ/EPQ</label>
-    <select id="fQual"><option value="">any</option><option>PPQ</option><option>EPQ</option><option value="none">none</option></select>
-  </div>
-  <div class="fg"><label>Grade min</label><input id="fGradeMin" type="number" style="width:70px"></div>
-  <div class="fg"><label>Grade max</label><input id="fGradeMax" type="number" style="width:70px"></div>
-  <div class="fg"><label>Price min</label><input id="fPriceMin" type="number" style="width:90px"></div>
-  <div class="fg"><label>Price max</label><input id="fPriceMax" type="number" style="width:90px"></div>
-  <div class="fg"><label>From</label><input id="fDateFrom" type="date"></div>
-  <div class="fg"><label>To</label><input id="fDateTo" type="date"></div>
-  <label class="star-toggle"><input type="checkbox" id="fStar"> ★ Star only</label>
+  <div class="chips-row" id="catChips"></div>
 </div>
 
 <div class="nbn-toggle" onclick="document.querySelector('.nbn-row').classList.toggle('show')">▸ National Banks (charter / state)</div>
 <div class="nbn-row">
-  <div class="fg"><label>State</label><input id="fState" placeholder="" style="width:60px"></div>
-  <div class="fg"><label>Charter #</label><input id="fCharter" placeholder="" style="width:80px"></div>
+  <div class="fg"><label>State</label><input id="fState" placeholder="" style="width:60px" maxlength="2"></div>
+  <div class="fg"><label>Charter #</label><input id="fCharter" placeholder="" style="width:90px"></div>
 </div>
-
-<div class="cat-chips" id="catChips"></div>
 
 <div class="btn-row">
   <button class="btn btn-go" onclick="doSearch()">Apply filters</button>
@@ -160,33 +311,42 @@ td a:hover { text-decoration: underline; }
   <button class="btn btn-export" onclick="exportCSV()">Export CSV</button>
 </div>
 
-<!-- ESTIMATE CARD -->
+<!-- ═══ ESTIMATE CARD ═══ -->
 <div class="est-card">
-  <div><div style="font-size:11px;color:var(--muted)">Current Estimated Price</div><div class="price" id="estPrice">—</div></div>
-  <div class="meta"><div>Mean<span id="estMean" style="margin-left:6px">—</span></div><div>Low / High<span id="estRange" style="margin-left:6px">—</span></div><div>Sample size<span id="estN" style="margin-left:6px">—</span></div></div>
+  <div>
+    <div class="est-label">Current Estimated Price</div>
+    <div class="est-price" id="estPrice">—</div>
+  </div>
+  <div class="est-meta">
+    <div><span>Mean</span> <b id="estMean">—</b></div>
+    <div><span>Low / High</span> <b id="estRange">—</b></div>
+    <div><span>Sample size</span> <b id="estN">—</b></div>
+  </div>
 </div>
 
-<!-- TABLE -->
+<!-- ═══ TABLE ═══ -->
 <div class="tbl-wrap">
 <table>
 <thead><tr>
-  <th data-col="row">#</th>
-  <th data-col="description_full" class="sorted">Title</th>
-  <th data-col="fr_number">Friedberg</th>
-  <th data-col="year_series">Series</th>
+  <th data-col="_row">#</th>
+  <th data-col="title" class="sorted">Title</th>
+  <th data-col="friedberg_number">Fr.</th>
+  <th data-col="sold_year">Year</th>
   <th data-col="denomination">Denom</th>
-  <th data-col="category_parent">Type</th>
-  <th data-col="grade_text">Grading</th>
-  <th data-col="is_star">★</th>
-  <th data-col="sold_for">Sold</th>
-  <th data-col="auction_end_date">Date</th>
+  <th data-col="series_type">Type</th>
+  <th data-col="grade_raw">Grade</th>
+  <th data-col="is_star_note">★</th>
+  <th data-col="price_realized">Sold</th>
+  <th data-col="sold_on">Date</th>
   <th data-col="source">Src</th>
 </tr></thead>
-<tbody id="tbody"><tr class="loading-row"><td colspan="11">Connecting to database…</td></tr></tbody>
+<tbody id="tbody">
+  <tr class="loading-row"><td colspan="11">Connecting to database…</td></tr>
+</tbody>
 </table>
 </div>
 
-<!-- PAGINATION -->
+<!-- ═══ PAGINATION ═══ -->
 <div class="pager">
   <button id="pgPrev" onclick="changePage(-1)" disabled>‹ Prev</button>
   <span id="pgInfo">—</span>
@@ -197,30 +357,32 @@ td a:hover { text-decoration: underline; }
 // ═══ SUPABASE CONFIG ═══
 const SUPABASE_URL = "https://wqizwluccqqfkedpgvve.supabase.co";
 const SUPABASE_KEY = "sb_publishable_9DiOeDQje6yiSEITD7WUrw_S2Q-2xyS";
+const TABLE = "lots_currency";
+// ═══════════════
 
 let sb = null;
 let rows = [];
 let page = 0;
 const PER = 50;
-let sortCol = "auction_end_date";
+let sortCol = "sold_on";
 let sortAsc = false;
 let totalMatching = 0;
-let categories = [];
-let activeCat = "";
+let seriesTypes = [];
+let activeSeries = "";
 
 // ── THEME ──
 function toggleTheme() {
   document.body.classList.toggle("light");
-  localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
+  localStorage.setItem("cc_theme", document.body.classList.contains("light") ? "light" : "dark");
 }
-if (localStorage.getItem("theme") === "light") document.body.classList.add("light");
+if (localStorage.getItem("cc_theme") === "light") document.body.classList.add("light");
 
 // ── SUPABASE INIT ──
 async function initSupabase() {
   const dot = document.getElementById("connDot");
   const label = document.getElementById("connLabel");
   const banner = document.getElementById("connBanner");
-  const errSpan = document.getElementById("connError");
+  const errEl = document.getElementById("connError");
 
   dot.className = "conn-dot loading";
   label.textContent = "Connecting…";
@@ -229,127 +391,81 @@ async function initSupabase() {
   try {
     sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const { count, error } = await sb.from("lots").select("*", { count: "exact", head: true });
-    if (error) throw new Error(error.message || "Query failed");
+    const { count: total, error: tErr } = await sb
+      .from(TABLE).select("*", { count: "exact", head: true });
+    if (tErr) throw new Error(tErr.message || "Query failed");
+
+    const { count: haC } = await sb
+      .from(TABLE).select("*", { count: "exact", head: true })
+      .eq("source", "heritage_auctions");
+    const { count: sbC } = await sb
+      .from(TABLE).select("*", { count: "exact", head: true })
+      .eq("source", "stacks_bowers");
 
     dot.className = "conn-dot ok";
-    label.textContent = count.toLocaleString() + " lots";
-    document.getElementById("totalCount").textContent = count.toLocaleString();
+    label.textContent = fmt(total) + " lots";
+    document.getElementById("totalCount").textContent = fmt(total);
+    document.getElementById("haCount").textContent = fmt(haC || 0);
+    document.getElementById("sbCount").textContent = fmt(sbC || 0);
 
-    const { count: haC } = await sb.from("lots").select("*", { count: "exact", head: true }).eq("house_id", 1);
-    const { count: sbC } = await sb.from("lots").select("*", { count: "exact", head: true }).eq("house_id", 2);
-    document.getElementById("haCount").textContent = (haC || 0).toLocaleString();
-    document.getElementById("sbCount").textContent = (sbC || 0).toLocaleString();
+    await loadSeriesTypes();
 
-    await loadCategories();
-    document.getElementById("tbody").innerHTML = '<tr class="empty-row"><td colspan="11">Apply filters or search to view results</td></tr>';
+    document.getElementById("tbody").innerHTML =
+      '<tr class="empty-row"><td colspan="11">Apply filters or search to view results</td></tr>';
 
   } catch (e) {
     dot.className = "conn-dot err";
     label.textContent = "Disconnected";
-
     let msg = e.message || "Unknown error";
-    if (msg.includes("CERT") || msg.includes("cert") || msg.includes("SSL") || msg.includes("ERR_CERT")) {
-      msg = "SSL certificate error — your Supabase project may be paused.";
-    } else if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-      msg = "Network error — Supabase project may be paused or offline.";
-    }
-
-    errSpan.textContent = msg;
+    if (/cert|ssl|ERR_CERT/i.test(msg))
+      msg = "SSL error — Supabase project may be paused. Restore it at supabase.com/dashboard.";
+    else if (/fetch|network/i.test(msg))
+      msg = "Network error — Supabase may be paused or offline.";
+    errEl.textContent = msg;
     banner.classList.add("show");
-    document.getElementById("tbody").innerHTML = '<tr class="empty-row"><td colspan="11" style="color:var(--red)">Database connection failed.</td></tr>';
-    console.error("Supabase connection error:", e);
+    document.getElementById("tbody").innerHTML =
+      '<tr class="empty-row"><td colspan="11" style="color:var(--red)">Database connection failed — see error above.</td></tr>';
+    console.error("Supabase init error:", e);
   }
 }
 
-// ── CATEGORIES ──
-async function loadCategories() {
+// ── SERIES TYPE CHIPS ──
+async function loadSeriesTypes() {
   try {
-    const { data } = await sb.from("lots").select("category_parent").not("category_parent", "is", null).limit(1000);
+    const { data } = await sb
+      .from(TABLE)
+      .select("series_type")
+      .not("series_type", "is", null)
+      .limit(5000);
     const set = new Set();
-    (data || []).forEach(r => { if (r.category_parent) set.add(r.category_parent.split("»")[0].trim()); });
-    categories = [...set].sort();
+    (data || []).forEach(r => { if (r.series_type) set.add(r.series_type.trim()); });
+    seriesTypes = [...set].sort();
     renderChips();
-  } catch(e) { console.warn("Category load failed", e); }
+  } catch (e) { console.warn("Series type load:", e); }
 }
 
 function renderChips() {
-  const el = document.getElementById("catChips");
-  el.innerHTML = categories.map(c =>
-    `<span class="chip${activeCat === c ? ' active' : ''}" onclick="toggleCat('${c.replace(/'/g,"\\'")}')">${c}</span>`
+  document.getElementById("catChips").innerHTML = seriesTypes.map(s =>
+    `<span class="chip${activeSeries === s ? ' active' : ''}" onclick="toggleSeries(this, '${esc(s)}')">${s}</span>`
   ).join("");
 }
-
-function toggleCat(c) {
-  activeCat = activeCat === c ? "" : c;
-  renderChips();
-}
+function toggleSeries(el, s) { activeSeries = activeSeries === s ? "" : s; renderChips(); }
+function esc(s) { return s.replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
 
 // ── SEARCH ──
 async function doSearch() {
-  if (!sb) { alert("Not connected to database."); return; }
-
+  if (!sb) return alert("Not connected to database.");
   page = 0;
-  document.getElementById("tbody").innerHTML = '<tr class="loading-row"><td colspan="11">Searching…</td></tr>';
+  await runQuery();
+}
+
+async function runQuery() {
+  document.getElementById("tbody").innerHTML =
+    '<tr class="loading-row"><td colspan="11">Searching…</td></tr>';
 
   try {
-    let q = sb.from("lots").select("*", { count: "exact" });
-
-    const src = document.getElementById("fSource").value;
-    if (src === "heritage") q = q.eq("house_id", 1);
-    else if (src === "stacks") q = q.eq("house_id", 2);
-
-    const title = document.getElementById("fTitle").value.trim();
-    if (title) q = q.ilike("description_full", `%${title}%`);
-
-    const fr = document.getElementById("fFr").value.trim();
-    if (fr) q = q.eq("fr_number", fr);
-
-    const yr = document.getElementById("fYear").value.trim();
-    if (yr) q = q.ilike("year_series", `%${yr}%`);
-
-    const den = document.getElementById("fDenom").value;
-    if (den) {
-      const denNum = den.replace("$","").replace(",","");
-      q = q.eq("denomination", denNum);
-    }
-
-    const svc = document.getElementById("fService").value;
-    if (svc === "PMG") q = q.eq("grade_service", "PMG");
-    else if (svc === "PCGS") q = q.eq("grade_service", "PCGS");
-    else if (svc === "NGC") q = q.eq("grade_service", "NGC");
-    else if (svc === "raw") q = q.is("grade_service", null);
-
-    const qual = document.getElementById("fQual").value;
-    if (qual === "PPQ") q = q.eq("grade_qualifiers", "PPQ");
-    else if (qual === "EPQ") q = q.eq("grade_qualifiers", "EPQ");
-    else if (qual === "none") q = q.is("grade_qualifiers", null);
-
-    const gMin = document.getElementById("fGradeMin").value;
-    const gMax = document.getElementById("fGradeMax").value;
-    if (gMin) q = q.gte("grade_numeric", parseInt(gMin));
-    if (gMax) q = q.lte("grade_numeric", parseInt(gMax));
-
-    const pMin = document.getElementById("fPriceMin").value;
-    const pMax = document.getElementById("fPriceMax").value;
-    if (pMin) q = q.gte("sold_for", parseFloat(pMin));
-    if (pMax) q = q.lte("sold_for", parseFloat(pMax));
-
-    const dFrom = document.getElementById("fDateFrom").value;
-    const dTo = document.getElementById("fDateTo").value;
-    if (dFrom) q = q.gte("auction_end_date", dFrom);
-    if (dTo) q = q.lte("auction_end_date", dTo);
-
-    if (document.getElementById("fStar").checked) q = q.eq("is_star", true);
-
-    if (activeCat) q = q.ilike("category_parent", `${activeCat}%`);
-
-    const st = document.getElementById("fState").value.trim().toUpperCase();
-    if (st) q = q.eq("state", st);
-
-    const ch = document.getElementById("fCharter").value.trim();
-    if (ch) q = q.eq("charter_number", ch);
-
+    let q = sb.from(TABLE).select("*", { count: "exact" });
+    q = applyFilters(q);
     q = q.order(sortCol, { ascending: sortAsc, nullsFirst: false });
     q = q.range(page * PER, (page + 1) * PER - 1);
 
@@ -358,167 +474,199 @@ async function doSearch() {
 
     rows = data || [];
     totalMatching = count || 0;
-    document.getElementById("matchCount").textContent = totalMatching.toLocaleString();
+    document.getElementById("matchCount").textContent = fmt(totalMatching);
 
     renderTable();
     renderPager();
     computeEstimate();
-
   } catch (e) {
     console.error("Search error:", e);
-    document.getElementById("tbody").innerHTML = `<tr class="empty-row"><td colspan="11" style="color:var(--red)">Search failed: ${e.message}</td></tr>`;
+    document.getElementById("tbody").innerHTML =
+      `<tr class="empty-row"><td colspan="11" style="color:var(--red)">Search failed: ${e.message}</td></tr>`;
   }
+}
+
+// ── APPLY FILTERS ──
+function applyFilters(q) {
+  const v = id => document.getElementById(id).value.trim();
+
+  const src = v("fSource");
+  if (src) q = q.eq("source", src);
+
+  const title = v("fTitle");
+  if (title) q = q.ilike("title", `%${title}%`);
+
+  const fr = v("fFr");
+  if (fr) q = q.eq("friedberg_number_normalized", fr);
+
+  const yr = v("fYear");
+  if (yr) q = q.eq("sold_year", parseInt(yr));
+
+  const den = document.getElementById("fDenom").value;
+  if (den) q = q.eq("denomination", den.replace("$", "").replace(/,/g, ""));
+
+  const svc = v("fService");
+  if (svc === "PMG" || svc === "PCGS" || svc === "NGC")
+    q = q.eq("grading_company", svc);
+  else if (svc === "raw")
+    q = q.is("grading_company", null);
+
+  const qual = v("fQual");
+  if (qual === "PPQ") q = q.eq("ppq_epq", "PPQ");
+  else if (qual === "EPQ") q = q.eq("ppq_epq", "EPQ");
+  else if (qual === "none") q = q.is("ppq_epq", null);
+
+  const gMin = v("fGradeMin"), gMax = v("fGradeMax");
+  if (gMin) q = q.gte("grade_numeric", parseInt(gMin));
+  if (gMax) q = q.lte("grade_numeric", parseInt(gMax));
+
+  const pMin = v("fPriceMin"), pMax = v("fPriceMax");
+  if (pMin) q = q.gte("price_realized", parseFloat(pMin));
+  if (pMax) q = q.lte("price_realized", parseFloat(pMax));
+
+  const dFrom = v("fDateFrom"), dTo = v("fDateTo");
+  if (dFrom) q = q.gte("sold_on", dFrom);
+  if (dTo) q = q.lte("sold_on", dTo);
+
+  if (document.getElementById("fStar").checked)
+    q = q.eq("is_star_note", true);
+
+  if (activeSeries) q = q.eq("series_type", activeSeries);
+
+  const st = v("fState").toUpperCase();
+  if (st) q = q.eq("state_code", st);
+
+  const ch = v("fCharter");
+  if (ch) q = q.eq("charter_number", ch);
+
+  return q;
 }
 
 // ── RENDER TABLE ──
 function renderTable() {
-  if (rows.length === 0) {
-    document.getElementById("tbody").innerHTML = '<tr class="empty-row"><td colspan="11">No results match your filters</td></tr>';
+  if (!rows.length) {
+    document.getElementById("tbody").innerHTML =
+      '<tr class="empty-row"><td colspan="11">No results match your filters</td></tr>';
     return;
   }
   document.getElementById("tbody").innerHTML = rows.map((r, i) => {
     const n = page * PER + i + 1;
-    const price = r.sold_for ? "$" + Number(r.sold_for).toLocaleString() : "—";
-    const dt = r.auction_end_date || "—";
-    const star = r.is_star ? "★" : "";
-    const fr = r.fr_number ? "Fr." + r.fr_number : "—";
+    const price = r.price_realized ? "$" + Number(r.price_realized).toLocaleString() : "—";
+    const dt = r.sold_on || "—";
+    const star = r.is_star_note ? "★" : "";
+    const fr = r.friedberg_number || "—";
     const den = r.denomination ? "$" + r.denomination : "—";
-    const cat = r.category_parent ? r.category_parent.split("»")[0].trim() : "—";
-    const grade = r.grade_text || "—";
-    const src = r.house_id === 1 ? "HA" : r.house_id === 2 ? "SB" : "—";
-    const desc = r.description_full || "—";
+    const sType = r.series_type || "—";
+    const grade = r.grade_raw || "—";
+    const srcLabel = r.source === "heritage_auctions" ? "HA"
+                   : r.source === "stacks_bowers" ? "SB" : "—";
+    const t = r.title || "—";
     const url = r.lot_url || "#";
-    const descShort = desc.length > 80 ? desc.substring(0, 77) + "…" : desc;
+    const tShort = t.length > 80 ? t.substring(0, 77) + "…" : t;
+
     return `<tr>
       <td>${n}</td>
-      <td><a href="${url}" target="_blank" title="${desc.replace(/"/g,'&quot;')}">${descShort}</a></td>
+      <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
       <td>${fr}</td>
-      <td>${r.year_series || "—"}</td>
+      <td>${r.sold_year || "—"}</td>
       <td>${den}</td>
-      <td>${cat}</td>
+      <td>${sType}</td>
       <td>${grade}</td>
       <td style="color:var(--gold)">${star}</td>
       <td>${price}</td>
       <td>${dt}</td>
-      <td>${src}</td>
+      <td>${srcLabel}</td>
     </tr>`;
   }).join("");
 }
 
 // ── PAGINATION ──
 function renderPager() {
-  const maxPage = Math.max(0, Math.ceil(totalMatching / PER) - 1);
-  document.getElementById("pgInfo").textContent = totalMatching > 0 ? `Page ${page + 1} of ${maxPage + 1} (${totalMatching.toLocaleString()} results)` : "—";
+  const maxP = Math.max(0, Math.ceil(totalMatching / PER) - 1);
+  document.getElementById("pgInfo").textContent = totalMatching > 0
+    ? `Page ${page + 1} of ${maxP + 1} (${fmt(totalMatching)} results)`
+    : "—";
   document.getElementById("pgPrev").disabled = page <= 0;
-  document.getElementById("pgNext").disabled = page >= maxPage;
+  document.getElementById("pgNext").disabled = page >= maxP;
 }
-
-function changePage(d) {
-  page += d;
-  doSearch();
-}
+function changePage(d) { page += d; runQuery(); }
 
 // ── SORT ──
 document.querySelectorAll("th[data-col]").forEach(th => {
   th.addEventListener("click", () => {
     const col = th.dataset.col;
-    if (col === "row") return;
-    if (sortCol === col) { sortAsc = !sortAsc; }
-    else { sortCol = col; sortAsc = true; }
-    document.querySelectorAll("th").forEach(t => t.classList.remove("sorted"));
+    if (col === "_row") return;
+    if (sortCol === col) sortAsc = !sortAsc;
+    else { sortCol = col; sortAsc = col === "title"; }
+    document.querySelectorAll("th").forEach(t => { t.classList.remove("sorted","asc"); });
     th.classList.add("sorted");
+    if (sortAsc) th.classList.add("asc");
     doSearch();
   });
 });
 
 // ── ESTIMATE ──
 async function computeEstimate() {
-  const estPrice = document.getElementById("estPrice");
-  const estMean = document.getElementById("estMean");
-  const estRange = document.getElementById("estRange");
-  const estN = document.getElementById("estN");
+  const elP = document.getElementById("estPrice");
+  const elM = document.getElementById("estMean");
+  const elR = document.getElementById("estRange");
+  const elN = document.getElementById("estN");
 
-  if (!sb || totalMatching < 3) {
-    estPrice.textContent = "—";
-    estMean.textContent = "—";
-    estRange.textContent = "—";
-    estN.textContent = totalMatching < 3 ? "Need 3+ priced comps" : "—";
+  if (!sb || totalMatching === 0) {
+    elP.textContent = elM.textContent = elR.textContent = "—";
+    elN.textContent = totalMatching === 0 ? "—" : "Need 3+ priced sales";
     return;
   }
 
   try {
-    let q = sb.from("lots").select("sold_for,auction_end_date");
-
-    const src = document.getElementById("fSource").value;
-    if (src === "heritage") q = q.eq("house_id", 1);
-    else if (src === "stacks") q = q.eq("house_id", 2);
-
-    const fr = document.getElementById("fFr").value.trim();
-    if (fr) q = q.eq("fr_number", fr);
-
-    const den = document.getElementById("fDenom").value;
-    if (den) q = q.eq("denomination", den.replace("$","").replace(",",""));
-
-    const gMin = document.getElementById("fGradeMin").value;
-    const gMax = document.getElementById("fGradeMax").value;
-    if (gMin) q = q.gte("grade_numeric", parseInt(gMin));
-    if (gMax) q = q.lte("grade_numeric", parseInt(gMax));
-
-    const svc = document.getElementById("fService").value;
-    if (svc === "PMG") q = q.eq("grade_service", "PMG");
-    else if (svc === "PCGS") q = q.eq("grade_service", "PCGS");
-
-    if (activeCat) q = q.ilike("category_parent", `${activeCat}%`);
-    if (document.getElementById("fStar").checked) q = q.eq("is_star", true);
-
-    const st = document.getElementById("fState").value.trim().toUpperCase();
-    if (st) q = q.eq("state", st);
-
-    q = q.not("sold_for", "is", null).gt("sold_for", 0).order("auction_end_date", { ascending: false }).limit(2000);
+    let q = sb.from(TABLE).select("price_realized,sold_on");
+    q = applyFilters(q);
+    q = q.not("price_realized", "is", null)
+         .gt("price_realized", 0)
+         .order("sold_on", { ascending: false })
+         .limit(2000);
 
     const { data, error } = await q;
     if (error || !data || data.length < 3) {
-      estPrice.textContent = "—";
-      estMean.textContent = "—";
-      estRange.textContent = "—";
-      estN.textContent = (data ? data.length : 0) + " priced (need 3+)";
+      elP.textContent = elM.textContent = elR.textContent = "—";
+      elN.textContent = (data ? data.length : 0) + " priced (need 3+)";
       return;
     }
 
     const now = Date.now();
-    const HALF_LIFE = 365 * 24 * 3600 * 1000;
+    const HL = 365 * 86400000;
     let wSum = 0, wTot = 0;
-    const prices = data.map(r => r.sold_for);
+    const prices = [];
 
     data.forEach(r => {
-      const dt = r.auction_end_date ? new Date(r.auction_end_date).getTime() : now - HALF_LIFE;
-      const age = now - dt;
-      const w = Math.pow(0.5, age / HALF_LIFE);
-      wSum += r.sold_for * w;
+      const p = Number(r.price_realized);
+      if (!p || p <= 0) return;
+      prices.push(p);
+      const dt = r.sold_on ? new Date(r.sold_on).getTime() : now - HL;
+      const w = Math.pow(0.5, (now - dt) / HL);
+      wSum += p * w;
       wTot += w;
     });
 
-    const weighted = wSum / wTot;
-    const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
-    const lo = Math.min(...prices);
-    const hi = Math.max(...prices);
+    if (prices.length < 3) {
+      elP.textContent = elM.textContent = elR.textContent = "—";
+      elN.textContent = prices.length + " priced (need 3+)";
+      return;
+    }
 
-    estPrice.textContent = "$" + Math.round(weighted).toLocaleString();
-    estMean.textContent = "$" + Math.round(mean).toLocaleString();
-    estRange.textContent = "$" + Math.round(lo).toLocaleString() + " / $" + Math.round(hi).toLocaleString();
-    estN.textContent = data.length.toLocaleString() + " sales";
-
-  } catch(e) {
-    console.warn("Estimate error:", e);
-  }
+    elP.textContent = "$" + Math.round(wSum / wTot).toLocaleString();
+    elM.textContent = "$" + Math.round(prices.reduce((a,b) => a+b, 0) / prices.length).toLocaleString();
+    elR.textContent = "$" + Math.min(...prices).toLocaleString() + " / $" + Math.max(...prices).toLocaleString();
+    elN.textContent = fmt(prices.length) + " sales";
+  } catch (e) { console.warn("Estimate:", e); }
 }
 
 // ── CLEAR ──
 function clearFilters() {
-  document.querySelectorAll(".filters input, .nbn-row input").forEach(i => i.value = "");
-  document.querySelectorAll(".filters select").forEach(s => s.selectedIndex = 0);
+  document.querySelectorAll(".filters input, .nbn-row input").forEach(i => { i.value = ""; });
+  document.querySelectorAll(".filters select").forEach(s => { s.selectedIndex = 0; });
   document.getElementById("fStar").checked = false;
-  activeCat = "";
+  activeSeries = "";
   renderChips();
   rows = [];
   totalMatching = 0;
@@ -533,24 +681,60 @@ function clearFilters() {
 
 // ── EXPORT CSV ──
 async function exportCSV() {
-  if (!sb || totalMatching === 0) return alert("Run a search first.");
-  const csvRows = [Object.keys(rows[0] || {}).join(",")];
-  rows.forEach(r => {
-    csvRows.push(Object.values(r).map(v => `"${String(v || "").replace(/"/g,'""')}"`).join(","));
-  });
-  const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "currency_comps_export.csv";
-  a.click();
+  if (!sb) return alert("Not connected.");
+  if (totalMatching === 0) return alert("Run a search first.");
+
+  const btn = document.querySelector(".btn-export");
+  btn.textContent = "Exporting…";
+  btn.disabled = true;
+
+  try {
+    let q = sb.from(TABLE).select(
+      "source,source_lot_id,title,friedberg_number,friedberg_number_normalized,sold_on,sold_year,"
+      + "price_realized,denomination,series_type,grading_company,grade_raw,grade_numeric,ppq_epq,"
+      + "is_star_note,state_code,charter_number,auction_event_name,lot_url"
+    );
+    q = applyFilters(q);
+    q = q.order(sortCol, { ascending: sortAsc }).limit(5000);
+
+    const { data, error } = await q;
+    if (error) throw error;
+    if (!data || !data.length) { alert("No data to export."); return; }
+
+    const cols = Object.keys(data[0]);
+    const csvRows = [cols.join(",")];
+    data.forEach(r => {
+      csvRows.push(cols.map(c => {
+        let v = String(r[c] ?? "");
+        if (/[,"\n]/.test(v)) v = '"' + v.replace(/"/g, '""') + '"';
+        return v;
+      }).join(","));
+    });
+
+    const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "currency_comps_" + new Date().toISOString().slice(0,10) + ".csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert("Export failed: " + e.message);
+    console.error(e);
+  } finally {
+    btn.textContent = "Export CSV";
+    btn.disabled = false;
+  }
 }
 
-// ── ENTER TO SEARCH ──
+// ── ENTER KEY → SEARCH ──
 document.querySelectorAll(".filters input, .nbn-row input").forEach(el => {
   el.addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
 });
 
-// ── INIT ──
+// ── HELPERS ──
+function fmt(n) { return (n || 0).toLocaleString(); }
+
+// ── BOOT ──
 initSupabase();
 </script>
 </body>
