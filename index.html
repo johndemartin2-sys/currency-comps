@@ -230,7 +230,7 @@ td a:hover { text-decoration: underline; }
 <div class="hdr">
   <div class="hdr-left">
     <h1>Currency Comps</h1>
-    <span class="ver">v2.5</span>
+    <span class="ver">v2.6</span>
   </div>
   <div class="hdr-right">
     <span class="conn-pill"><span class="conn-dot loading" id="connDot"></span><span id="connLabel">Connecting…</span></span>
@@ -358,6 +358,7 @@ td a:hover { text-decoration: underline; }
 const SUPABASE_URL = "https://wqizwluccqqfkedpgvve.supabase.co";
 const SUPABASE_KEY = "sb_publishable_9DiOeDQje6yiSEITD7WUrw_S2Q-2xyS";
 const TABLE = "lots_currency";
+const DQ_FILTER = ["trusted", "rescraped"];
 // ═══════════════
 
 let sb = null;
@@ -392,15 +393,18 @@ async function initSupabase() {
     sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const { count: total, error: tErr } = await sb
-      .from(TABLE).select("*", { count: "exact", head: true });
+      .from(TABLE).select("*", { count: "exact", head: true })
+      .in("data_quality", DQ_FILTER);
     if (tErr) throw new Error(tErr.message || "Query failed");
 
     const { count: haC } = await sb
       .from(TABLE).select("*", { count: "exact", head: true })
-      .eq("source", "heritage_auctions");
+      .eq("source", "heritage_auctions")
+      .in("data_quality", DQ_FILTER);
     const { count: sbC } = await sb
       .from(TABLE).select("*", { count: "exact", head: true })
-      .eq("source", "stacks_bowers");
+      .eq("source", "stacks_bowers")
+      .in("data_quality", DQ_FILTER);
 
     dot.className = "conn-dot ok";
     label.textContent = fmt(total) + " lots";
@@ -435,6 +439,7 @@ async function loadSeriesTypes() {
     const { data } = await sb
       .from(TABLE)
       .select("series_type")
+      .in("data_quality", DQ_FILTER)
       .not("series_type", "is", null)
       .limit(5000);
     const set = new Set();
@@ -488,6 +493,7 @@ async function runQuery() {
 
 // ── APPLY FILTERS ──
 function applyFilters(q) {
+  q = q.in("data_quality", DQ_FILTER);
   const v = id => document.getElementById(id).value.trim();
 
   const src = v("fSource");
