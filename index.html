@@ -379,7 +379,7 @@ function toggleTheme() {
 if (localStorage.getItem("cc_theme") === "light") document.body.classList.add("light");
 
 // ── SUPABASE INIT ──
-async function initSupabase() {
+async function countWithRetry(build, tries = 4) { for (let i = 0; i < tries; i++) { try { const { count, error } = await build(sb.from(TABLE).select("*", { count: "exact", head: true })); if (!error) return count; } catch (e) {} await new Promise(r => setTimeout(r, 300 * (i + 1))); } return null; }
   const dot = document.getElementById("connDot");
   const label = document.getElementById("connLabel");
   const banner = document.getElementById("connBanner");
@@ -392,25 +392,12 @@ async function initSupabase() {
   try {
     sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const { count: total, error: tErr } = await sb
-      .from(TABLE).select("*", { count: "exact", head: true })
-      .in("data_quality", DQ_FILTER);
-    if (tErr) throw new Error(tErr.message || "Query failed");
+    const total = await countWithRetry(q => q.in("data_quality", DQ_FILTER)); if (total === null) throw new Error("Database unreachable");
 
-    const { count: haC } = await sb
-      .from(TABLE).select("*", { count: "exact", head: true })
-      .eq("source", "heritage_auctions")
-      .in("data_quality", DQ_FILTER);
-    const { count: sbC } = await sb
-      .from(TABLE).select("*", { count: "exact", head: true })
-      .eq("source", "stacks_bowers")
-      .in("data_quality", DQ_FILTER);
+    const haC = await countWithRetry(q => q.eq("source", "heritage_auctions").in("data_quality", DQ_FILTER)); const sbC = await countWithRetry(q => q.eq("source", "stacks_bowers").in("data_quality", DQ_FILTER));
 
     dot.className = "conn-dot ok";
-    label.textContent = fmt(total) + " lots";
-    document.getElementById("totalCount").textContent = fmt(total);
-    document.getElementById("haCount").textContent = fmt(haC || 0);
-    document.getElementById("sbCount").textContent = fmt(sbC || 0);
+    label.textContent = (total === null ? "—" : fmt(total)) + " lots"; document.getElementById("totalCount").textContent = total === null ? "—" : fmt(total); document.getElementById("haCount").textContent = haC === null ? "—" : fmt(haC); document.getElementById("sbCount").textContent = sbC === null ? "—" : fmt(sbC);
 
     await loadSeriesTypes(); if (hasSearched) return;
 
