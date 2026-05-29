@@ -369,7 +369,7 @@ let sortCol = "sold_on";
 let sortAsc = false;
 let totalMatching = 0;
 let seriesTypes = [];
-let activeSeries = "";
+let activeSeries = ""; let hasSearched = false;
 
 // ── THEME ──
 function toggleTheme() {
@@ -412,7 +412,7 @@ async function initSupabase() {
     document.getElementById("haCount").textContent = fmt(haC || 0);
     document.getElementById("sbCount").textContent = fmt(sbC || 0);
 
-    await loadSeriesTypes();
+    await loadSeriesTypes(); if (hasSearched) return;
 
     document.getElementById("tbody").innerHTML =
       '<tr class="empty-row"><td colspan="11">Apply filters or search to view results</td></tr>';
@@ -459,7 +459,7 @@ function esc(s) { return s.replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
 
 // ── SEARCH ──
 async function doSearch() {
-  if (!sb) return alert("Not connected to database.");
+  if (!sb) return alert("Not connected to database."); hasSearched = true;
   page = 0;
   await runQuery();
 }
