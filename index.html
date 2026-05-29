@@ -478,6 +478,7 @@ async function initSupabase() {
 }
 
 // ── SERIES TYPE CHIPS ──
+const STATE_SLUGS = new Set(["alabama","alaska","arizona","arkansas","california","colorado","colorado-territory","connecticut","delaware","district-of-columbia","florida","georgia","hawaii","hawaii-territory","idaho","illinois","indiana","iowa","kansas","kentucky","louisiana","maine","maryland","massachusetts","michigan","minnesota","mississippi","missouri","montana","nebraska","nevada","new-hampshire","new-jersey","new-mexico","new-york","north-carolina","north-dakota","ohio","oklahoma","oregon","pennsylvania","porto-rico","rhode-island","south-carolina","south-dakota","tennessee","texas","utah","vermont","virginia","washington","west-virginia","wisconsin","wyoming"]);
 async function loadSeriesTypes() {
   try {
     const { data } = await sb
@@ -487,7 +488,7 @@ async function loadSeriesTypes() {
       .not("series_type", "is", null)
       .limit(5000);
     const set = new Set();
-    (data || []).forEach(r => { if (r.series_type) set.add(r.series_type.trim()); });
+    (data || []).forEach(r => { if (r.series_type) { const v = r.series_type.trim(); if (!STATE_SLUGS.has(v.toLowerCase())) set.add(v); } });
     seriesTypes = [...set].sort();
     renderChips();
   } catch (e) { console.warn("Series type load:", e); }
