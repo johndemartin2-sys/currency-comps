@@ -380,6 +380,7 @@ if (localStorage.getItem("cc_theme") === "light") document.body.classList.add("l
 
 // ── SUPABASE INIT ──
 async function countWithRetry(build, tries = 4) { for (let i = 0; i < tries; i++) { try { const { count, error } = await build(sb.from(TABLE).select("*", { count: "exact", head: true })); if (!error) return count; } catch (e) {} await new Promise(r => setTimeout(r, 300 * (i + 1))); } return null; }
+async function initSupabase() {
   const dot = document.getElementById("connDot");
   const label = document.getElementById("connLabel");
   const banner = document.getElementById("connBanner");
