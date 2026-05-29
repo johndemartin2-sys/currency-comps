@@ -506,7 +506,10 @@ function applyFilters(q) {
   if (fr) q = q.eq("friedberg_number_normalized", fr);
 
   const yr = v("fYear");
-  if (yr) q = q.eq("sold_year", parseInt(yr));
+  if (yr) q = q.eq("series_year", parseInt(yr));
+
+  const ltr = v("fLetter");
+  if (ltr) q = q.eq("series_letter", ltr.trim().toUpperCase());
 
   const den = document.getElementById("fDenom").value;
   if (den) q = q.eq("denomination", den.replace("$", "").replace(/,/g, ""));
