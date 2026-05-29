@@ -301,7 +301,63 @@ td a:hover { text-decoration: underline; }
 
 <div class="nbn-toggle" onclick="document.querySelector('.nbn-row').classList.toggle('show')">▸ National Banks (charter / state)</div>
 <div class="nbn-row">
-  <div class="fg"><label>State</label><input id="fState" placeholder="" style="width:60px" maxlength="2"></div>
+<div class="fg"><label>State</label>
+    <select id="fState" style="width:150px">
+      <option value="">any</option>
+      <option value="AL">Alabama</option>
+      <option value="AK">Alaska</option>
+      <option value="AZ">Arizona</option>
+      <option value="AR">Arkansas</option>
+      <option value="CA">California</option>
+      <option value="CO">Colorado</option>
+      <option value="CT">Connecticut</option>
+      <option value="DE">Delaware</option>
+      <option value="DC">District of Columbia</option>
+      <option value="FL">Florida</option>
+      <option value="GA">Georgia</option>
+      <option value="HI">Hawaii</option>
+      <option value="ID">Idaho</option>
+      <option value="IL">Illinois</option>
+      <option value="IN">Indiana</option>
+      <option value="IA">Iowa</option>
+      <option value="KS">Kansas</option>
+      <option value="KY">Kentucky</option>
+      <option value="LA">Louisiana</option>
+      <option value="ME">Maine</option>
+      <option value="MD">Maryland</option>
+      <option value="MA">Massachusetts</option>
+      <option value="MI">Michigan</option>
+      <option value="MN">Minnesota</option>
+      <option value="MS">Mississippi</option>
+      <option value="MO">Missouri</option>
+      <option value="MT">Montana</option>
+      <option value="NE">Nebraska</option>
+      <option value="NV">Nevada</option>
+      <option value="NH">New Hampshire</option>
+      <option value="NJ">New Jersey</option>
+      <option value="NM">New Mexico</option>
+      <option value="NY">New York</option>
+      <option value="NC">North Carolina</option>
+      <option value="ND">North Dakota</option>
+      <option value="OH">Ohio</option>
+      <option value="OK">Oklahoma</option>
+      <option value="OR">Oregon</option>
+      <option value="PA">Pennsylvania</option>
+      <option value="PR">Porto Rico</option>
+      <option value="RI">Rhode Island</option>
+      <option value="SC">South Carolina</option>
+      <option value="SD">South Dakota</option>
+      <option value="TN">Tennessee</option>
+      <option value="TX">Texas</option>
+      <option value="UT">Utah</option>
+      <option value="VT">Vermont</option>
+      <option value="VA">Virginia</option>
+      <option value="WA">Washington</option>
+      <option value="WV">West Virginia</option>
+      <option value="WI">Wisconsin</option>
+      <option value="WY">Wyoming</option>
+    </select>
+  </div>
   <div class="fg"><label>Charter #</label><input id="fCharter" placeholder="" style="width:90px"></div>
 </div>
 
@@ -358,7 +414,7 @@ td a:hover { text-decoration: underline; }
 const SUPABASE_URL = "https://wqizwluccqqfkedpgvve.supabase.co";
 const SUPABASE_KEY = "sb_publishable_9DiOeDQje6yiSEITD7WUrw_S2Q-2xyS";
 const TABLE = "lots_currency";
-const DQ_FILTER = ["trusted", "rescraped"];
+const DQ_FILTER = ["trusted", "rescraped", "unverified"];
 // ═══════════════
 
 let sb = null;
@@ -661,7 +717,7 @@ async function computeEstimate() {
 // ── CLEAR ──
 function clearFilters() {
   document.querySelectorAll(".filters input, .nbn-row input").forEach(i => { i.value = ""; });
-  document.querySelectorAll(".filters select").forEach(s => { s.selectedIndex = 0; });
+  document.querySelectorAll(".filters select, .nbn-row select").forEach(s => { s.selectedIndex = 0; });
   document.getElementById("fStar").checked = false;
   activeSeries = "";
   renderChips();
