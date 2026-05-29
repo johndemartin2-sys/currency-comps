@@ -577,7 +577,7 @@ function renderTable() {
       <td>${n}</td>
       <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
       <td>${fr}</td>
-      <td>${r.sold_year || "—"}</td>
+      <td>${r.series_year || "—"}</td>
       <td>${den}</td>
       <td>${sType}</td>
       <td>${grade}</td>
@@ -699,7 +699,7 @@ async function exportCSV() {
 
   try {
     let q = sb.from(TABLE).select(
-      "source,source_lot_id,title,friedberg_number,friedberg_number_normalized,sold_on,sold_year,"
+      "source,source_lot_id,title,friedberg_number,friedberg_number_normalized,sold_on,sold_year,series_year,"
       + "price_realized,denomination,series_type,grading_company,grade_raw,grade_numeric,ppq_epq,"
       + "is_star_note,state_code,charter_number,auction_event_name,lot_url"
     );
