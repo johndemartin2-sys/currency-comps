@@ -812,6 +812,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
     startApp();
 
     // ==== AUTH GATE ====
+    function ccEnsureSb(){ if(!sb){ try{ sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); }catch(e){} } return sb; }
     function showAuthErr(msg, ok){ var e=document.getElementById('authErr'); if(e){ e.textContent=msg||''; e.style.color = ok ? '#7c9' : '#e98'; } }
     var ccMode='signin';
     function ccRefreshMode(){
@@ -821,6 +822,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
       showAuthErr('');
     }
     async function startApp(){
+      if(!sb){ try{ sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); }catch(e){} }
       try{
         var res = await sb.auth.getSession();
         var session = res && res.data ? res.data.session : null;
@@ -834,6 +836,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
       }catch(err){ var g3=document.getElementById('authGate'); if(g3) g3.style.display='flex'; }
     }
     async function ccDoPrimary(){
+      ccEnsureSb();
       var email=(document.getElementById('authEmail')||{}).value||'';
       var pw=(document.getElementById('authPw')||{}).value||'';
       if(!email||!pw){ showAuthErr('Enter email and password.'); return; }
@@ -849,12 +852,14 @@ function fmt(n) { return (n || 0).toLocaleString(); }
       }
     }
     async function ccDoReset(){
+      ccEnsureSb();
       var email=(document.getElementById('authEmail')||{}).value||'';
       if(!email){ showAuthErr('Enter your email first.'); return; }
       var r=await sb.auth.resetPasswordForEmail(email, { redirectTo:'https://comps.jdmstrategy.com' });
       showAuthErr(r.error ? r.error.message : 'Password reset link sent to your email.', !r.error);
     }
     function ccWireAuth(){
+      ccEnsureSb();
       var p=document.getElementById('authPrimary'); if(p) p.addEventListener('click', ccDoPrimary);
       var t=document.getElementById('authToggle'); if(t) t.addEventListener('click', function(e){ e.preventDefault(); ccMode = ccMode==='signin'?'signup':'signin'; ccRefreshMode(); });
       var f=document.getElementById('authForgot'); if(f) f.addEventListener('click', function(e){ e.preventDefault(); ccDoReset(); });
