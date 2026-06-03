@@ -161,8 +161,6 @@ body.light {
 .btn-go:hover { background: #d4b458; }
 .btn-clear { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
 .btn-clear:hover { border-color: var(--border-hi); }
-.btn-export { background: var(--surface2); color: var(--accent); border: 1px solid var(--border); }
-.btn-export:hover { border-color: var(--accent); }
 
 /* ── ESTIMATE CARD ── */
 .est-card {
@@ -361,7 +359,6 @@ td a:hover { text-decoration: underline; }
 <div class="btn-row">
   <button class="btn btn-go" onclick="doSearch()">Apply filters</button>
   <button class="btn btn-clear" onclick="clearFilters()">Clear</button>
-  <button class="btn btn-export" onclick="exportCSV()">Export CSV</button>
 </div>
 
 <!-- ═══ ESTIMATE CARD ═══ -->
@@ -730,52 +727,6 @@ function clearFilters() {
   document.getElementById("matchCount").textContent = "—";
 }
 
-// ── EXPORT CSV ──
-async function exportCSV() {
-  if (!sb) return alert("Not connected.");
-  if (totalMatching === 0) return alert("Run a search first.");
-
-  const btn = document.querySelector(".btn-export");
-  btn.textContent = "Exporting…";
-  btn.disabled = true;
-
-  try {
-    let q = sb.from(TABLE).select(
-      "source,source_lot_id,title,friedberg_number,friedberg_number_normalized,sold_on,sold_year,series_year,series_letter,"
-      + "price_realized,denomination,series_type,grading_company,grade_raw,grade_numeric,ppq_epq,"
-      + "is_star_note,state_code,charter_number,auction_event_name,lot_url"
-    );
-    q = applyFilters(q);
-    q = q.order(sortCol, { ascending: sortAsc }).limit(5000);
-
-    const { data, error } = await q;
-    if (error) throw error;
-    if (!data || !data.length) { alert("No data to export."); return; }
-
-    const cols = Object.keys(data[0]);
-    const csvRows = [cols.join(",")];
-    data.forEach(r => {
-      csvRows.push(cols.map(c => {
-        let v = String(r[c] ?? "");
-        if (/[,"\n]/.test(v)) v = '"' + v.replace(/"/g, '""') + '"';
-        return v;
-      }).join(","));
-    });
-
-    const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "currency_comps_" + new Date().toISOString().slice(0,10) + ".csv";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  } catch (e) {
-    alert("Export failed: " + e.message);
-    console.error(e);
-  } finally {
-    btn.textContent = "Export CSV";
-    btn.disabled = false;
-  }
-}
 
 // ── ENTER KEY → SEARCH ──
 document.querySelectorAll(".filters input, .nbn-row input").forEach(el => {
@@ -789,4 +740,4 @@ function fmt(n) { return (n || 0).toLocaleString(); }
 initSupabase();
 </script>
 </body>
-</html>
+  </html>
