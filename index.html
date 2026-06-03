@@ -224,6 +224,23 @@ td a:hover { text-decoration: underline; }
 </head>
 <body>
 
+  <!-- AUTH GATE OVERLAY -->
+  <div id="authGate" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b0b0f;color:#e9e9ee;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;">
+    <div style="width:340px;max-width:90vw;background:#16161c;border:1px solid #2a2a33;border-radius:14px;padding:28px;">
+      <h2 style="margin:0 0 4px;font-family:'Playfair Display',serif;color:#c9a44c;">Currency Comps</h2>
+      <p id="authSub" style="margin:0 0 18px;font-size:13px;opacity:.7;">Sign in to access the tool.</p>
+      <input id="authEmail" type="email" placeholder="Email" autocomplete="email" style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:10px;border-radius:8px;border:1px solid #2a2a33;background:#0b0b0f;color:#e9e9ee;">
+      <input id="authPw" type="password" placeholder="Password" autocomplete="current-password" style="width:100%;box-sizing:border-box;margin-bottom:14px;padding:10px;border-radius:8px;border:1px solid #2a2a33;background:#0b0b0f;color:#e9e9ee;">
+      <button id="authPrimary" style="width:100%;padding:11px;border:0;border-radius:8px;background:#c9a44c;color:#0b0b0f;font-weight:600;cursor:pointer;">Sign In</button>
+      <div id="authErr" style="min-height:18px;margin-top:10px;font-size:12.5px;color:#e98;"></div>
+      <div style="margin-top:6px;font-size:12.5px;display:flex;justify-content:space-between;">
+        <a href="#" id="authToggle" style="color:#9bb;text-decoration:none;">Create account</a>
+        <a href="#" id="authForgot" style="color:#9bb;text-decoration:none;">Forgot password?</a>
+      </div>
+    </div>
+  </div>
+
+
 <!-- ═══ HEADER ═══ -->
 <div class="hdr">
   <div class="hdr-left">
@@ -232,6 +249,7 @@ td a:hover { text-decoration: underline; }
   </div>
   <div class="hdr-right">
     <span class="conn-pill"><span class="conn-dot loading" id="connDot"></span><span id="connLabel">Connecting…</span></span>
+        <button id="ccSignOut" style="display:none;margin-left:10px;padding:4px 10px;font-size:12px;border:1px solid #2a2a33;border-radius:6px;background:transparent;color:#9bb;cursor:pointer;">Sign out</button>
     <span class="stat">HA: <b id="haCount">—</b></span>
     <span class="stat">SB: <b id="sbCount">—</b></span>
     <span class="stat">Total: <b id="totalCount">—</b></span>
@@ -791,7 +809,62 @@ document.querySelectorAll(".filters input, .nbn-row input").forEach(el => {
 function fmt(n) { return (n || 0).toLocaleString(); }
 
 // ── BOOT ──
-initSupabase();
+    startApp();
+
+    // ==== AUTH GATE ====
+    function showAuthErr(msg, ok){ var e=document.getElementById('authErr'); if(e){ e.textContent=msg||''; e.style.color = ok ? '#7c9' : '#e98'; } }
+    var ccMode='signin';
+    function ccRefreshMode(){
+      document.getElementById('authPrimary').textContent = ccMode==='signin' ? 'Sign In' : 'Create Account';
+      document.getElementById('authToggle').textContent  = ccMode==='signin' ? 'Create account' : 'Have an account? Sign in';
+      document.getElementById('authSub').textContent = ccMode==='signin' ? 'Sign in to access the tool.' : 'Create your account.';
+      showAuthErr('');
+    }
+    async function startApp(){
+      try{
+        var res = await sb.auth.getSession();
+        var session = res && res.data ? res.data.session : null;
+        if(session){
+          var g=document.getElementById('authGate'); if(g) g.style.display='none';
+          var so=document.getElementById('ccSignOut'); if(so) so.style.display='inline-block';
+          initSupabase();
+        } else {
+          var g2=document.getElementById('authGate'); if(g2) g2.style.display='flex';
+        }
+      }catch(err){ var g3=document.getElementById('authGate'); if(g3) g3.style.display='flex'; }
+    }
+    async function ccDoPrimary(){
+      var email=(document.getElementById('authEmail')||{}).value||'';
+      var pw=(document.getElementById('authPw')||{}).value||'';
+      if(!email||!pw){ showAuthErr('Enter email and password.'); return; }
+      if(ccMode==='signin'){
+        var r=await sb.auth.signInWithPassword({ email:email, password:pw });
+        if(r.error){ showAuthErr(r.error.message); return; }
+        startApp();
+      } else {
+        var r2=await sb.auth.signUp({ email:email, password:pw });
+        if(r2.error){ showAuthErr(r2.error.message); return; }
+        showAuthErr('Account created. Check your email to confirm, then sign in.', true);
+        ccMode='signin'; ccRefreshMode();
+      }
+    }
+    async function ccDoReset(){
+      var email=(document.getElementById('authEmail')||{}).value||'';
+      if(!email){ showAuthErr('Enter your email first.'); return; }
+      var r=await sb.auth.resetPasswordForEmail(email, { redirectTo:'https://comps.jdmstrategy.com' });
+      showAuthErr(r.error ? r.error.message : 'Password reset link sent to your email.', !r.error);
+    }
+    function ccWireAuth(){
+      var p=document.getElementById('authPrimary'); if(p) p.addEventListener('click', ccDoPrimary);
+      var t=document.getElementById('authToggle'); if(t) t.addEventListener('click', function(e){ e.preventDefault(); ccMode = ccMode==='signin'?'signup':'signin'; ccRefreshMode(); });
+      var f=document.getElementById('authForgot'); if(f) f.addEventListener('click', function(e){ e.preventDefault(); ccDoReset(); });
+      var pw=document.getElementById('authPw'); if(pw) pw.addEventListener('keydown', function(e){ if(e.key==='Enter') ccDoPrimary(); });
+      var so=document.getElementById('ccSignOut'); if(so) so.addEventListener('click', async function(){ await sb.auth.signOut(); location.reload(); });
+      if(sb && sb.auth && sb.auth.onAuthStateChange){ sb.auth.onAuthStateChange(function(_e,s){ if(!s){ var g=document.getElementById('authGate'); if(g) g.style.display='flex'; var b=document.getElementById('ccSignOut'); if(b) b.style.display='none'; } }); }
+    }
+    ccWireAuth();
+
+
 </script>
 </body>
 </html>
