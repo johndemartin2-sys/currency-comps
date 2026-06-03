@@ -479,7 +479,7 @@ async function loadSeriesTypes() {
   const HIDDEN_SERIES = new Set(["World Currency", "National Gold Bank Note"]);
   const MIN_CHIP_COUNT = 3000;
 
-  // 1) Render instantly from a fresh cache if we have one.
+  // 1) Render instantly from a fresh cache if we have one (synchronous).
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (raw) {
@@ -491,47 +491,49 @@ async function loadSeriesTypes() {
     }
   } catch(e) { /* ignore bad cache */ }
 
-  // 2) Recompute in the background; update cache + chips only if changed.
-  try {
-    // Walk distinct series_type values via keyset pagination so ALL categories
-    // are discovered (a flat .limit() only sees a partial slice of the table).
-    const set = new Set();
-    let last = null;
-    for (let i = 0; i < 200; i++) {
-      let q = sb
-        .from(TABLE)
-        .select("series_type")
-        .in("data_quality", DQ_FILTER)
-        .not("series_type", "is", null)
-        .order("series_type", { ascending: true })
-        .limit(1);
-      if (last !== null) { q = q.gt("series_type", last); }
-      const { data, error } = await q;
-      if (error) throw error;
-      if (!data || data.length === 0) break;
-      last = data[0].series_type;
-      const v = (last || "").trim();
-      if (v && !STATE_SLUGS.has(v.toLowerCase())) set.add(v);
-    }
-    // Count each category, hide excluded ones and any below the threshold.
-    const withCounts = [];
-    for (const v of set) {
-      if (HIDDEN_SERIES.has(v)) continue;
-      const { count } = await sb
-        .from(TABLE)
-        .select("*", { count: "exact", head: true })
-        .in("data_quality", DQ_FILTER)
-        .eq("series_type", v);
-      if ((count || 0) >= MIN_CHIP_COUNT) withCounts.push([v, count]);
-    }
-    withCounts.sort((a, b) => b[1] - a[1]); // most common first
-    const fresh = withCounts.map(e => e[0]);
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), v: fresh })); } catch(e) {}
-    if (JSON.stringify(fresh) !== JSON.stringify(seriesTypes)) {
-      seriesTypes = fresh;
-      renderChips();
-    }
-  } catch(e){ console.warn("Series type load", e); }
+  // 2) Refresh counts in the BACKGROUND (not awaited) so chips never block load.
+  (async () => {
+    try {
+      // Walk distinct series_type values via keyset pagination so ALL categories
+      // are discovered (a flat .limit() only sees a partial slice of the table).
+      const set = new Set();
+      let last = null;
+      for (let i = 0; i < 200; i++) {
+        let q = sb
+          .from(TABLE)
+          .select("series_type")
+          .in("data_quality", DQ_FILTER)
+          .not("series_type", "is", null)
+          .order("series_type", { ascending: true })
+          .limit(1);
+        if (last !== null) { q = q.gt("series_type", last); }
+        const { data, error } = await q;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        last = data[0].series_type;
+        const v = (last || "").trim();
+        if (v && !STATE_SLUGS.has(v.toLowerCase())) set.add(v);
+      }
+      // Count each category, hide excluded ones and any below the threshold.
+      const withCounts = [];
+      for (const v of set) {
+        if (HIDDEN_SERIES.has(v)) continue;
+        const { count } = await sb
+          .from(TABLE)
+          .select("*", { count: "exact", head: true })
+          .in("data_quality", DQ_FILTER)
+          .eq("series_type", v);
+        if ((count || 0) >= MIN_CHIP_COUNT) withCounts.push([v, count]);
+      }
+      withCounts.sort((a, b) => b[1] - a[1]); // most common first
+      const fresh = withCounts.map(e => e[0]);
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), v: fresh })); } catch(e) {}
+      if (JSON.stringify(fresh) !== JSON.stringify(seriesTypes)) {
+        seriesTypes = fresh;
+        renderChips();
+      }
+    } catch(e){ console.warn("Series type load", e); }
+  })();
 }
 
 function renderChips() {
@@ -786,4 +788,4 @@ function fmt(n) { return (n || 0).toLocaleString(); }
 initSupabase();
 </script>
 </body>
-</html>
+  </html>
