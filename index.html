@@ -474,10 +474,25 @@ async function initSupabase() {
 // ── SERIES TYPE CHIPS ──
 const STATE_SLUGS = new Set(["alabama","alaska","arizona","arkansas","california","colorado","colorado-territory","connecticut","delaware","district-of-columbia","florida","georgia","hawaii","hawaii-territory","idaho","illinois","indiana","iowa","kansas","kentucky","louisiana","maine","maryland","massachusetts","michigan","minnesota","mississippi","missouri","montana","nebraska","nevada","new-hampshire","new-jersey","new-mexico","new-york","north-carolina","north-dakota","ohio","oklahoma","oregon","pennsylvania","porto-rico","rhode-island","south-carolina","south-dakota","tennessee","texas","utah","vermont","virginia","washington","west-virginia","wisconsin","wyoming"]);
 async function loadSeriesTypes() {
+  const CACHE_KEY = "cc_series_chips_v1";
+  const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+  const HIDDEN_SERIES = new Set(["World Currency", "National Gold Bank Note"]);
+  const MIN_CHIP_COUNT = 3000;
+
+  // 1) Render instantly from a fresh cache if we have one.
   try {
-    // Categories hidden from the chip bar regardless of count.
-    const HIDDEN_SERIES = new Set(["World Currency", "National Gold Bank Note"]);
-    const MIN_CHIP_COUNT = 3000;
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const cached = JSON.parse(raw);
+      if (cached && Array.isArray(cached.v) && (Date.now() - cached.t) < CACHE_TTL) {
+        seriesTypes = cached.v;
+        renderChips();
+      }
+    }
+  } catch(e) { /* ignore bad cache */ }
+
+  // 2) Recompute in the background; update cache + chips only if changed.
+  try {
     // Walk distinct series_type values via keyset pagination so ALL categories
     // are discovered (a flat .limit() only sees a partial slice of the table).
     const set = new Set();
@@ -498,7 +513,7 @@ async function loadSeriesTypes() {
       const v = (last || "").trim();
       if (v && !STATE_SLUGS.has(v.toLowerCase())) set.add(v);
     }
-    // Count each category, then hide excluded ones and any below the threshold.
+    // Count each category, hide excluded ones and any below the threshold.
     const withCounts = [];
     for (const v of set) {
       if (HIDDEN_SERIES.has(v)) continue;
@@ -509,10 +524,13 @@ async function loadSeriesTypes() {
         .eq("series_type", v);
       if ((count || 0) >= MIN_CHIP_COUNT) withCounts.push([v, count]);
     }
-    // Order chips by frequency (most common first).
-    withCounts.sort((a, b) => b[1] - a[1]);
-    seriesTypes = withCounts.map(e => e[0]);
-    renderChips();
+    withCounts.sort((a, b) => b[1] - a[1]); // most common first
+    const fresh = withCounts.map(e => e[0]);
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), v: fresh })); } catch(e) {}
+    if (JSON.stringify(fresh) !== JSON.stringify(seriesTypes)) {
+      seriesTypes = fresh;
+      renderChips();
+    }
   } catch(e){ console.warn("Series type load", e); }
 }
 
