@@ -442,6 +442,7 @@ async function initSupabase() {
 
   try {
     sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    paintCachedChips();  // instant chips from cache before slow startup queries
 
     const total = await countWithRetry(q => q.in("data_quality", DQ_FILTER)); if (total === null) throw new Error("Database unreachable");
 
@@ -473,25 +474,30 @@ async function initSupabase() {
 
 // ── SERIES TYPE CHIPS ──
 const STATE_SLUGS = new Set(["alabama","alaska","arizona","arkansas","california","colorado","colorado-territory","connecticut","delaware","district-of-columbia","florida","georgia","hawaii","hawaii-territory","idaho","illinois","indiana","iowa","kansas","kentucky","louisiana","maine","maryland","massachusetts","michigan","minnesota","mississippi","missouri","montana","nebraska","nevada","new-hampshire","new-jersey","new-mexico","new-york","north-carolina","north-dakota","ohio","oklahoma","oregon","pennsylvania","porto-rico","rhode-island","south-carolina","south-dakota","tennessee","texas","utah","vermont","virginia","washington","west-virginia","wisconsin","wyoming"]);
+function paintCachedChips() {
+  // Synchronous: paint chips instantly from a fresh localStorage cache (no DB calls).
+  try {
+    const raw = localStorage.getItem("cc_series_chips_v1");
+    if (!raw) return false;
+    const cached = JSON.parse(raw);
+    if (cached && Array.isArray(cached.v) && (Date.now() - cached.t) < 24 * 60 * 60 * 1000) {
+      seriesTypes = cached.v;
+      renderChips();
+      return true;
+    }
+  } catch(e) { /* ignore bad cache */ }
+  return false;
+}
+
 async function loadSeriesTypes() {
   const CACHE_KEY = "cc_series_chips_v1";
-  const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
   const HIDDEN_SERIES = new Set(["World Currency", "National Gold Bank Note"]);
   const MIN_CHIP_COUNT = 3000;
 
-  // 1) Render instantly from a fresh cache if we have one (synchronous).
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) {
-      const cached = JSON.parse(raw);
-      if (cached && Array.isArray(cached.v) && (Date.now() - cached.t) < CACHE_TTL) {
-        seriesTypes = cached.v;
-        renderChips();
-      }
-    }
-  } catch(e) { /* ignore bad cache */ }
+  // Paint instantly from cache (also called earlier during boot for zero delay).
+  paintCachedChips();
 
-  // 2) Refresh counts in the BACKGROUND (not awaited) so chips never block load.
+  // Refresh counts in the BACKGROUND (not awaited) so chips never block load.
   (async () => {
     try {
       // Walk distinct series_type values via keyset pagination so ALL categories
@@ -788,4 +794,4 @@ function fmt(n) { return (n || 0).toLocaleString(); }
 initSupabase();
 </script>
 </body>
-  </html>
+</html>
