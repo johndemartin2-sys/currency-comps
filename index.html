@@ -589,6 +589,7 @@ async function runQuery() {
 
     rows = data || [];
     totalMatching = count || 0;
+      try { if (window.ccUpdatePaywall) window.ccUpdatePaywall(rows.length); } catch(e){}
     document.getElementById("matchCount").textContent = fmt(totalMatching);
 
     renderTable();
@@ -870,5 +871,63 @@ function fmt(n) { return (n || 0).toLocaleString(); }
 
 
 </script>
-</body>
+
+  <!-- Block D: Subscription paywall banner -->
+  <div id="cc-paywall" style="display:none; padding:16px; margin:12px 0; border:1px solid #d0d0d0; border-radius:8px; background:#fafafa; text-align:center;">
+    <p style="margin:0 0 10px; font-size:15px;">A subscription is required to view comps data.</p>
+    <button id="cc-subscribe-btn" style="padding:10px 18px; font-size:15px; border:0; border-radius:6px; background:#111; color:#fff; cursor:pointer;">Subscribe</button>
+    <p id="cc-subscribe-msg" style="margin:10px 0 0; font-size:13px; color:#a00;"></p>
+  </div>
+
+  <script>
+  (function () {
+    // Handle return from Stripe Checkout
+    var params = new URLSearchParams(window.location.search);
+    var checkout = params.get("checkout");
+    if (checkout === "success") {
+      history.replaceState({}, "", window.location.pathname);
+      setTimeout(function () { window.location.reload(); }, 2500);
+    } else if (checkout === "cancel") {
+      history.replaceState({}, "", window.location.pathname);
+    }
+
+    // Show/hide paywall based on whether a logged-in user got any rows
+    window.ccUpdatePaywall = function (rowCount) {
+      var el = document.getElementById("cc-paywall");
+      if (!el) return;
+      el.style.display = (rowCount === 0) ? "block" : "none";
+    };
+
+    var btn = document.getElementById("cc-subscribe-btn");
+    var msg = document.getElementById("cc-subscribe-msg");
+    function resetBtn(){ btn.disabled = false; btn.textContent = "Subscribe"; }
+    if (btn) {
+      btn.addEventListener("click", async function () {
+        msg.textContent = "";
+        btn.disabled = true;
+        btn.textContent = "Redirecting\u2026";
+        try {
+          var sbClient = (typeof sb !== "undefined" && sb) ? sb : null;
+          if (!sbClient) { msg.textContent = "Please log in first."; resetBtn(); return; }
+          var sess = await sbClient.auth.getSession();
+          var session = sess && sess.data ? sess.data.session : null;
+          if (!session) { msg.textContent = "Please log in first."; resetBtn(); return; }
+          var res = await fetch("/api/create-checkout-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: session.user.id, email: session.user.email })
+          });
+          var out = await res.json();
+          if (out && out.url) { window.location.href = out.url; }
+          else { msg.textContent = (out && out.error) ? out.error : "Could not start checkout."; resetBtn(); }
+        } catch (e) {
+          msg.textContent = "Network error. Please try again.";
+          resetBtn();
+        }
+      });
+    }
+  })();
+  </script>
+
+  </body>
 </html>
