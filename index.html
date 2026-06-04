@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Currency Comps</title>
+<title>Currency Comps</tihtle>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -250,9 +250,6 @@ td a:hover { text-decoration: underline; }
   <div class="hdr-right">
     <span class="conn-pill"><span class="conn-dot loading" id="connDot"></span><span id="connLabel">Connecting…</span></span>
         <button id="ccSignOut" style="display:none;margin-left:10px;padding:4px 10px;font-size:12px;border:1px solid #2a2a33;border-radius:6px;background:transparent;color:#9bb;cursor:pointer;">Sign out</button>
-    <span class="stat">HA: <b id="haCount">—</b></span>
-    <span class="stat">SB: <b id="sbCount">—</b></span>
-    <span class="stat">Total: <b id="totalCount">—</b></span>
     <span class="stat">Matching: <b id="matchCount">—</b></span>
     <button class="theme-btn" onclick="toggleTheme()" title="Toggle light/dark">☾</button>
   </div>
@@ -462,12 +459,14 @@ async function initSupabase() {
     sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     paintCachedChips();  // instant chips from cache before slow startup queries
 
-    const total = await countWithRetry(q => q.in("data_quality", DQ_FILTER)); if (total === null) throw new Error("Database unreachable");
-
-    const haC = await countWithRetry(q => q.eq("source", "heritage_auctions").in("data_quality", DQ_FILTER)); const sbC = await countWithRetry(q => q.eq("source", "stacks_bowers").in("data_quality", DQ_FILTER));
+    // No blocking count on startup. A full exact COUNT over the whole table
+    // times out on large tables and stalls the app. We mark the connection live
+    // with a cheap 1-row probe and only count AFTER the user filters/searches.
+    const { error: probeErr } = await sb.from(TABLE).select("id", { head: true }).limit(1);
+    if (probeErr) throw new Error("Database unreachable");
 
     dot.className = "conn-dot ok";
-    label.textContent = (total === null ? "—" : fmt(total)) + " lots"; document.getElementById("totalCount").textContent = total === null ? "—" : fmt(total); document.getElementById("haCount").textContent = haC === null ? "—" : fmt(haC); document.getElementById("sbCount").textContent = sbC === null ? "—" : fmt(sbC);
+    label.textContent = "Connected";
 
     await loadSeriesTypes(); if (hasSearched) return;
 
