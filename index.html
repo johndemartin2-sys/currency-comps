@@ -579,7 +579,7 @@ async function runQuery() {
     '<tr class="loading-row"><td colspan="11">Searching…</td></tr>';
 
   try {
-    let q = sb.from(TABLE).select("*", { count: "exact" });
+    const {data:{user:_u}}=await sb.auth.getUser(); if(_u){const {data:_prof}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single(); if(!_prof||_prof.subscription_status!=="active"){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: "exact" });
     q = applyFilters(q);
     q = q.order(sortCol, { ascending: sortAsc, nullsFirst: false });
     q = q.range(page * PER, (page + 1) * PER - 1);
