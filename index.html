@@ -462,7 +462,7 @@ async function initSupabase() {
     // No blocking count on startup. A full exact COUNT over the whole table
     // times out on large tables and stalls the app. We mark the connection live
     // with a cheap 1-row probe and only count AFTER the user filters/searches.
-    const { error: probeErr } = await sb.from(TABLE).select("id", { head: true }).limit(1);
+    const { error: probeErr } = await sb.from("profiles").select("id", { head: true }).limit(1);
     if (probeErr) throw new Error("Database unreachable");
 
     dot.className = "conn-dot ok";
