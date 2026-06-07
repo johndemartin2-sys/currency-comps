@@ -34,7 +34,7 @@ async function setStatus({ customerId, userId, status }) {
   };
   if (customerId) update.stripe_customer_id = customerId;
 
-  const { error } = await supabase.from("profiles").update(update).eq(column, value);
+    const { error } = await supabase.from("profiles").update(update).eq(column, value).neq("is_admin", true);
   if (error) throw error;
 }
 
