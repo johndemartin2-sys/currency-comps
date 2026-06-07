@@ -611,7 +611,7 @@ function applyFilters(q) {
   if (src) q = q.eq("source", src);
 
   const title = v("fTitle");
-  if (title) q = q.ilike("title", `%${title}%`);
+  if (title) title.split(/\s+/).filter(Boolean).forEach(function(term){ q = q.ilike("title", `%${term}%`); });
 
   const fr = v("fFr");
   if (fr) q = q.eq("friedberg_number_normalized", fr);
