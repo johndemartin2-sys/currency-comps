@@ -579,7 +579,7 @@ async function runQuery() {
     '<tr class="loading-row"><td colspan="11">Searching…</td></tr>';
 
   try {
-    const {data:{user:_u}}=await sb.auth.getUser(); if(_u){const {data:_prof}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single(); if(!_prof||_prof.subscription_status!=="active"){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: "planned" });
+    const {data:{user:_u}}=await sb.auth.getUser(); if(_u){const {data:_prof}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single(); if(!_prof||_prof.subscription_status!=="active"){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fLetter","fDenom","fService","fQual","fGradeMin","fGradeMax","fPriceMin","fPriceMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
     q = applyFilters(q);
     q = q.order(sortCol, { ascending: sortAsc, nullsFirst: false });
     q = q.range(page * PER, (page + 1) * PER - 1);
@@ -674,8 +674,8 @@ function renderTable() {
     const price = r.price_realized ? "$" + Number(r.price_realized).toLocaleString() : "—";
     const dt = r.sold_on || "—";
     const star = r.is_star_note ? "★" : "";
-    const fr = r.friedberg_number || "—";
-    const den = r.denomination ? "$" + r.denomination : "—";
+    const fr = r.friedberg_number || r.catalog_number || "—";
+    const den = r.denomination ? "$" + String(r.denomination).replace(/^\$+/, "") : "—";
     const sType = r.series_type || "—";
     const grade = r.grade_raw || "—";
     const srcLabel = r.source === "heritage_auctions" ? "HA"
