@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
   try {
     // Vercel parses JSON bodies automatically for this runtime.
     const body = req.body || {};
-    const { userId, email } = body;
+    const { userId, email, plan } = body;
 
     if (!userId || !email) {
       return res.status(400).json({ error: "Missing userId or email" });
@@ -32,11 +32,18 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Choose monthly (default) or annual price based on the requested plan.
+    const selectedPrice =
+      plan === "annual"
+        ? process.env.STRIPE_PRICE_ID_ANNUAL
+        : process.env.STRIPE_PRICE_ID;
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      allow_promotion_codes: true,
       customer: customer.id,
       client_reference_id: userId,
-      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      line_items: [{ price: selectedPrice, quantity: 1 }],
       subscription_data: {
         metadata: { supabase_user_id: userId },
       },
