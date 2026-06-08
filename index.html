@@ -915,7 +915,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
           var res = await fetch("/api/create-checkout-session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: session.user.id, email: session.user.email })
+            body: JSON.stringify({ userId: session.user.id, email: session.user.email, plan: (btn.dataset.plan || "monthly") })
           });
           var out = await res.json();
           if (out && out.url) { window.location.href = out.url; }
