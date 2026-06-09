@@ -47,8 +47,8 @@ module.exports = async (req, res) => {
       subscription_data: {
         metadata: { supabase_user_id: userId },
       },
-      success_url: "https://comps.jdmstrategy.com/?checkout=success",
-      cancel_url: "https://comps.jdmstrategy.com/?checkout=cancel",
+      success_url: "https://comps.jdmstrategy.com/currency_app.html?checkout=success",
+      cancel_url: "https://comps.jdmstrategy.com/currency_app.html?checkout=cancel",
     });
 
     return res.status(200).json({ url: session.url });
