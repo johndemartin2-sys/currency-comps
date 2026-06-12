@@ -373,7 +373,8 @@ td a:hover { text-decoration: underline; }
 
 
 <div class="btn-row">
-  <button class="btn btn-go" onclick="doSearch()">Apply filters</button>
+  <button id="tabSold" class="btn btn-go" onclick="setView('sold')">Sold Comps</button>
+  <button id="tabLive" class="btn btn-ghost" onclick="setView('live')">Live Listings</button>
   <button class="btn btn-clear" onclick="clearFilters()">Clear</button>
 </div>
 
@@ -391,10 +392,6 @@ td a:hover { text-decoration: underline; }
 </div>
 
 <!-- ═══ TABLE ═══ -->
-<div id="viewToggle" style="display:flex;gap:8px;margin:0 0 12px">
-  <button id="tabSold" class="btn btn-gold" type="button">Sold Comps</button>
-  <button id="tabLive" class="btn btn-ghost" type="button">Live Listings</button>
-</div>
 <div id="liveResults" style="display:none;margin-top:8px"></div>
 <div class="tbl-wrap">
 <table>
@@ -941,12 +938,12 @@ document.getElementById("cc-subscribe-btn-annual")?.addEventListener("click", ha
 // --- Live (eBay) view ---
 function setView(view){
   const sold = view === 'sold';
-  document.getElementById('tabSold').className = sold ? 'btn btn-gold' : 'btn btn-ghost';
-  document.getElementById('tabLive').className = sold ? 'btn btn-ghost' : 'btn btn-gold';
+  document.getElementById('tabSold').className = sold ? 'btn btn-go' : 'btn btn-ghost';
+  document.getElementById('tabLive').className = sold ? 'btn btn-ghost' : 'btn btn-go';
   document.querySelector('.tbl-wrap').style.display = sold ? '' : 'none';
   const est = document.querySelector('.est-card'); if (est) est.style.display = sold ? '' : 'none';
   document.getElementById('liveResults').style.display = sold ? 'none' : 'block';
-  if (!sold) runLiveSearch();
+  if (sold) { doSearch(); } else { runLiveSearch(); }
 }
 function buildEbayQuery(){
   const val = id => (document.getElementById(id)?.value || '').trim();
@@ -982,8 +979,7 @@ async function runLiveSearch(){
     box.innerHTML = '<p style="color:#c66;padding:12px">eBay search error: ' + err.message + '</p>';
   }
 }
-document.getElementById('tabSold').addEventListener('click', function(){ setView('sold'); });
-document.getElementById('tabLive').addEventListener('click', function(){ setView('live'); });
+// Mode buttons use inline onclick=setView(...) in .btn-row
 </script>
 
   </body>
