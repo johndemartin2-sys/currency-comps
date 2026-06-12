@@ -948,6 +948,8 @@ function setView(view){
 function buildEbayQuery(){
   const val = id => (document.getElementById(id)?.value || '').trim();
   const parts = [];
+  const title = val('fTitle'); if (title) parts.push(title);
+  const fr = val('fFr'); if (fr) parts.push('Fr ' + fr);
   const year = val('fYear'); if (year) parts.push(year);
   const denom = (document.getElementById('fDenom')?.value || '').replace('$','').trim();
   if (denom) parts.push(denom + ' dollar');
