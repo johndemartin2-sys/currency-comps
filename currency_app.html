@@ -373,7 +373,8 @@ td a:hover { text-decoration: underline; }
 
 
 <div class="btn-row">
-  <button class="btn btn-go" onclick="doSearch()">Apply filters</button>
+  <button id="tabSold" class="btn btn-go" onclick="setView('sold')">Sold Comps</button>
+  <button id="tabLive" class="btn btn-ghost" onclick="setView('live')">Live Listings</button>
   <button class="btn btn-clear" onclick="clearFilters()">Clear</button>
 </div>
 
@@ -391,6 +392,7 @@ td a:hover { text-decoration: underline; }
 </div>
 
 <!-- ═══ TABLE ═══ -->
+<div id="liveResults" style="display:none;margin-top:8px"></div>
 <div class="tbl-wrap">
 <table>
 <thead><tr>
@@ -932,6 +934,55 @@ document.getElementById("cc-subscribe-btn-annual")?.addEventListener("click", ha
     }
   })();
   </script>
+<script>
+// --- Live (eBay) view ---
+function setView(view){
+  const sold = view === 'sold';
+  document.getElementById('tabSold').className = sold ? 'btn btn-go' : 'btn btn-ghost';
+  document.getElementById('tabLive').className = sold ? 'btn btn-ghost' : 'btn btn-go';
+  document.querySelector('.tbl-wrap').style.display = sold ? '' : 'none';
+  const est = document.querySelector('.est-card'); if (est) est.style.display = sold ? '' : 'none';
+  document.getElementById('liveResults').style.display = sold ? 'none' : 'block';
+  if (sold) { doSearch(); } else { runLiveSearch(); }
+}
+function buildEbayQuery(){
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  const parts = [];
+  const title = val('fTitle'); if (title) parts.push(title);
+  const fr = val('fFr'); if (fr) parts.push('Fr ' + fr);
+  const year = val('fYear'); if (year) parts.push(year);
+  const denom = (document.getElementById('fDenom')?.value || '').replace('$','').trim();
+  if (denom) parts.push(denom + ' dollar');
+  const type = (document.querySelector('#catChips .active')?.textContent || '').trim();
+  if (type) parts.push(type);
+  const grade = val('fGradeMin') || val('fGradeMax'); if (grade) parts.push(grade);
+  if (document.getElementById('fStar')?.checked) parts.push('star');
+  return parts.join(' ').trim();
+}
+async function runLiveSearch(){
+  const box = document.getElementById('liveResults');
+  const q = buildEbayQuery();
+  if (!q){ box.innerHTML = '<p style="color:var(--muted);padding:12px">Add filters (year, denomination, type, grade) to search live listings.</p>'; return; }
+  box.innerHTML = '<p style="color:var(--muted);padding:12px">Searching eBay&hellip;</p>';
+  try{
+    const res = await fetch('/api/ebay-search?q=' + encodeURIComponent(q));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Search failed');
+    if (!data.items || !data.items.length){ box.innerHTML = '<p style="color:var(--muted);padding:12px">No current listings found.</p>'; return; }
+    box.innerHTML = data.items.map(it => '<a href="' + it.url + '" target="_blank" rel="noopener" style="display:flex;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:center">' +
+      (it.image ? '<img src="' + it.image + '" width="56" height="56" style="object-fit:cover;border-radius:4px">' : '') +
+      '<div style="flex:1"><div style="color:var(--text);font-weight:600">' + it.title + '</div>' +
+      '<div style="color:var(--text2);font-size:13px">' + (it.price || '—') +
+      (it.bidCount != null ? ' · ' + it.bidCount + ' bids' : '') +
+      (it.buyingOptions.includes('AUCTION') ? ' · Auction' : '') +
+      (it.buyingOptions.includes('FIXED_PRICE') ? ' · Buy It Now' : '') +
+      '</div></div></a>').join('');
+  }catch(err){
+    box.innerHTML = '<p style="color:#c66;padding:12px">eBay search error: ' + err.message + '</p>';
+  }
+}
+// Mode buttons use inline onclick=setView(...) in .btn-row
+</script>
 
   </body>
 </html>
