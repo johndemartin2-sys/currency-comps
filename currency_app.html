@@ -247,6 +247,10 @@ td a:hover { text-decoration: underline; }
   <div class="hdr-left">
     <h1>Currency Comps</h1>
     <span class="ver">v2.6</span>
+    <div class="mode-toggle" id="modeToggle" style="display:inline-flex;margin-left:14px;border:1px solid var(--gold,#caa14a);border-radius:8px;overflow:hidden;font-size:13px;vertical-align:middle;">
+      <button id="modeCurrency" onclick="setMode('currency')" style="padding:5px 12px;border:0;background:var(--gold,#caa14a);color:#000;cursor:pointer;font-weight:600;">Currency</button>
+      <button id="modeCoins" onclick="setMode('coins')" style="padding:5px 12px;border:0;background:transparent;color:var(--gold,#caa14a);cursor:pointer;font-weight:600;">Coins</button>
+    </div>
   </div>
   <div class="hdr-right">
     <span class="conn-pill"><span class="conn-dot loading" id="connDot"></span><span id="connLabel">Connecting…</span></span>
@@ -367,6 +371,11 @@ td a:hover { text-decoration: underline; }
       </div>
       <div class="fg"><label>Charter #</label><input id="fCharter" placeholder="" style="width:90px"></div>
     <label class="star-toggle"><input type="checkbox" id="fStar"> ★ Star only</label>
+    <span id="coinFilters" style="display:none;align-items:flex-end;gap:10px;flex-wrap:wrap">
+      <div class="fg"><label>Denomination</label><input id="fCoinDenom" placeholder="e.g. Dollar, Cent" style="width:130px"></div>
+      <label class="star-toggle"><input type="checkbox" id="fCac"> CAC</label>
+      <label class="star-toggle"><input type="checkbox" id="fPlus"> + (plus)</label>
+    </span>
   </div>
   <div class="chips-row" id="catChips"></div>
 </div>
@@ -395,7 +404,7 @@ td a:hover { text-decoration: underline; }
 <div id="liveResults" style="display:none;margin-top:8px"></div>
 <div class="tbl-wrap">
 <table>
-<thead><tr>
+<thead><tr id="theadRow">
   <th data-col="_row">#</th>
   <th data-col="title" class="sorted">Title</th>
   <th data-col="friedberg_number">Fr.</th>
@@ -425,8 +434,44 @@ td a:hover { text-decoration: underline; }
 // ═══ SUPABASE CONFIG ═══
 const SUPABASE_URL = "https://wqizwluccqqfkedpgvve.supabase.co";
 const SUPABASE_KEY = "sb_publishable_9DiOeDQje6yiSEITD7WUrw_S2Q-2xyS";
-const TABLE = "lots_currency";
+let MODE = "currency";
+let TABLE = "lots_currency";              // swapped by setMode()
+const TABLE_CURRENCY = "lots_currency";
+const TABLE_COINS = "lots_coins";
 const DQ_FILTER = ["trusted", "rescraped", "unverified"];
+// IDs of filter fields that only make sense for currency; hidden in coin mode.
+const CURRENCY_ONLY_FILTERS = ["fFr","fLetter","fState","fCharter","fQual","fSource"];
+function setMode(mode){
+  if (mode !== "currency" && mode !== "coins") return;
+  MODE = mode;
+  TABLE = (mode === "coins") ? TABLE_COINS : TABLE_CURRENCY;
+  sortCol = (mode === "coins") ? "sold_on" : "sold_on";
+  // toggle button styling
+  var c = document.getElementById("modeCurrency"), k = document.getElementById("modeCoins");
+  if (c && k){
+    var gold = "var(--gold,#caa14a)";
+    c.style.background = (mode==="currency") ? gold : "transparent";
+    c.style.color = (mode==="currency") ? "#000" : gold;
+    k.style.background = (mode==="coins") ? gold : "transparent";
+    k.style.color = (mode==="coins") ? "#000" : gold;
+  }
+  // header label
+  var hdr = document.querySelector(".hdr-left h1"); if (hdr) hdr.textContent = (mode==="coins") ? "Coin Comps" : "Currency Comps";
+  // show/hide currency-only filter fields + coin-only fields
+  CURRENCY_ONLY_FILTERS.forEach(function(id){ var el=document.getElementById(id); if(el){ var fg=el.closest(".fg")||el.closest("label"); if(fg) fg.style.display=(mode==="coins")?"none":""; } });
+  var coinExtra = document.getElementById("coinFilters"); if (coinExtra) coinExtra.style.display = (mode==="coins") ? "inline-flex" : "none";
+  // swap table headers
+  var thr = document.getElementById("theadRow");
+  if (thr){
+    thr.innerHTML = (mode==="coins")
+      ? '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="denomination_raw">Denom</th><th data-col="sold_year">Year</th><th data-col="grade_numeric">Grade</th><th data-col="has_cac">CAC/+</th><th data-col="category">Category</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>'
+      : '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="friedberg_number">Fr.</th><th data-col="sold_year">Year</th><th data-col="denomination">Denom</th><th data-col="series_type">Type</th><th data-col="grade_raw">Grade</th><th data-col="is_star_note">★</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>';
+  }
+  // reset results + chips for the new dataset
+  activeSeries = ""; seriesTypes = [];
+  clearFilters();
+  loadSeriesTypes();
+}
 // ═══════════════
 
 let sb = null;
@@ -509,7 +554,24 @@ function paintCachedChips() {
   return false;
 }
 
+async function loadCoinCategories() {
+  try {
+    const set = new Set();
+    let last = null;
+    for (let i = 0; i < 200; i++) {
+      let q = sb.from(TABLE_COINS).select("category").not("category","is",null).order("category",{ascending:true}).limit(1);
+      if (last !== null) q = q.gt("category", last);
+      const { data, error } = await q;
+      if (error || !data || !data.length) break;
+      last = data[0].category; set.add(last);
+    }
+    seriesTypes = Array.from(set).sort();
+    renderChips();
+  } catch(e){ console.warn("Coin category load", e); }
+}
+
 async function loadSeriesTypes() {
+  if (MODE === "coins") { return loadCoinCategories(); }
   const CACHE_KEY = "cc_series_chips_v1";
   const HIDDEN_SERIES = new Set(["World Currency", "National Gold Bank Note"]);
   const MIN_CHIP_COUNT = 3000;
@@ -582,7 +644,7 @@ async function runQuery() {
     '<tr class="loading-row"><td colspan="11">Searching…</td></tr>';
 
   try {
-    const {data:{user:_u}}=await sb.auth.getUser(); if(_u){const {data:_prof}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single(); if(!_prof||_prof.subscription_status!=="active"){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fLetter","fDenom","fService","fQual","fGradeMin","fGradeMax","fPriceMin","fPriceMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
+    const {data:{user:_u}}=await sb.auth.getUser(); if(_u){let _ok=false; if(MODE==="coins"){ const {data:_ent}=await sb.rpc("has_entitlement",{p_product:"coins"}); _ok=(_ent===true); } else { const {data:_prof}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single(); _ok=!!(_prof&&_prof.subscription_status==="active"); } if(!_ok){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fLetter","fDenom","fService","fQual","fGradeMin","fGradeMax","fPriceMin","fPriceMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
     q = applyFilters(q);
     q = q.order(sortCol, { ascending: sortAsc, nullsFirst: false });
     q = q.range(page * PER, (page + 1) * PER - 1);
@@ -605,8 +667,29 @@ async function runQuery() {
   }
 }
 
+// ── APPLY COIN FILTERS ──
+function applyCoinFilters(q) {
+  const v = id => (document.getElementById(id)?.value || "").trim();
+  const title = v("fTitle");
+  if (title) title.split(/\s+/).filter(Boolean).forEach(function(term){ q = q.ilike("title", `%${term}%`); });
+  const den = v("fCoinDenom"); if (den) q = q.ilike("denomination_raw", `%${den}%`);
+  const yr = v("fYear"); if (yr) q = q.eq("sold_year", parseInt(yr));
+  const svc = v("fService"); if (svc) q = q.eq("grading_company", svc);
+  const gMin = v("fGradeMin"); if (gMin) q = q.gte("grade_numeric", parseFloat(gMin));
+  const gMax = v("fGradeMax"); if (gMax) q = q.lte("grade_numeric", parseFloat(gMax));
+  const pMin = v("fPriceMin"); if (pMin) q = q.gte("price_realized", parseFloat(pMin));
+  const pMax = v("fPriceMax"); if (pMax) q = q.lte("price_realized", parseFloat(pMax));
+  const dFrom = v("fDateFrom"); if (dFrom) q = q.gte("sold_on", dFrom);
+  const dTo = v("fDateTo"); if (dTo) q = q.lte("sold_on", dTo);
+  if (document.getElementById("fCac")?.checked) q = q.eq("has_cac", true);
+  if (document.getElementById("fPlus")?.checked) q = q.eq("has_plus", true);
+  if (activeSeries) q = q.eq("category", activeSeries);
+  return q;
+}
+
 // ── APPLY FILTERS ──
 function applyFilters(q) {
+  if (MODE === "coins") return applyCoinFilters(q);
   q = q.in("data_quality", DQ_FILTER);
   const v = id => document.getElementById(id).value.trim();
 
@@ -665,8 +748,44 @@ function applyFilters(q) {
   return q;
 }
 
+// ── RENDER COIN TABLE ──
+function renderCoinTable() {
+  if (!rows.length) {
+    document.getElementById("tbody").innerHTML =
+      '<tr class="empty-row"><td colspan="11">No results match your filters</td></tr>';
+    return;
+  }
+  document.getElementById("tbody").innerHTML = rows.map((r, i) => {
+    const n = page * PER + i + 1;
+    const price = r.price_realized ? "$" + Number(r.price_realized).toLocaleString() : "—";
+    const dt = r.sold_on || "—";
+    const den = r.denomination_raw || "—";
+    const grade = (r.grading_company ? r.grading_company + " " : "") + (r.grade_raw || (r.grade_numeric!=null? r.grade_numeric : "")) || "—";
+    const cac = r.has_cac ? "CAC" : "";
+    const plus = r.has_plus ? "+" : "";
+    const cat = r.category || "—";
+    const srcLabel = r.source === "heritage_auctions" ? "HA" : r.source === "stacks_bowers" ? "SB" : (r.source || "—");
+    const t = r.title || "—";
+    const url = r.lot_url || "#";
+    const tShort = t.length > 80 ? t.substring(0, 77) + "…" : t;
+    return `<tr>
+      <td>${n}</td>
+      <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
+      <td>${den}</td>
+      <td>${r.sold_year || "—"}</td>
+      <td>${grade}</td>
+      <td style="color:var(--gold)">${cac}${cac&&plus?" ":""}${plus}</td>
+      <td>${cat}</td>
+      <td>${price}</td>
+      <td>${dt}</td>
+      <td>${srcLabel}</td>
+    </tr>`;
+  }).join("");
+}
+
 // ── RENDER TABLE ──
 function renderTable() {
+  if (MODE === "coins") return renderCoinTable();
   if (!rows.length) {
     document.getElementById("tbody").innerHTML =
       '<tr class="empty-row"><td colspan="11">No results match your filters</td></tr>';
@@ -919,7 +1038,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
           var res = await fetch("/api/create-checkout-session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: session.user.id, email: session.user.email, plan: (this.dataset.plan || "monthly") })
+            body: JSON.stringify({ userId: session.user.id, email: session.user.email, plan: (this.dataset.plan || "monthly"), product: (typeof MODE !== "undefined" ? MODE : "currency") })
           });
           var out = await res.json();
           if (out && out.url) { window.location.href = out.url; }
@@ -948,6 +1067,16 @@ function setView(view){
 function buildEbayQuery(){
   const val = id => (document.getElementById(id)?.value || '').trim();
   const parts = [];
+  if (MODE === 'coins'){
+    const t = val('fTitle'); if (t) parts.push(t);
+    const d = val('fCoinDenom'); if (d) parts.push(d);
+    const y = val('fYear'); if (y) parts.push(y);
+    const cat = (document.querySelector('#catChips .active')?.textContent || '').trim(); if (cat) parts.push(cat);
+    const svc = val('fService'); if (svc) parts.push(svc);
+    const g = val('fGradeMin') || val('fGradeMax'); if (g) parts.push(g);
+    if (document.getElementById('fCac')?.checked) parts.push('CAC');
+    return parts.join(' ').trim();
+  }
   const title = val('fTitle'); if (title) parts.push(title);
   const fr = val('fFr'); if (fr) parts.push('Fr ' + fr);
   const year = val('fYear'); if (year) parts.push(year);
