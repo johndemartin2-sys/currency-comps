@@ -25,7 +25,16 @@
     'shilling':'SHILLING','sixpence':'6P','threepence':'3P','twopence':'2P'
   };
   function denomFromTitle(title) {
-    const t = (title || '').toLowerCase();
+    const s = title || '';
+    if (/\b1\/2\s?C\b/i.test(s)) return '1/2 C';
+    if (/\$2[.\s]?50\b/.test(s) || /\$2\.5\b/.test(s) || /\$2\s?1\/2\b/.test(s)) return '$2.5';
+    if (/\$20\b/.test(s)) return '$20';
+    if (/\$10\b/.test(s)) return '$10';
+    if (/\$5\b/.test(s))  return '$5';
+    if (/\$1\b/.test(s))  return '$1';
+    const cm = s.match(/\b(50|25|20|10|5|3|2|1)\s?C[SN]?\b/i);
+    if (cm) return cm[1] + 'C';
+    const t = s.toLowerCase();
     let best = null;
     for (const k of Object.keys(FACE)) if (t.includes(k) && (!best || k.length > best.length)) best = k;
     return best ? FACE[best] : null;
@@ -70,7 +79,7 @@
     const lot_url = titleEl ? titleEl.href : '';
     const service = g(/SERVICE\s+([A-Z]+)/);
     const grade = normGrade(g(/GRADE\s+([A-Za-z0-9+]+)/));
-    const denomRaw = (title.match(/(Double Eagle|Half Eagle|Quarter Eagle|Eagle|Gold Dollar|Trade Dollar|Morgan Dollar|Peace Dollar|Silver Dollar|Dollar|Half Dollar|Quarter|Dime|Half Dime|Half Cent|Cent|Shilling|Sixpence|Threepence|Twopence)/i) || [])[1] || null;
+    const denomRaw = denomFromTitle(title);
     const yr = (title.match(/\b(1[6-9]\d{2}|20[0-2]\d)\b/) || [])[1];
     const priceEl = li.querySelector('.bot-price-data') || li.querySelector('.item-value');
     return {
