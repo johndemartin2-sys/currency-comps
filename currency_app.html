@@ -1084,7 +1084,15 @@ function buildEbayQuery(){
   if (denom) parts.push(denom + ' dollar');
   const type = (document.querySelector('#catChips .active')?.textContent || '').trim();
   if (type) parts.push(type);
-  const grade = val('fGradeMin') || val('fGradeMax'); if (grade) parts.push(grade);
+  const gMin = val('fGradeMin'), gMax = val('fGradeMax');
+        if (gMin && gMax && gMin === gMax) parts.push(gMin);
+        const letter = val('fLetter'); if (letter) parts.push(letter);
+        const svc = (document.getElementById('fService')?.value || '').trim(); if (svc) parts.push(svc);
+        const qual = (document.getElementById('fQual')?.value || '').trim();
+        if (qual === 'PPQ' || qual === 'EPQ') parts.push(qual);
+        const st = (document.getElementById('fState')?.value || '').trim();
+        if (st && st !== 'any') parts.push(st);
+        const ch = val('fCharter'); if (ch) parts.push('charter ' + ch);
   if (document.getElementById('fStar')?.checked) parts.push('star');
   return parts.join(' ').trim();
 }
@@ -1094,11 +1102,35 @@ async function runLiveSearch(){
   if (!q){ box.innerHTML = '<p style="color:var(--muted);padding:12px">Add filters (year, denomination, type, grade) to search live listings.</p>'; return; }
   box.innerHTML = '<p style="color:var(--muted);padding:12px">Searching eBay&hellip;</p>';
   try{
-    const res = await fetch('/api/ebay-search?q=' + encodeURIComponent(q));
+    const pMin = (document.getElementById('fPriceMin')?.value || '').trim();
+      const pMax = (document.getElementById('fPriceMax')?.value || '').trim();
+      let qs = '/api/ebay-search?q=' + encodeURIComponent(q);
+      if (pMin) qs += '&priceMin=' + encodeURIComponent(pMin);
+      if (pMax) qs += '&priceMax=' + encodeURIComponent(pMax);
+      const res = await fetch(qs);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Search failed');
     if (!data.items || !data.items.length){ box.innerHTML = '<p style="color:var(--muted);padding:12px">No current listings found.</p>'; return; }
-    box.innerHTML = data.items.map(it => '<a href="' + it.url + '" target="_blank" rel="noopener" style="display:flex;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:center">' +
+
+      // front-end grade-band filter (eBay has no grade field; parse it from the title)
+      const gLo = parseInt(document.getElementById('fGradeMin')?.value, 10);
+      const gHi = parseInt(document.getElementById('fGradeMax')?.value, 10);
+      let items = data.items;
+      if (!isNaN(gLo) || !isNaN(gHi)) {
+        items = items.filter(it => {
+          const mm = (it.title || '').match(/\b(?:PMG|PCGS|NGC)?\s*([1-9]\d?)\b/i);
+          if (!mm) return false;
+          const g = parseInt(mm[1], 10);
+          if (!isNaN(gLo) && g < gLo) return false;
+          if (!isNaN(gHi) && g > gHi) return false;
+          return true;
+        });
+        if (!items.length) {
+          box.innerHTML = '<p style="color:var(--muted);padding:12px">No listings match the grade band.</p>';
+          return;
+        }
+      }
+    box.innerHTML = items.map(it => '<a href="' + it.url + '" target="_blank" rel="noopener" style="display:flex;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:center">' +
       (it.image ? '<img src="' + it.image + '" width="56" height="56" style="object-fit:cover;border-radius:4px">' : '') +
       '<div style="flex:1"><div style="color:var(--text);font-weight:600">' + it.title + '</div>' +
       '<div style="color:var(--text2);font-size:13px">' + (it.price || '—') +
