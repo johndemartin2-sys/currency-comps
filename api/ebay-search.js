@@ -32,15 +32,23 @@ const CATEGORY_PAPER_MONEY_US = '3412';
 
 export default async function handler(req, res) {
   try {
-    const { q = '', limit = 25 } = req.query;
+    const { q = '', limit = 25, priceMin, priceMax } = req.query;
     if (!q.trim()) return res.status(400).json({ error: 'Missing query' });
 
     const token = await getToken();
+    const filters = ['buyingOptions:{AUCTION|FIXED_PRICE}'];
+    if (priceMin || priceMax) {
+      const lo = priceMin ? Number(priceMin) : 0;
+      const hi = priceMax ? Number(priceMax) : '';
+      filters.push(`price:[${lo}..${hi}]`);
+      filters.push('priceCurrency:USD');
+    }
+
     const url =
       'https://api.ebay.com/buy/browse/v1/item_summary/search' +
       `?q=${encodeURIComponent(q)}` +
       `&category_ids=${CATEGORY_PAPER_MONEY_US}` +
-      `&filter=buyingOptions:{AUCTION|FIXED_PRICE}` +
+      `&filter=${encodeURIComponent(filters.join(','))}` +
       `&limit=${Math.min(Number(limit) || 25, 50)}`;
 
     const ebayRes = await fetch(url, {
