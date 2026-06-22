@@ -25,10 +25,27 @@
     'shilling':'SHILLING','sixpence':'6P','threepence':'3P','twopence':'2P'
   };
   function denomFromTitle(title) {
-    const t = (title || '').toLowerCase();
-    let best = null;
-    for (const k of Object.keys(FACE)) if (t.includes(k) && (!best || k.length > best.length)) best = k;
-    return best ? FACE[best] : null;
+        const raw = (title || '').trim();
+        // Heritage format is "YEAR TOKEN Description"; the token right after the year is the denomination.
+        const POST_YEAR = {
+                '1/2C':'1/2C','1C':'1C','2C':'2C','3CS':'3CS','3CN':'3CN','5C':'5C','H10C':'H10C','10C':'10C',
+                '20C':'20C','25C':'25C','50C':'50C','$1':'$1','$2.50':'$2.50','$3':'$3','$4':'$4','$5':'$5','$10':'$10','$20':'$20',
+                '1/2P':'1/2P','1P':'1P','2P':'2P','2PENCE':'2P','TWOPENCE':'2P','3P':'3P','THREEPENCE':'3P',
+                '6P':'6P','6PENCE':'6P','SIXPENCE':'6P','SHILLING':'SHILLING','SHILNG':'SHILLING','SHILLNG':'SHILLING',
+                'PENNY':'1P','HALFPENNY':'1/2P','FARTHING':'1/4P','DENIER':'DEN','DEN':'DEN','SOL':'SOL','REAL':'REAL',
+                'ESCUDO':'ESCUDO','COPPER':'COPPER','TOKEN':'TOKEN','MEDAL':'MEDAL'
+        };
+        // grab the first whitespace-delimited token following a 4-digit year (optionally with a mint letter)
+        const ym = raw.match(/\b(?:1[6-9]|20)\d{2}(?:-[A-Za-z0-9]+)?\s+([0-9]*\/?[0-9]*[A-Za-z][A-Za-z0-9.\/]*)/);
+        if (ym) {
+                const tok = ym[1].toUpperCase();
+                if (POST_YEAR[tok]) return POST_YEAR[tok];
+        }
+        // fallback: scan for a denomination word anywhere in the title
+        const t = raw.toLowerCase();
+        let best = null;
+        for (const k of Object.keys(FACE)) if (t.includes(k) && (!best || k.length > best.length)) best = k;
+        return best ? FACE[best] : null;
   }
 
   function normGrade(rawIn) {
