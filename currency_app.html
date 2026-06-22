@@ -673,7 +673,7 @@ function applyCoinFilters(q) {
   const title = v("fTitle");
   if (title) title.split(/\s+/).filter(Boolean).forEach(function(term){ q = q.ilike("title", `%${term}%`); });
   const den = v("fCoinDenom"); if (den) q = q.ilike("denomination_raw", `%${den}%`);
-  const yr = v("fYear"); if (yr) q = q.eq("sold_year", parseInt(yr));
+  const yr = v("fYear"); if (yr) q = q.eq("series_year", parseInt(yr));
   const svc = v("fService"); if (svc) q = q.eq("grading_company", svc);
   const gMin = v("fGradeMin"); if (gMin) q = q.gte("grade_numeric", parseFloat(gMin));
   const gMax = v("fGradeMax"); if (gMax) q = q.lte("grade_numeric", parseFloat(gMax));
