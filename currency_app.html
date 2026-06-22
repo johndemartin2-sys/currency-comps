@@ -464,7 +464,7 @@ function setMode(mode){
   var thr = document.getElementById("theadRow");
   if (thr){
     thr.innerHTML = (mode==="coins")
-      ? '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="denomination_raw">Denom</th><th data-col="series_year">Year</th><th data-col="grade_numeric">Grade</th><th data-col="has_cac">CAC/+</th><th data-col="category">Category</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>'
+      ? '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="denomination">Denom</th><th data-col="series_year">Year</th><th data-col="grade_numeric">Grade</th><th data-col="has_cac">CAC/+</th><th data-col="category">Category</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>'
       : '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="friedberg_number">Fr.</th><th data-col="sold_year">Year</th><th data-col="denomination">Denom</th><th data-col="series_type">Type</th><th data-col="grade_raw">Grade</th><th data-col="is_star_note">★</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>';
   }
   // reset results + chips for the new dataset
@@ -759,7 +759,7 @@ function renderCoinTable() {
     const n = page * PER + i + 1;
     const price = r.price_realized ? "$" + Number(r.price_realized).toLocaleString() : "—";
     const dt = r.sold_on || "—";
-    const den = r.denomination_raw || "—";
+    const den = r.denomination || "—";
     const grade = (r.grading_company ? r.grading_company + " " : "") + (r.grade_raw || (r.grade_numeric!=null? r.grade_numeric : "")) || "—";
     const cac = r.has_cac ? "CAC" : "";
     const plus = r.has_plus ? "+" : "";
