@@ -464,7 +464,7 @@ function setMode(mode){
   var thr = document.getElementById("theadRow");
   if (thr){
     thr.innerHTML = (mode==="coins")
-      ? '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="denomination_raw">Denom</th><th data-col="sold_year">Year</th><th data-col="grade_numeric">Grade</th><th data-col="has_cac">CAC/+</th><th data-col="category">Category</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>'
+      ? '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="denomination_raw">Denom</th><th data-col="series_year">Year</th><th data-col="grade_numeric">Grade</th><th data-col="has_cac">CAC/+</th><th data-col="category">Category</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>'
       : '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="friedberg_number">Fr.</th><th data-col="sold_year">Year</th><th data-col="denomination">Denom</th><th data-col="series_type">Type</th><th data-col="grade_raw">Grade</th><th data-col="is_star_note">★</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>';
   }
   // reset results + chips for the new dataset
@@ -772,7 +772,7 @@ function renderCoinTable() {
       <td>${n}</td>
       <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
       <td>${den}</td>
-      <td>${r.sold_year || "—"}</td>
+      <td>${r.series_year || "—"}</td>
       <td>${grade}</td>
       <td style="color:var(--gold)">${cac}${cac&&plus?" ":""}${plus}</td>
       <td>${cat}</td>
