@@ -408,7 +408,7 @@ td a:hover { text-decoration: underline; }
 <thead><tr id="theadRow">
   <th data-col="_row">#</th>
   <th data-col="title" class="sorted">Title</th>
-  <th data-col="friedberg_number">Fr.</th>
+  <th data-col="friedberg_number">Fr.</th><th data-col="charter_number">Charter #</th>
   <th data-col="sold_year">Year</th>
   <th data-col="denomination">Denom</th>
   <th data-col="series_type">Type</th>
@@ -466,7 +466,7 @@ function setMode(mode){
   if (thr){
     thr.innerHTML = (mode==="coins")
       ? '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="denomination">Denom</th><th data-col="series_year">Year</th><th data-col="grade_numeric">Grade</th><th data-col="has_cac">CAC/+</th><th data-col="category">Category</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>'
-      : '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="friedberg_number">Fr.</th><th data-col="sold_year">Year</th><th data-col="denomination">Denom</th><th data-col="series_type">Type</th><th data-col="grade_raw">Grade</th><th data-col="is_star_note">★</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>';
+      : '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="friedberg_number">Fr.</th><th data-col="charter_number">Charter #</th><th data-col="sold_year">Year</th><th data-col="denomination">Denom</th><th data-col="series_type">Type</th><th data-col="grade_raw">Grade</th><th data-col="is_star_note">★</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>';
   }
   // reset results + chips for the new dataset
   activeSeries = ""; seriesTypes = [];
@@ -797,7 +797,8 @@ function renderTable() {
     const price = r.price_realized ? "$" + Number(r.price_realized).toLocaleString() : "—";
     const dt = r.sold_on || "—";
     const star = r.is_star_note ? "★" : "";
-    const fr = r.friedberg_number || r.catalog_number || "—";
+    const fr = r.friedberg_number || "—";
+    const ch = r.charter_number || "—";
     const den = r.denomination ? "$" + String(r.denomination).replace(/^\$+/, "") : "—";
     const sType = r.series_type || "—";
     const grade = r.grade_raw || "—";
@@ -810,7 +811,7 @@ function renderTable() {
     return `<tr>
       <td>${n}</td>
       <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
-      <td>${fr}</td>
+      <td>${fr}</td><td>${ch}</td>
       <td>${r.series_year ? r.series_year + (r.series_letter || "") : "—"}</td>
       <td>${den}</td>
       <td>${sType}</td>
