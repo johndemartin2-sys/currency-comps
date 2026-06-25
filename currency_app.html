@@ -1007,11 +1007,82 @@ function fmt(n) { return (n || 0).toLocaleString(); }
   <script>
   (function () {
     // Handle return from Stripe Checkout
+
+    // ---- Pay-first onboarding (verify paid Stripe session, then create account) ----
+    async function ccOnboardAfterPayment(sessionId, product, plan) {
+      var labels = { currency: "Currency Comps", coins: "Coins Comps", bundle: "Currency + Coins Bundle" };
+      var productLabel = labels[product] || "Currency Comps";
+      var planLabel = (plan === "annual") ? "Annual" : "Monthly";
+      var overlay = document.createElement("div");
+      overlay.id = "cc-onboard-overlay";
+      overlay.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(15,17,21,0.85);display:flex;align-items:center;justify-content:center;padding:20px;";
+      overlay.innerHTML = 
+        '<div style="max-width:440px;width:100%;background:#fff;border-radius:14px;padding:28px 26px;box-shadow:0 20px 60px rgba(0,0,0,0.4);font-family:inherit;">' +
+        '<div id="cc-onb-body"><p style="margin:0;color:#555;">Confirming your payment\u2026</p></div></div>';
+      document.body.appendChild(overlay);
+      var body = overlay.querySelector("#cc-onb-body");
+      try {
+        var vr = await fetch("/api/verify-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: sessionId })
+        });
+        var info = await vr.json();
+        if (!info || !info.ok) {
+          body.innerHTML = '<h2 style="margin:0 0 8px;font-size:20px;color:#c0392b;">We couldn\u2019t confirm your payment</h2>' +
+            '<p style="margin:0 0 14px;color:#555;line-height:1.5;">If you were charged, please contact <a href="mailto:support@jdmstrategy.com">support@jdmstrategy.com</a> and we\u2019ll sort it out right away.</p>' +
+            '<button onclick="window.location.href=window.location.pathname" style="padding:10px 16px;border:0;border-radius:8px;background:#1f6feb;color:#fff;font-weight:600;cursor:pointer;">Return to site</button>';
+          return;
+        }
+        var email = info.email || "";
+        body.innerHTML =
+          '<div style="font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#1a9e57;margin-bottom:6px;">\u2713 Payment received</div>' +
+          '<h2 style="margin:0 0 6px;font-size:22px;color:#1a1a1a;">Let\u2019s set up your account</h2>' +
+          '<p style="margin:0 0 16px;color:#555;line-height:1.5;">You\u2019re subscribed to <strong>' + productLabel + ' \u2014 ' + planLabel + '</strong>. One last step to unlock your dashboard.</p>' +
+          '<label style="display:block;font-size:13px;color:#444;margin-bottom:4px;">Email</label>' +
+          '<input type="email" value="' + email + '" readonly style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:8px;background:#f5f5f5;color:#666;margin-bottom:4px;">' +
+          '<p style="margin:0 0 14px;font-size:12px;color:#888;">This is the email tied to your subscription.</p>' +
+          '<label style="display:block;font-size:13px;color:#444;margin-bottom:4px;">Create a password</label>' +
+          '<input id="cc-onb-pw" type="password" placeholder="At least 8 characters" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:8px;margin-bottom:12px;">' +
+          '<button id="cc-onb-submit" style="width:100%;padding:12px;border:0;border-radius:8px;background:#1a9e57;color:#fff;font-weight:700;font-size:15px;cursor:pointer;">Create account &amp; enter dashboard</button>' +
+          '<p id="cc-onb-msg" style="margin:10px 0 0;font-size:13px;color:#c0392b;min-height:16px;"></p>' +
+          '<p style="margin:12px 0 0;font-size:12px;color:#999;line-height:1.5;">Your subscription is already active and a receipt has been emailed to you by Stripe. Need help? Contact support@jdmstrategy.com.</p>';
+        var pw = body.querySelector("#cc-onb-pw");
+        var submit = body.querySelector("#cc-onb-submit");
+        var msg = body.querySelector("#cc-onb-msg");
+        submit.addEventListener("click", async function () {
+          msg.textContent = "";
+          if (!pw.value || pw.value.length < 8) { msg.textContent = "Please enter a password of at least 8 characters."; return; }
+          if (typeof sb === "undefined" || !sb) { msg.textContent = "Auth unavailable. Please refresh and try again."; return; }
+          submit.disabled = true; submit.textContent = "Creating account\u2026";
+          try {
+            var resu = await sb.auth.signUp({ email: email, password: pw.value });
+            if (resu.error) { msg.textContent = resu.error.message || "Could not create account."; submit.disabled = false; submit.textContent = "Create account & enter dashboard"; return; }
+            var si = await sb.auth.signInWithPassword({ email: email, password: pw.value });
+            if (si.error) { msg.style.color = "#1a9e57"; msg.textContent = "Account created. Please sign in."; }
+            window.location.href = window.location.pathname;
+          } catch (e) {
+            msg.textContent = "Network error. Please try again."; submit.disabled = false; submit.textContent = "Create account & enter dashboard";
+          }
+        });
+      } catch (e) {
+        body.innerHTML = '<p style="color:#c0392b;">Something went wrong confirming your payment. Please contact support@jdmstrategy.com.</p>';
+      }
+    }
     var params = new URLSearchParams(window.location.search);
     var checkout = params.get("checkout");
-    if (checkout === "success") {
-      history.replaceState({}, "", window.location.pathname);
-      setTimeout(function () { window.location.reload(); }, 2500);
+        if (checkout === "success") {
+      var sessionId = params.get("session_id");
+      var boughtProduct = params.get("product") || "currency";
+      var boughtPlan = params.get("plan") || "monthly";
+      if (sessionId) {
+        // Pay-first onboarding: verify the paid session, then create the account.
+        ccOnboardAfterPayment(sessionId, boughtProduct, boughtPlan);
+      } else {
+        // Logged-in user returning from checkout: just refresh entitlements.
+        history.replaceState({}, "", window.location.pathname);
+        setTimeout(function () { window.location.reload(); }, 2500);
+      }
     } else if (checkout === "cancel") {
       history.replaceState({}, "", window.location.pathname);
     }
@@ -1032,16 +1103,27 @@ function fmt(n) { return (n || 0).toLocaleString(); }
         btn.disabled = true;
         btn.textContent = "Redirecting\u2026";
         try {
-          var sbClient = (typeof sb !== "undefined" && sb) ? sb : null;
-          if (!sbClient) { msg.textContent = "Please log in first."; resetBtn(); return; }
-          var sess = await sbClient.auth.getSession();
-          var session = sess && sess.data ? sess.data.session : null;
-          if (!session) { msg.textContent = "Please log in first."; resetBtn(); return; }
-          var res = await fetch("/api/create-checkout-session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: session.user.id, email: session.user.email, plan: (this.dataset.plan || "monthly"), product: (typeof MODE !== "undefined" ? MODE : "currency") })
-          });
+      // Pay-first: a session is optional. If logged in, link the checkout to
+      // that user; if not, Stripe collects the email and the account is made after.
+      var sbClient = (typeof sb !== "undefined" && sb) ? sb : null;
+      var session = null;
+      if (sbClient) {
+        var sess = await sbClient.auth.getSession();
+        session = sess && sess.data ? sess.data.session : null;
+      }
+      var payload = {
+        plan: (this.dataset.plan || "monthly"),
+        product: (typeof MODE !== "undefined" ? MODE : "currency"),
+      };
+      if (session && session.user) {
+        payload.userId = session.user.id;
+        payload.email = session.user.email;
+      }
+      var res = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
           var out = await res.json();
           if (out && out.url) { window.location.href = out.url; }
           else { msg.textContent = (out && out.error) ? out.error : "Could not start checkout."; resetBtn(); }
