@@ -1134,6 +1134,39 @@ function fmt(n) { return (n || 0).toLocaleString(); }
       }
 btn.addEventListener("click", handleSubscribe);
 document.getElementById("cc-subscribe-btn-annual")?.addEventListener("click", handleSubscribe);
+      // --- Auto-checkout from landing page (?plan=monthly|annual) ---
+      try {
+        var _ccParams = new URLSearchParams(window.location.search);
+        var _ccPlan = _ccParams.get("plan");
+        if (_ccPlan === "monthly" || _ccPlan === "annual") {
+          var _ccTargetBtn = (_ccPlan === "annual")
+            ? document.getElementById("cc-subscribe-btn-annual")
+            : document.getElementById("cc-subscribe-btn");
+          if (_ccTargetBtn) {
+            var _ccOv = document.createElement("div");
+            _ccOv.id = "cc-redirect-overlay";
+            _ccOv.style.cssText =
+              "position:fixed;inset:0;z-index:99999;background:#0e0e0f;" +
+              "display:flex;flex-direction:column;align-items:center;justify-content:center;" +
+              "color:#e7c873;font-family:Georgia,serif;text-align:center;padding:24px;";
+            _ccOv.innerHTML =
+              '<div style="width:42px;height:42px;border:3px solid #2a2a2c;' +
+              'border-top-color:#e7c873;border-radius:50%;animation:ccspin 0.8s linear infinite;"></div>' +
+              '<div style="margin-top:20px;font-size:20px;letter-spacing:.5px;">Redirecting to secure checkout&hellip;</div>' +
+              '<div style="margin-top:8px;font-size:13px;color:#8a8a8f;font-family:system-ui,sans-serif;">' +
+              'Please wait while we connect you to Stripe.</div>' +
+              '<style>@keyframes ccspin{to{transform:rotate(360deg)}}</style>';
+            document.body.appendChild(_ccOv);
+            history.replaceState({}, "", window.location.pathname);
+            // Failsafe: if no redirect happens within 8s, remove overlay so user isn't stuck
+            setTimeout(function () {
+              var ov = document.getElementById("cc-redirect-overlay");
+              if (ov) { ov.remove(); }
+            }, 8000);
+            setTimeout(function () { _ccTargetBtn.click(); }, 50);
+          }
+        }
+      } catch (e) { /* fall back to normal app load */ }
     }
   })();
   </script>
