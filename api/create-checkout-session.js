@@ -78,7 +78,7 @@ module.exports = async (req, res) => {
       ...(userId ? { client_reference_id: userId } : {}),
       line_items: [{ price: selectedPrice, quantity: 1 }],
       subscription_data: {
-        trial_period_days: 7,
+        ...(plan === "monthly" ? { trial_period_days: 7 } : {}),
         metadata: {
           ...(userId ? { supabase_user_id: userId } : {}),
           products: cfg.grants.join(","),
