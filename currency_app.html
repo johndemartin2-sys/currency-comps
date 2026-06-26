@@ -1036,9 +1036,9 @@ function fmt(n) { return (n || 0).toLocaleString(); }
         }
         var email = info.email || "";
         body.innerHTML =
-          '<div style="font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#1a9e57;margin-bottom:6px;">\u2713 Payment received</div>' +
+          '<div style="font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#1a9e57;margin-bottom:6px;">\u2713 Your 7-day free trial has started</div>' +
           '<h2 style="margin:0 0 6px;font-size:22px;color:#1a1a1a;">Let\u2019s set up your account</h2>' +
-          '<p style="margin:0 0 16px;color:#555;line-height:1.5;">You\u2019re subscribed to <strong>' + productLabel + ' \u2014 ' + planLabel + '</strong>. One last step to unlock your dashboard.</p>' +
+          '<p style="margin:0 0 16px;color:#555;line-height:1.5;">You\u2019re subscribed to <strong>' + productLabel + ' \u2014 ' + planLabel + '</strong>. No charge today \u2014 your card will be charged when the 7-day trial ends. One last step to unlock your dashboard.</p>' +
           '<label style="display:block;font-size:13px;color:#444;margin-bottom:4px;">Email</label>' +
           '<input type="email" value="' + email + '" readonly style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:8px;background:#f5f5f5;color:#666;margin-bottom:4px;">' +
           '<p style="margin:0 0 14px;font-size:12px;color:#888;">This is the email tied to your subscription.</p>' +
@@ -1046,7 +1046,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
           '<input id="cc-onb-pw" type="password" placeholder="At least 8 characters" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:8px;margin-bottom:12px;">' +
           '<button id="cc-onb-submit" style="width:100%;padding:12px;border:0;border-radius:8px;background:#1a9e57;color:#fff;font-weight:700;font-size:15px;cursor:pointer;">Create account &amp; enter dashboard</button>' +
           '<p id="cc-onb-msg" style="margin:10px 0 0;font-size:13px;color:#c0392b;min-height:16px;"></p>' +
-          '<p style="margin:12px 0 0;font-size:12px;color:#999;line-height:1.5;">Your subscription is already active and a receipt has been emailed to you by Stripe. Need help? Contact support@jdmstrategy.com.</p>';
+          '<p style="margin:12px 0 0;font-size:12px;color:#999;line-height:1.5;">Your 7-day free trial is already active and a confirmation has been emailed to you by Stripe. You won\u2019t be charged until the trial ends. Need help? Contact support@jdmstrategy.com.</p>';
         var pw = body.querySelector("#cc-onb-pw");
         var submit = body.querySelector("#cc-onb-submit");
         var msg = body.querySelector("#cc-onb-msg");
