@@ -298,30 +298,7 @@ td a:hover { text-decoration: underline; }
         <option>$1000</option><option>$5000</option><option>$10000</option>
       </select>
     </div>
-    <div class="fg"><label>Grading Co.</label>
-      <select id="fService">
-        <option value="">any</option>
-        <option value="PMG">PMG</option>
-        <option value="PCGS">PCGS</option>
-        <option value="NGC">NGC</option>
-        <option value="raw">raw</option>
-        <option value="unknown">unknown</option>
-      </select>
-    </div>
-    <div class="fg"><label>PPQ/EPQ</label>
-      <select id="fQual">
-        <option value="">any</option>
-        <option value="PPQ">PPQ</option>
-        <option value="EPQ">EPQ</option>
-        <option value="none">none</option>
-      </select>
-    </div>
-    <div class="fg narrow"><label>Grade min</label><input id="fGradeMin" type="number"></div>
-    <div class="fg narrow"><label>Grade max</label><input id="fGradeMax" type="number"></div>
-    <div class="fg"><label>Price min</label><input id="fPriceMin" type="number" style="width:95px"></div>
-    <div class="fg"><label>Price max</label><input id="fPriceMax" type="number" style="width:95px"></div>
-    
-    
+    <div class="fg"><label>Charter #</label><input id="fCharter" placeholder="" style="width:90px"></div>
     <div class="fg"><label>State</label>
         <select id="fState" style="width:150px">
           <option value="">any</option>
@@ -379,7 +356,28 @@ td a:hover { text-decoration: underline; }
           <option value="WY">Wyoming</option>
         </select>
       </div>
-      <div class="fg"><label>Charter #</label><input id="fCharter" placeholder="" style="width:90px"></div>
+    <div class="fg"><label>Grading Co.</label>
+      <select id="fService">
+        <option value="">any</option>
+        <option value="PMG">PMG</option>
+        <option value="PCGS">PCGS</option>
+        <option value="NGC">NGC</option>
+        <option value="raw">raw</option>
+        <option value="unknown">unknown</option>
+      </select>
+    </div>
+    <div class="fg"><label>PPQ/EPQ</label>
+      <select id="fQual">
+        <option value="">any</option>
+        <option value="PPQ">PPQ</option>
+        <option value="EPQ">EPQ</option>
+        <option value="none">none</option>
+      </select>
+    </div>
+    <div class="fg narrow"><label>Grade min</label><input id="fGradeMin" type="number"></div>
+    <div class="fg narrow"><label>Grade max</label><input id="fGradeMax" type="number"></div>
+    <div class="fg"><label>Price min</label><input id="fPriceMin" type="number" style="width:95px"></div>
+    <div class="fg"><label>Price max</label><input id="fPriceMax" type="number" style="width:95px"></div>
     
     <span id="coinFilters" style="display:none;align-items:flex-end;gap:10px;flex-wrap:wrap">
       <div class="fg"><label>Denomination</label><input id="fCoinDenom" placeholder="e.g. Dollar, Cent" style="width:130px"></div>
