@@ -116,9 +116,13 @@ body.light {
 .fg.xs input { width: 55px; }
 
 /* ── CATEGORY CHIPS ── */
+.chips-flow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  padding: 10px 0 14px;
+}
 .chips-row {
   display: flex; flex-wrap: wrap; gap: 5px;
-  padding: 10px 0 14px;
+  flex: 0 1 auto; padding: 0;
 }
 .chip {
   padding: 4px 12px; border-radius: 14px; font-size: 12px; font-weight: 500;
@@ -127,7 +131,7 @@ body.light {
 }
 .chip.active { background: var(--gold); color: #0b0b0f; border-color: var(--gold); font-weight: 600; }
 .chip:hover:not(.active) { border-color: var(--gold-dim); color: var(--text2); }
-.chips-more { padding: 0 0 14px; }
+.chips-more { padding: 0; }
 .chips-more select { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: 14px; font-size: 12px; font-weight: 500; padding: 4px 12px; cursor: pointer; }
 .chips-more select:hover { border-color: var(--gold-dim); }
 
@@ -388,8 +392,7 @@ td a:hover { text-decoration: underline; }
       <label class="star-toggle"><input type="checkbox" id="fPlus"> + (plus)</label>
     </span>
   </div>
-  <div class="chips-row" id="catChips"></div>
-  <div class="chips-more"><select id="catMore" onchange="handleCatMore(this.value)"><option value="">More categories…</option></select></div>
+  <div class="chips-flow"><div class="chips-row" id="catChips"></div><div class="chips-more"><select id="catMore" onchange="handleCatMore(this.value)"><option value="">More categories…</option></select></div></div>
 </div>
 
 
