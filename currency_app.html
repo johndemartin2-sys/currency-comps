@@ -636,18 +636,28 @@ async function loadSeriesTypes() {
   })();
 }
 
+var CURATED_CHIPS = [
+  ["National Bank Note", "National Bank Note"],
+  ["Federal Reserve Note", "Federal Reserve Note"],
+  ["Gold Certificate", "Gold Certificate"],
+  ["Silver Certificate", "Silver Certificate"],
+  ["Colonial / Continental Currency", "Colonial / Continental Currency"],
+  ["Military Payment Certificate", "MPCs"],
+  ["Confederate Currency", "Confederate"],
+  ["Obsolete Currency", "Obsolete"],
+  ["Fractional Currency", "Fractional"]
+];
 function renderChips() {
-  var pct = Math.max(1, Math.ceil(seriesTypes.length * 0.30));
-  var top = seriesTypes.slice(0, pct);
-  document.getElementById("catChips").innerHTML = top.map(s =>
-    `<span class="chip${activeSeries === s ? ' active' : ''}" onclick="toggleSeries(this, '${esc(s)}')">${s}</span>`
+  var curatedVals = CURATED_CHIPS.map(c => c[0]);
+  document.getElementById("catChips").innerHTML = CURATED_CHIPS.map(c =>
+    `<span class="chip${activeSeries === c[0] ? ' active' : ''}" onclick="toggleSeries(this, '${esc(c[0])}')">${c[1]}</span>`
   ).join("");
   var sel = document.getElementById("catMore");
   if (sel) {
     sel.innerHTML = `<option value="">More categories\u2026</option>` + seriesTypes.map(s =>
       `<option value="${esc(s)}"${activeSeries === s ? ' selected' : ''}>${s}</option>`
     ).join("");
-    sel.value = (top.indexOf(activeSeries) === -1) ? activeSeries : "";
+    sel.value = (curatedVals.indexOf(activeSeries) === -1) ? activeSeries : "";
   }
 }
 function toggleSeries(el, s) { activeSeries = activeSeries === s ? "" : s; renderChips(); }
