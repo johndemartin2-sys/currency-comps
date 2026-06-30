@@ -383,8 +383,6 @@ td a:hover { text-decoration: underline; }
         <option value="none">none</option>
       </select>
     </div>
-    <div class="fg"><label>Price min</label><input id="fPriceMin" type="number" style="width:95px"></div>
-    <div class="fg"><label>Price max</label><input id="fPriceMax" type="number" style="width:95px"></div>
     
     <span id="coinFilters" style="display:none;align-items:flex-end;gap:10px;flex-wrap:wrap">
       <div class="fg"><label>Denomination</label><input id="fCoinDenom" placeholder="e.g. Dollar, Cent" style="width:130px"></div>
@@ -679,7 +677,7 @@ async function runQuery() {
     '<tr class="loading-row"><td colspan="11">Searching…</td></tr>';
 
   try {
-    const {data:{user:_u}}=await sb.auth.getUser(); if(_u){let _ok=false; if(MODE==="coins"){ const {data:_ent}=await sb.rpc("has_entitlement",{p_product:"coins"}); _ok=(_ent===true); } else { const {data:_prof}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single(); _ok=!!(_prof&&_prof.subscription_status==="active"); } if(!_ok){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fDenom","fService","fQual","fGradeMin","fGradeMax","fPriceMin","fPriceMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
+    const {data:{user:_u}}=await sb.auth.getUser(); if(_u){let _ok=false; if(MODE==="coins"){ const {data:_ent}=await sb.rpc("has_entitlement",{p_product:"coins"}); _ok=(_ent===true); } else { const {data:_prof}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single(); _ok=!!(_prof&&_prof.subscription_status==="active"); } if(!_ok){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fDenom","fService","fQual","fGradeMin","fGradeMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
     q = applyFilters(q);
     q = q.order(sortCol, { ascending: sortAsc, nullsFirst: false });
     q = q.range(page * PER, (page + 1) * PER - 1);
@@ -712,8 +710,6 @@ function applyCoinFilters(q) {
   const svc = v("fService"); if (svc) q = q.eq("grading_company", svc);
   const gMin = v("fGradeMin"); if (gMin) q = q.gte("grade_numeric", parseFloat(gMin));
   const gMax = v("fGradeMax"); if (gMax) q = q.lte("grade_numeric", parseFloat(gMax));
-  const pMin = v("fPriceMin"); if (pMin) q = q.gte("price_realized", parseFloat(pMin));
-  const pMax = v("fPriceMax"); if (pMax) q = q.lte("price_realized", parseFloat(pMax));
   const dFrom = ""; if (dFrom) q = q.gte("sold_on", dFrom);
   const dTo = ""; if (dTo) q = q.lte("sold_on", dTo);
   if (document.getElementById("fCac")?.checked) q = q.eq("has_cac", true);
@@ -769,9 +765,6 @@ function applyFilters(q) {
   if (gMin) q = q.gte("grade_numeric", parseInt(gMin));
   if (gMax) q = q.lte("grade_numeric", parseInt(gMax));
 
-  const pMin = v("fPriceMin"), pMax = v("fPriceMax");
-  if (pMin) q = q.gte("price_realized", parseFloat(pMin));
-  if (pMax) q = q.lte("price_realized", parseFloat(pMax));
 
   const dFrom = "", dTo = "";
   if (dFrom) q = q.gte("sold_on", dFrom);
