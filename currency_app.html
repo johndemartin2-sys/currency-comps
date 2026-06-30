@@ -149,7 +149,9 @@ body.light {
 .star-toggle input { accent-color: var(--gold); cursor: pointer; }
 
 /* ── FRIEDBERG VARIANT TOGGLE ── */
-.fr-row { display: flex; align-items: center; gap: 6px; }
+.fr-row { display: flex; align-items: center; gap: 8px; }
+/* match the Star only toggle look exactly (override .fg label) */
+.fr-row .star-toggle { font-size: 13px; text-transform: none; letter-spacing: normal; color: var(--gold); font-weight: 400; white-space: nowrap; }
 
 /* ── BUTTON ROW ── */
 .btn-row {
