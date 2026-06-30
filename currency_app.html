@@ -280,7 +280,7 @@ td a:hover { text-decoration: underline; }
     <div class="fg wide"><label>Title contains</label><input id="fTitle" placeholder=""></div>
     <div class="fg"><label>Friedberg #</label><input id="fFr" placeholder="" style="width:100px"></div>
     <div class="fg narrow"><label>Year</label><input id="fYear" type="number" placeholder=""></div>
-    <div class="fg xs"><label>Letter</label><input id="fLetter" placeholder=""></div>
+    
     <div class="fg"><label>Denom</label>
       <select id="fDenom">
         <option value="">any</option>
@@ -441,7 +441,7 @@ const TABLE_CURRENCY = "lots_currency_resolved";
 const TABLE_COINS = "lots_coins";
 const DQ_FILTER = ["trusted", "rescraped", "unverified"];
 // IDs of filter fields that only make sense for currency; hidden in coin mode.
-const CURRENCY_ONLY_FILTERS = ["fFr","fLetter","fState","fCharter","fQual","fSource"];
+const CURRENCY_ONLY_FILTERS = ["fFr","fState","fCharter","fQual","fSource"];
 function setMode(mode){
   if (mode !== "currency" && mode !== "coins") return;
   MODE = mode;
@@ -645,7 +645,7 @@ async function runQuery() {
     '<tr class="loading-row"><td colspan="11">Searching…</td></tr>';
 
   try {
-    const {data:{user:_u}}=await sb.auth.getUser(); if(_u){let _ok=false; if(MODE==="coins"){ const {data:_ent}=await sb.rpc("has_entitlement",{p_product:"coins"}); _ok=(_ent===true); } else { const {data:_prof}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single(); _ok=!!(_prof&&_prof.subscription_status==="active"); } if(!_ok){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fLetter","fDenom","fService","fQual","fGradeMin","fGradeMax","fPriceMin","fPriceMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
+    const {data:{user:_u}}=await sb.auth.getUser(); if(_u){let _ok=false; if(MODE==="coins"){ const {data:_ent}=await sb.rpc("has_entitlement",{p_product:"coins"}); _ok=(_ent===true); } else { const {data:_prof}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single(); _ok=!!(_prof&&_prof.subscription_status==="active"); } if(!_ok){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fDenom","fService","fQual","fGradeMin","fGradeMax","fPriceMin","fPriceMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
     q = applyFilters(q);
     q = q.order(sortCol, { ascending: sortAsc, nullsFirst: false });
     q = q.range(page * PER, (page + 1) * PER - 1);
