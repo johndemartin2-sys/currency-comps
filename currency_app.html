@@ -499,7 +499,7 @@ async function initSupabase() {
   banner.classList.remove("show");
 
   try {
-    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'currency-comps-auth' } });
     paintCachedChips();  // instant chips from cache before slow startup queries
 
     // No blocking count on startup. A full exact COUNT over the whole table
@@ -930,7 +930,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
     startApp();
 
     // ==== AUTH GATE ====
-    function ccEnsureSb(){ if(!sb){ try{ sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); }catch(e){} } return sb; }
+    function ccEnsureSb(){ if(!sb){ try{ sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'currency-comps-auth' } }); }catch(e){} } return sb; }
     function showAuthErr(msg, ok){ var e=document.getElementById('authErr'); if(e){ e.textContent=msg||''; e.style.color = ok ? '#7c9' : '#e98'; } }
     var ccMode='signin';
     function ccRefreshMode(){
@@ -940,7 +940,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
       showAuthErr('');
     }
     async function startApp(){
-      if(!sb){ try{ sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); }catch(e){} }
+      if(!sb){ try{ sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'currency-comps-auth' } }); }catch(e){} }
       try{
         var res = await sb.auth.getSession();
         var session = res && res.data ? res.data.session : null;
