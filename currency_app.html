@@ -148,6 +148,16 @@ body.light {
 }
 .star-toggle input { accent-color: var(--gold); cursor: pointer; }
 
+/* ── FRIEDBERG VARIANT TOGGLE ── */
+.fr-row { display: flex; align-items: center; gap: 10px; }
+.fr-mode { display: flex; gap: 8px; }
+.fr-mode label {
+  display: flex; align-items: center; gap: 3px;
+  font-size: 10px; text-transform: none; letter-spacing: 0;
+  color: var(--text2); font-weight: 500; cursor: pointer;
+}
+.fr-mode input { accent-color: var(--gold); cursor: pointer; margin: 0; }
+
 /* ── BUTTON ROW ── */
 .btn-row {
   display: flex; gap: 8px; padding: 12px 24px;
@@ -272,7 +282,15 @@ td a:hover { text-decoration: underline; }
   <div class="filters">
     
     <div class="fg wide"><label>Title contains</label><input id="fTitle" placeholder=""></div>
-    <div class="fg"><label>Friedberg #</label><input id="fFr" placeholder="" style="width:100px"></div>
+    <div class="fg"><label>Friedberg #</label>
+      <div class="fr-row">
+        <input id="fFr" placeholder="" style="width:100px">
+        <div class="fr-mode">
+          <label title="Match all letter / seal / mule variants of this number"><input type="radio" name="frMode" id="frModeAll" checked> All variants</label>
+          <label title="Match only the exact Friedberg number typed"><input type="radio" name="frMode" id="frModeExact"> Exact</label>
+        </div>
+      </div>
+    </div>
     <div class="fg narrow"><label>Year</label><input id="fYear" type="number" placeholder=""></div>
     
     <div class="fg"><label>Denom</label>
@@ -695,7 +713,15 @@ function applyFilters(q) {
   if (title) title.split(/\s+/).filter(Boolean).forEach(function(term){ q = q.ilike("title", `%${term}%`); });
 
   const fr = v("fFr");
-  if (fr) q = q.eq("display_fr", fr);
+  if (fr) {
+    const frExact = document.getElementById("frModeExact") && document.getElementById("frModeExact").checked;
+    if (frExact) {
+      q = q.eq("display_fr", fr);
+    } else {
+      const frBase = fr.replace(/\D/g, "");
+      q = frBase ? q.eq("friedberg_base", frBase) : q.eq("display_fr", fr);
+    }
+  }
 
   const yr = v("fYear");
   if (yr) q = q.eq("display_year", yr);
@@ -904,6 +930,7 @@ function clearFilters() {
   document.querySelectorAll(".filters input, .nbn-row input").forEach(i => { i.value = ""; });
   document.querySelectorAll(".filters select, .nbn-row select").forEach(s => { s.selectedIndex = 0; });
   document.getElementById("fStar").checked = false;
+  { const _fa = document.getElementById("frModeAll"); if (_fa) _fa.checked = true; }
   activeSeries = "";
   renderChips();
   rows = [];
