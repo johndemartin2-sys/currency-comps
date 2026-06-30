@@ -706,7 +706,7 @@ function applyFilters(q) {
   const yr = v("fYear");
   if (yr) q = q.eq("display_year", yr);
 
-  const ltr = v("fLetter");
+  const ltr = "";
   if (ltr) q = q.eq("series_letter", ltr.trim().toUpperCase());
 
   const den = document.getElementById("fDenom").value;
@@ -1203,7 +1203,7 @@ function buildEbayQuery(){
   if (type) parts.push(type);
   const gMin = val('fGradeMin'), gMax = val('fGradeMax');
         if (gMin && gMax && gMin === gMax) parts.push(gMin);
-        const letter = val('fLetter'); if (letter) parts.push(letter);
+        const letter = ''; if (letter) parts.push(letter);
         const svc = (document.getElementById('fService')?.value || '').trim(); if (svc) parts.push(svc);
         const qual = (document.getElementById('fQual')?.value || '').trim();
         if (qual === 'PPQ' || qual === 'EPQ') parts.push(qual);
