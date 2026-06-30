@@ -150,9 +150,10 @@ body.light {
 
 /* ── FRIEDBERG VARIANT TOGGLE ── */
 .fr-row { display: flex; align-items: center; gap: 8px; }
-/* match the Star only toggle look exactly (override .fg label) */
-.fr-row .star-toggle { font-size: 13px; text-transform: none; letter-spacing: normal; color: var(--gold); font-weight: 400; white-space: nowrap; }
-.fr-row .star-toggle input { width: auto; }
+/* stacked All variants / Exact radios, kept within the field row height */
+.fr-mode-stack { display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
+.fr-row .fr-opt { display: flex; align-items: center; gap: 4px; font-size: 11px; text-transform: none; letter-spacing: normal; color: var(--gold); font-weight: 400; white-space: nowrap; cursor: pointer; margin: 0; }
+.fr-row .fr-opt input { width: auto; margin: 0; accent-color: var(--gold); transform: scale(0.85); }
 
 /* ── BUTTON ROW ── */
 .btn-row {
@@ -281,7 +282,10 @@ td a:hover { text-decoration: underline; }
     <div class="fg"><label>Friedberg #</label>
       <div class="fr-row">
         <input id="fFr" placeholder="" style="width:100px">
-        <label class="star-toggle" title="On: match all letter / seal / mule variants of the base number. Off: exact match only."><input type="checkbox" id="frModeAll" checked> All variants</label>
+        <div class="fr-mode-stack">
+          <label class="fr-opt" title="Match all letter / seal / mule variants of the base number"><input type="radio" name="frMode" id="frModeAll" checked> All variants</label>
+          <label class="fr-opt" title="Match only the exact Friedberg number typed"><input type="radio" name="frMode" id="frModeExact"> Exact</label>
+        </div>
       </div>
     </div>
     <div class="fg narrow"><label>Year</label><input id="fYear" type="number" placeholder=""></div>
