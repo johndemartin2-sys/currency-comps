@@ -270,13 +270,7 @@ td a:hover { text-decoration: underline; }
 <!-- ═══ FILTERS ═══ -->
 <div class="filters-wrap">
   <div class="filters">
-    <div class="fg"><label>Source</label>
-      <select id="fSource">
-        <option value="">All sources</option>
-        <option value="heritage_auctions">Heritage Auctions</option>
-        <option value="stacks_bowers">Stack's Bowers</option>
-      </select>
-    </div>
+    
     <div class="fg wide"><label>Title contains</label><input id="fTitle" placeholder=""></div>
     <div class="fg"><label>Friedberg #</label><input id="fFr" placeholder="" style="width:100px"></div>
     <div class="fg narrow"><label>Year</label><input id="fYear" type="number" placeholder=""></div>
@@ -311,8 +305,8 @@ td a:hover { text-decoration: underline; }
     <div class="fg narrow"><label>Grade max</label><input id="fGradeMax" type="number"></div>
     <div class="fg"><label>Price min</label><input id="fPriceMin" type="number" style="width:95px"></div>
     <div class="fg"><label>Price max</label><input id="fPriceMax" type="number" style="width:95px"></div>
-    <div class="fg"><label>From</label><input id="fDateFrom" type="date"></div>
-    <div class="fg"><label>To</label><input id="fDateTo" type="date"></div>
+    
+    
     <div class="fg"><label>State</label>
         <select id="fState" style="width:150px">
           <option value="">any</option>
@@ -680,8 +674,8 @@ function applyCoinFilters(q) {
   const gMax = v("fGradeMax"); if (gMax) q = q.lte("grade_numeric", parseFloat(gMax));
   const pMin = v("fPriceMin"); if (pMin) q = q.gte("price_realized", parseFloat(pMin));
   const pMax = v("fPriceMax"); if (pMax) q = q.lte("price_realized", parseFloat(pMax));
-  const dFrom = v("fDateFrom"); if (dFrom) q = q.gte("sold_on", dFrom);
-  const dTo = v("fDateTo"); if (dTo) q = q.lte("sold_on", dTo);
+  const dFrom = ""; if (dFrom) q = q.gte("sold_on", dFrom);
+  const dTo = ""; if (dTo) q = q.lte("sold_on", dTo);
   if (document.getElementById("fCac")?.checked) q = q.eq("has_cac", true);
   if (document.getElementById("fPlus")?.checked) q = q.eq("has_plus", true);
   if (activeSeries) q = q.eq("category", activeSeries);
@@ -694,7 +688,7 @@ function applyFilters(q) {
   q = q.in("data_quality", DQ_FILTER);
   const v = id => document.getElementById(id).value.trim();
 
-  const src = v("fSource");
+  const src = "";
   if (src) q = q.eq("source", src);
 
   const title = v("fTitle");
@@ -731,7 +725,7 @@ function applyFilters(q) {
   if (pMin) q = q.gte("price_realized", parseFloat(pMin));
   if (pMax) q = q.lte("price_realized", parseFloat(pMax));
 
-  const dFrom = v("fDateFrom"), dTo = v("fDateTo");
+  const dFrom = "", dTo = "";
   if (dFrom) q = q.gte("sold_on", dFrom);
   if (dTo) q = q.lte("sold_on", dTo);
 
