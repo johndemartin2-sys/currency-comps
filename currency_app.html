@@ -437,7 +437,7 @@ const SUPABASE_URL = "https://wqizwluccqqfkedpgvve.supabase.co";
 const SUPABASE_KEY = "sb_publishable_9DiOeDQje6yiSEITD7WUrw_S2Q-2xyS";
 let MODE = "currency";
 let TABLE = "lots_currency";              // swapped by setMode()
-const TABLE_CURRENCY = "lots_currency";
+const TABLE_CURRENCY = "lots_currency_resolved";
 const TABLE_COINS = "lots_coins";
 const DQ_FILTER = ["trusted", "rescraped", "unverified"];
 // IDs of filter fields that only make sense for currency; hidden in coin mode.
@@ -797,10 +797,10 @@ function renderTable() {
     const price = r.price_realized ? "$" + Number(r.price_realized).toLocaleString() : "—";
     const dt = r.sold_on || "—";
     const star = r.is_star_note ? "★" : "";
-    const fr = r.friedberg_number || "—";
+    const fr = r.display_fr || "—";
     const ch = r.charter_number || "—";
-    const den = r.denomination ? "$" + String(r.denomination).replace(/^\$+/, "") : "—";
-    const sType = r.series_type || "—";
+    const den = r.display_denom || "—";
+    const sType = r.display_type || "—";
     const grade = r.grade_raw || "—";
     const srcLabel = r.source === "heritage_auctions" ? "HA"
                    : r.source === "stacks_bowers" ? "SB" : "—";
@@ -812,7 +812,7 @@ function renderTable() {
       <td>${n}</td>
       <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
       <td>${fr}</td><td>${ch}</td>
-      <td>${r.series_year ? r.series_year + (r.series_letter || "") : "—"}</td>
+      <td>${r.display_year ? r.display_year + ("") : "—"}</td>
       <td>${den}</td>
       <td>${sType}</td>
       <td>${grade}</td>
