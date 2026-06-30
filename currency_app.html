@@ -283,8 +283,8 @@ td a:hover { text-decoration: underline; }
       <div class="fr-row">
         <input id="fFr" placeholder="" style="width:100px">
         <div class="fr-mode-stack">
-          <label class="fr-opt" title="Match all letter / seal / mule variants of the base number"><input type="radio" name="frMode" id="frModeAll" checked> All variants</label>
-          <label class="fr-opt" title="Match only the exact Friedberg number typed"><input type="radio" name="frMode" id="frModeExact"> Exact</label>
+          <label class="fr-opt" title="Show only star-note items"><input type="checkbox" id="fStar"> ★ Star only</label>
+          <label class="fr-opt" title="Match all letter / seal / mule variants of the base number; uncheck for exact Friedberg match"><input type="checkbox" id="frModeAll" checked> All variants</label>
         </div>
       </div>
     </div>
@@ -380,7 +380,7 @@ td a:hover { text-decoration: underline; }
         </select>
       </div>
       <div class="fg"><label>Charter #</label><input id="fCharter" placeholder="" style="width:90px"></div>
-    <label class="star-toggle"><input type="checkbox" id="fStar"> ★ Star only</label>
+    
     <span id="coinFilters" style="display:none;align-items:flex-end;gap:10px;flex-wrap:wrap">
       <div class="fg"><label>Denomination</label><input id="fCoinDenom" placeholder="e.g. Dollar, Cent" style="width:130px"></div>
       <label class="star-toggle"><input type="checkbox" id="fCac"> CAC</label>
