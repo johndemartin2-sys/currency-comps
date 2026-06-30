@@ -701,7 +701,7 @@ function applyFilters(q) {
   if (title) title.split(/\s+/).filter(Boolean).forEach(function(term){ q = q.ilike("title", `%${term}%`); });
 
   const fr = v("fFr");
-  if (fr) q = q.eq("friedberg_number_normalized", fr);
+  if (fr) q = q.eq("catalog_number", fr);
 
   const yr = v("fYear");
   if (yr) q = q.eq("series_year", parseInt(yr));
