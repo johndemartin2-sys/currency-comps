@@ -127,6 +127,9 @@ body.light {
 }
 .chip.active { background: var(--gold); color: #0b0b0f; border-color: var(--gold); font-weight: 600; }
 .chip:hover:not(.active) { border-color: var(--gold-dim); color: var(--text2); }
+.chips-more { padding: 0 0 14px; }
+.chips-more select { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: 14px; font-size: 12px; font-weight: 500; padding: 4px 12px; cursor: pointer; }
+.chips-more select:hover { border-color: var(--gold-dim); }
 
 /* ── NATIONAL BANK SECTION ── */
 .nbn-toggle {
@@ -386,6 +389,7 @@ td a:hover { text-decoration: underline; }
     </span>
   </div>
   <div class="chips-row" id="catChips"></div>
+  <div class="chips-more"><select id="catMore" onchange="handleCatMore(this.value)"><option value="">More categories…</option></select></div>
 </div>
 
 
@@ -550,7 +554,7 @@ const STATE_SLUGS = new Set(["alabama","alaska","arizona","arkansas","california
 function paintCachedChips() {
   // Synchronous: paint chips instantly from a fresh localStorage cache (no DB calls).
   try {
-    const raw = localStorage.getItem("cc_series_chips_v1");
+    const raw = localStorage.getItem("cc_series_chips_v2");
     if (!raw) return false;
     const cached = JSON.parse(raw);
     if (cached && Array.isArray(cached.v) && (Date.now() - cached.t) < 24 * 60 * 60 * 1000) {
@@ -580,9 +584,9 @@ async function loadCoinCategories() {
 
 async function loadSeriesTypes() {
   if (MODE === "coins") { return loadCoinCategories(); }
-  const CACHE_KEY = "cc_series_chips_v1";
+  const CACHE_KEY = "cc_series_chips_v2";
   const HIDDEN_SERIES = new Set(["World Currency", "National Gold Bank Note"]);
-  const MIN_CHIP_COUNT = 3000;
+  const MIN_CHIP_COUNT = 0;
 
   // Paint instantly from cache (also called earlier during boot for zero delay).
   paintCachedChips();
@@ -633,11 +637,21 @@ async function loadSeriesTypes() {
 }
 
 function renderChips() {
-  document.getElementById("catChips").innerHTML = seriesTypes.map(s =>
+  var pct = Math.max(1, Math.ceil(seriesTypes.length * 0.30));
+  var top = seriesTypes.slice(0, pct);
+  document.getElementById("catChips").innerHTML = top.map(s =>
     `<span class="chip${activeSeries === s ? ' active' : ''}" onclick="toggleSeries(this, '${esc(s)}')">${s}</span>`
   ).join("");
+  var sel = document.getElementById("catMore");
+  if (sel) {
+    sel.innerHTML = `<option value="">More categories\u2026</option>` + seriesTypes.map(s =>
+      `<option value="${esc(s)}"${activeSeries === s ? ' selected' : ''}>${s}</option>`
+    ).join("");
+    sel.value = (top.indexOf(activeSeries) === -1) ? activeSeries : "";
+  }
 }
 function toggleSeries(el, s) { activeSeries = activeSeries === s ? "" : s; renderChips(); }
+function handleCatMore(v) { activeSeries = v || ""; renderChips(); }
 function esc(s) { return s.replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
 
 // ── SEARCH ──
