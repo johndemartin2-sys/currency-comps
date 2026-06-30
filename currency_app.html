@@ -149,14 +149,7 @@ body.light {
 .star-toggle input { accent-color: var(--gold); cursor: pointer; }
 
 /* ── FRIEDBERG VARIANT TOGGLE ── */
-.fr-row { display: flex; align-items: center; gap: 10px; }
-.fr-mode { display: flex; gap: 8px; }
-.fr-mode label {
-  display: flex; align-items: center; gap: 3px;
-  font-size: 10px; text-transform: none; letter-spacing: 0;
-  color: var(--text2); font-weight: 500; cursor: pointer;
-}
-.fr-mode input { accent-color: var(--gold); cursor: pointer; margin: 0; }
+.fr-row { display: flex; align-items: center; gap: 6px; }
 
 /* ── BUTTON ROW ── */
 .btn-row {
@@ -285,10 +278,7 @@ td a:hover { text-decoration: underline; }
     <div class="fg"><label>Friedberg #</label>
       <div class="fr-row">
         <input id="fFr" placeholder="" style="width:100px">
-        <div class="fr-mode">
-          <label title="Match all letter / seal / mule variants of this number"><input type="radio" name="frMode" id="frModeAll" checked> All variants</label>
-          <label title="Match only the exact Friedberg number typed"><input type="radio" name="frMode" id="frModeExact"> Exact</label>
-        </div>
+        <label class="star-toggle" title="On: match all letter / seal / mule variants of the base number. Off: exact match only."><input type="checkbox" id="frModeAll" checked> All variants</label>
       </div>
     </div>
     <div class="fg narrow"><label>Year</label><input id="fYear" type="number" placeholder=""></div>
@@ -714,12 +704,12 @@ function applyFilters(q) {
 
   const fr = v("fFr");
   if (fr) {
-    const frExact = document.getElementById("frModeExact") && document.getElementById("frModeExact").checked;
-    if (frExact) {
-      q = q.eq("display_fr", fr);
-    } else {
+    const frAll = document.getElementById("frModeAll") ? document.getElementById("frModeAll").checked : true;
+    if (frAll) {
       const frBase = fr.replace(/\D/g, "");
       q = frBase ? q.eq("friedberg_base", frBase) : q.eq("display_fr", fr);
+    } else {
+      q = q.eq("display_fr", fr);
     }
   }
 
