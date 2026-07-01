@@ -423,7 +423,7 @@ td a:hover { text-decoration: underline; }
   <th data-col="friedberg_number">Fr.</th><th data-col="charter_number">Charter #</th>
   <th data-col="sold_year">Year</th>
   <th data-col="denomination">Denom</th>
-  <th data-col="series_type">Type</th>
+  <th data-col="series_canonical">Type</th>
   <th data-col="grade_raw">Grade</th>
   <th data-col="is_star_note">★</th>
   <th data-col="price_realized">Sold</th>
@@ -478,7 +478,7 @@ function setMode(mode){
   if (thr){
     thr.innerHTML = (mode==="coins")
       ? '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="denomination">Denom</th><th data-col="series_year">Year</th><th data-col="grade_numeric">Grade</th><th data-col="has_cac">CAC/+</th><th data-col="category">Category</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>'
-      : '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="friedberg_number">Fr.</th><th data-col="charter_number">Charter #</th><th data-col="sold_year">Year</th><th data-col="denomination">Denom</th><th data-col="series_type">Type</th><th data-col="grade_raw">Grade</th><th data-col="is_star_note">★</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>';
+      : '<th data-col="_row">#</th><th data-col="title" class="sorted">Title</th><th data-col="friedberg_number">Fr.</th><th data-col="charter_number">Charter #</th><th data-col="sold_year">Year</th><th data-col="denomination">Denom</th><th data-col="series_canonical">Type</th><th data-col="grade_raw">Grade</th><th data-col="is_star_note">★</th><th data-col="price_realized">Sold</th><th data-col="sold_on">Date</th><th data-col="source">Src</th>';
   }
   // reset results + chips for the new dataset
   activeSeries = ""; seriesTypes = [];
@@ -602,16 +602,16 @@ async function loadSeriesTypes() {
       for (let i = 0; i < 200; i++) {
         let q = sb
           .from(TABLE)
-          .select("series_type")
-          .in("data_quality", DQ_FILTER)
-          .not("series_type", "is", null)
-          .order("series_type", { ascending: true })
+          .select("series_canonical")
+          .in("data_quality", DQ_FILTER).neq("needs_review", true)
+          .not("series_canonical", "is", null)
+          .order("series_canonical", { ascending: true })
           .limit(1);
-        if (last !== null) { q = q.gt("series_type", last); }
+        if (last !== null) { q = q.gt("series_canonical", last); }
         const { data, error } = await q;
         if (error) throw error;
         if (!data || data.length === 0) break;
-        last = data[0].series_type;
+        last = data[0].series_canonical;
         const v = (last || "").trim();
         if (v && !STATE_SLUGS.has(v.toLowerCase())) set.add(v);
       }
@@ -622,8 +622,8 @@ async function loadSeriesTypes() {
         const { count } = await sb
           .from(TABLE)
           .select("*", { count: "exact", head: true })
-          .in("data_quality", DQ_FILTER)
-          .eq("series_type", v);
+          .in("data_quality", DQ_FILTER).neq("needs_review", true)
+          .eq("series_canonical", v);
         if ((count || 0) >= MIN_CHIP_COUNT) withCounts.push([v, count]);
       }
       withCounts.sort((a, b) => b[1] - a[1]); // most common first
@@ -721,7 +721,7 @@ function applyCoinFilters(q) {
 // ── APPLY FILTERS ──
 function applyFilters(q) {
   if (MODE === "coins") return applyCoinFilters(q);
-  q = q.in("data_quality", DQ_FILTER);
+  q = q.in("data_quality", DQ_FILTER).neq("needs_review", true);
   const v = id => document.getElementById(id).value.trim();
 
   const src = "";
@@ -773,7 +773,7 @@ function applyFilters(q) {
   if (document.getElementById("fStar").checked)
     q = q.eq("is_star_note", true);
 
-  if (activeSeries) q = q.eq("series_type", activeSeries);
+  if (activeSeries) q = q.eq("series_canonical", activeSeries);
 
   const st = v("fState").toUpperCase();
   if (st) q = q.eq("state_code", st);
@@ -835,7 +835,7 @@ function renderTable() {
     const fr = r.display_fr || "—";
     const ch = r.charter_number || "—";
     const den = r.display_denom || "—";
-    const sType = r.display_type || "—";
+    const sType = r.series_canonical || "—";
     const grade = r.grade_raw || "—";
     const srcLabel = r.source === "heritage_auctions" ? "HA"
                    : r.source === "stacks_bowers" ? "SB" : "—";
