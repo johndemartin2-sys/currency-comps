@@ -663,7 +663,7 @@ function renderChips() {
 }
 function toggleSeries(el, s) { activeSeries = activeSeries === s ? "" : s; renderChips(); }
 function handleCatMore(v) { activeSeries = v || ""; renderChips(); }
-function esc(s) { return s.replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
+function fmtDen(d){if(d===null||d===undefined) return d;var s=String(d).trim();if(!s||s==='\u2014') return s;if(s.charAt(0)==='$') return s;if(/[\u00A2]|cent/i.test(s)) return s;if(/^[0-9][0-9,]*(\.[0-9]+)?$/.test(s)) return '$'+s;return s;} function esc(s) { return s.replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
 
 // ── SEARCH ──
 async function doSearch() {
@@ -807,7 +807,7 @@ function renderCoinTable() {
     return `<tr>
       <td>${n}</td>
       <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
-      <td>${den}</td>
+      <td>${fmtDen(den)}</td>
       <td>${r.series_year || "—"}</td>
       <td>${grade}</td>
       <td style="color:var(--gold)">${cac}${cac&&plus?" ":""}${plus}</td>
@@ -848,7 +848,7 @@ function renderTable() {
       <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
       <td>${fr}</td><td>${ch}</td>
       <td>${r.display_year ? r.display_year + ("") : "—"}</td>
-      <td>${den}</td>
+      <td>${fmtDen(den)}</td>
       <td>${sType}</td>
       <td>${grade}</td>
       <td style="color:var(--gold)">${star}</td>
