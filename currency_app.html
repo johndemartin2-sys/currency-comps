@@ -586,7 +586,7 @@ async function loadCoinCategories() {
 async function loadSeriesTypes() {
   if (MODE === "coins") { return loadCoinCategories(); }
   const CACHE_KEY = "cc_series_chips_v2";
-  const HIDDEN_SERIES = new Set(["World Currency", "National Gold Bank Note"]);
+  const HIDDEN_SERIES = new Set(["World Currency"]);
   const MIN_CHIP_COUNT = 0;
 
   // Paint instantly from cache (also called earlier during boot for zero delay).
