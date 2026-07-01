@@ -299,11 +299,13 @@ td a:hover { text-decoration: underline; }
     
     <div class="fg"><label>Denom</label>
       <select id="fDenom">
-        <option value="">any</option>
-        <option>$1</option><option>$2</option><option>$5</option><option>$10</option>
-        <option>$20</option><option>$50</option><option>$100</option><option>$500</option>
-        <option>$1000</option><option>$5000</option><option>$10000</option>
-      </select>
+          <option value="">any</option>
+<option>$1</option><option>$2</option><option>$3</option><option>$5</option><option>$10</option>
+<option>$20</option><option>$50</option><option>$100</option><option>$500</option>
+<option>$1000</option><option>$5000</option><option>$10000</option>
+<option>1¢</option><option>2¢</option><option>3¢</option><option>5¢</option>
+<option>10¢</option><option>15¢</option><option>25¢</option><option>50¢</option>
+        </select>
     </div>
     <div class="fg"><label>Charter #</label><input id="fCharter" placeholder="" style="width:90px"></div>
     <div class="fg"><label>State</label>
@@ -748,7 +750,7 @@ function applyFilters(q) {
   if (ltr) q = q.eq("series_letter", ltr.trim().toUpperCase());
 
   const den = document.getElementById("fDenom").value;
-  if (den) q = q.eq("denomination", den.replace("$", "").replace(/,/g, ""));
+  if (den) q = q.eq("denomination_canonical", den);
 
   const svc = v("fService");
   if (svc === "PMG" || svc === "PCGS" || svc === "NGC")
@@ -834,7 +836,7 @@ function renderTable() {
     const star = r.is_star_note ? "★" : "";
     const fr = r.display_fr || "—";
     const ch = r.charter_number || "—";
-    const den = r.display_denom || "—";
+    const den = r.denomination_canonical || "—";
     const sType = r.series_canonical || "—";
     const grade = r.grade_raw || "—";
     const srcLabel = r.source === "heritage_auctions" ? "HA"
@@ -1233,8 +1235,8 @@ function buildEbayQuery(){
   const title = val('fTitle'); if (title) parts.push(title);
   const fr = val('fFr'); if (fr) parts.push('Fr ' + fr);
   const year = val('fYear'); if (year) parts.push(year);
-  const denom = (document.getElementById('fDenom')?.value || '').replace('$','').trim();
-  if (denom) parts.push(denom + ' dollar');
+  const denom = (document.getElementById('fDenom')?.value || '').trim();
+      if (denom) parts.push(denom.replace(/[$]/,'').replace('¢','').trim() + (denom.indexOf('¢')>=0 ? ' cent' : ' dollar'));
   const type = (document.querySelector('#catChips .active')?.textContent || '').trim();
   if (type) parts.push(type);
   const gMin = val('fGradeMin'), gMax = val('fGradeMax');
