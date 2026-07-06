@@ -668,7 +668,15 @@ function handleCatMore(v) { activeSeries = v || ""; renderChips(); }
 function fmtDen(d){if(d===null||d===undefined) return d;var s=String(d).trim();if(!s||s==='\u2014') return s;if(s.charAt(0)==='$') return s;if(/[\u00A2]|cent/i.test(s)) return s;if(/^[0-9][0-9,]*(\.[0-9]+)?$/.test(s)) return '$'+s;return s;} function esc(s) { return s.replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
 
 // ── SEARCH ──
-async function doSearch() {
+function filterByFr(fr){
+      const el = document.getElementById('fFr');
+      if (el) el.value = fr;
+      const chk = document.getElementById('frModeAll');
+      if (chk) chk.checked = true;
+      if (typeof doSearch === 'function') doSearch();
+      try { window.scrollTo({top:0,behavior:'smooth'}); } catch(e) {}
+    }
+    async function doSearch() {
   if (!sb) return alert("Not connected to database."); hasSearched = true;
   page = 0;
   await runQuery();
@@ -848,7 +856,7 @@ function renderTable() {
     return `<tr>
       <td>${n}</td>
       <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
-      <td>${fr}</td><td>${ch}</td>
+      <td>${fr ? `<span class="fr-link" style="cursor:pointer;color:var(--gold);text-decoration:underline" onclick="filterByFr('${esc(String(fr))}')">${fr}</span>` : ''}</td><td>${ch}</td>
       <td>${r.display_year ? r.display_year + ("") : "—"}</td>
       <td>${fmtDen(den)}</td>
       <td>${sType}</td>
