@@ -1025,7 +1025,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
       ccEnsureSb();
       var email=(document.getElementById('authEmail')||{}).value||'';
       if(!email){ showAuthErr('Enter your email first.'); return; }
-      var r=await sb.auth.resetPasswordForEmail(email, { redirectTo:'https://comps.jdmstrategy.com' });
+      var r=await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
       showAuthErr(r.error ? r.error.message : 'Password reset link sent to your email.', !r.error);
     }
     function ccWireAuth(){
