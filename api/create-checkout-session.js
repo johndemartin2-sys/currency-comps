@@ -35,17 +35,13 @@ module.exports = async (req, res) => {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
-
   try {
     const body = req.body || {};
     const { userId, email, plan } = body;
     // Default to "currency" so existing callers keep working unchanged.
     const product = body.product || "currency";
-
     const cfg = PRODUCTS[product];
-    if (!cfg) {
-      return res.status(400).json({ error: "Unknown product: " + product });
-    }
+    if (!cfg) return res.status(400).json({ error: "Unknown product: " + product });
 
     // Build the customer param. If we have an email, reuse/create a customer
     // for it. If not (anonymous pay-first), omit it entirely: in subscription
@@ -53,14 +49,38 @@ module.exports = async (req, res) => {
     let customerParam = {};
     if (email) {
       const existing = await stripe.customers.list({ email: email, limit: 1 });
-      if (existing.data.length > 0) {
-        customerParam = { customer: existing.data[0].id };
+      if (existing.data.length) {
+        customerParam.customer = existing.data[0].id;
       } else {
         const created = await stripe.customers.create({
           email: email,
           metadata: userId ? { supabase_user_id: userId } : {},
         });
-        customerParam = { customer: created.id };
+        customerParam.customer = created.id;
+      }
+    }
+
+    // Guard: if this customer already has an active/trialing subscription for
+    // this product, do not create another one - send them to manage billing.
+    if (customerParam.customer) {
+      const subs = await stripe.subscriptions.list({
+        customer: customerParam.customer,
+        status: "all",
+        limit: 20,
+      });
+      const wanted = cfg.grants.join(",");
+      const dupe = subs.data.find(
+        (s) =>
+          (s.status === "active" || s.status === "trialing") &&
+          s.metadata &&
+          s.metadata.products === wanted
+      );
+      if (dupe) {
+        return res.status(200).json({
+          alreadySubscribed: true,
+          error:
+            "You already have an active subscription for this product. Use the Subscriptions link to manage your plan.",
+        });
       }
     }
 
