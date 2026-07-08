@@ -1316,6 +1316,48 @@ async function runLiveSearch(){
 // Mode buttons use inline onclick=setView(...) in .btn-row
 </script>
 
-  </body>
+  
+<!-- Enhancement: guide already-registered users to login/reset instead of a dead-end error -->
+<script>
+(function(){
+  function applyAlreadyRegisteredUX(){
+    try{
+      var primary = document.getElementById('authPrimary');
+      var toggle  = document.getElementById('authToggle');
+      var forgot  = document.getElementById('authForgot');
+      // If currently in "Create Account" mode, switch to Sign In
+      if (primary && /create account/i.test(primary.textContent) && toggle){ toggle.click(); }
+      // Reveal the password-reset option
+      if (forgot){ forgot.style.display = 'block'; }
+      // Friendly guidance (reuse existing error display if available)
+      var msg = 'This email already has an account. Enter your password to log in, or use "Forgot password?" to reset it.';
+      if (typeof showAuthErr === 'function'){ showAuthErr(msg, false); }
+      else { var e = document.getElementById('authErr'); if(e){ e.style.display='block'; e.textContent = msg; } }
+    }catch(_){}
+  }
+  function isAlreadyRegistered(res){
+    var err = res && res.error;
+    if (!err) return false;
+    return err.code === 'user_already_exists' || /already registered/i.test(err.message || '');
+  }
+  function wrap(){
+    if (!window.sb || !sb.auth || sb.auth.__arWrapped) return false;
+    var orig = sb.auth.signUp.bind(sb.auth);
+    sb.auth.signUp = async function(){
+      var res = await orig.apply(null, arguments);
+      if (isAlreadyRegistered(res)){ applyAlreadyRegisteredUX(); }
+      return res;
+    };
+    sb.auth.__arWrapped = true;
+    return true;
+  }
+  // sb may be created asynchronously; retry briefly until available
+  if (!wrap()){
+    var n = 0, iv = setInterval(function(){ if (wrap() || ++n > 40) clearInterval(iv); }, 250);
+  }
+})();
+</script>
+
+</body>
 </html>
 <!-- redeploy 2026-06-30T16:32:03.118Z -->
