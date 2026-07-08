@@ -1106,6 +1106,14 @@ function fmt(n) { return (n || 0).toLocaleString(); }
             if (resu.error) { msg.textContent = resu.error.message || "Could not create account."; submit.disabled = false; submit.textContent = "Create account & enter dashboard"; return; }
             var si = await sb.auth.signInWithPassword({ email: email, password: pw.value });
             if (si.error) { msg.style.color = "#1a9e57"; msg.textContent = "Account created. Please sign in."; }
+            // Link the paid Stripe subscription to the just-created profile.
+            try {
+              await fetch("/api/reconcile-after-signup", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId: sessionId }),
+              });
+            } catch (e) { /* webhook / next login will reconcile as fallback */ }
             window.location.href = window.location.pathname;
           } catch (e) {
             msg.textContent = "Network error. Please try again."; submit.disabled = false; submit.textContent = "Create account & enter dashboard";
