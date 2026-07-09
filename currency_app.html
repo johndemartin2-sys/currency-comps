@@ -1154,45 +1154,54 @@ function fmt(n) { return (n || 0).toLocaleString(); }
     if (btn) {
       async function handleSubscribe() {
         msg.textContent = "";
+        // Auth-first: a subscription can only be started by a logged-in user, so
+        // the checkout always carries a real email/userId and the server-side
+        // duplicate guard can run. If not signed in, show the auth gate instead.
+        var sbClient = (typeof sb !== "undefined" && sb) ? sb : null;
+        var session = null;
+        if (sbClient) {
+          var sess = await sbClient.auth.getSession();
+          session = sess && sess.data ? sess.data.session : null;
+        }
+        if (!session || !session.user) {
+          msg.textContent = "Please sign in or create an account to subscribe.";
+          var gate = document.getElementById("authGate");
+          if (gate) { gate.style.display = "flex"; gate.scrollIntoView({ behavior: "smooth" }); }
+          return;
+        }
         btn.disabled = true;
         btn.textContent = "Redirecting\u2026";
         try {
-      // Pay-first: a session is optional. If logged in, link the checkout to
-      // that user; if not, Stripe collects the email and the account is made after.
-      var sbClient = (typeof sb !== "undefined" && sb) ? sb : null;
-      var session = null;
-      if (sbClient) {
-        var sess = await sbClient.auth.getSession();
-        session = sess && sess.data ? sess.data.session : null;
-      }
-      var payload = {
-        plan: (this.dataset.plan || "monthly"),
-        product: (typeof MODE !== "undefined" ? MODE : "currency"),
-      };
-      if (session && session.user) {
-        payload.userId = session.user.id;
-        payload.email = session.user.email;
-      }
-      var res = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+          var payload = {
+            plan: (this.dataset.plan || "monthly"),
+            product: (typeof MODE !== "undefined" ? MODE : "currency"),
+            userId: session.user.id,
+            email: session.user.email,
+          };
+          var res = await fetch("/api/create-checkout-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
           var out = await res.json();
           if (out && out.url) { window.location.href = out.url; }
+          else if (out && out.alreadySubscribed) { msg.textContent = out.error || "You already have an active subscription."; resetBtn(); }
           else { msg.textContent = (out && out.error) ? out.error : "Could not start checkout."; resetBtn(); }
         } catch (e) {
           msg.textContent = "Network error. Please try again.";
           resetBtn();
         }
       }
-btn.addEventListener("click", handleSubscribe);
+      btn.addEventListener("click", handleSubscribe);
 document.getElementById("cc-subscribe-btn-annual")?.addEventListener("click", handleSubscribe);
       // --- Auto-checkout from landing page (?plan=monthly|annual) ---
       try {
         var _ccParams = new URLSearchParams(window.location.search);
         var _ccPlan = _ccParams.get("plan");
-        if (_ccPlan === "monthly" || _ccPlan === "annual") {
+        // Auth-first: auto-checkout from a landing-page ?plan= link is disabled.
+        // Logged-out visitors see the auth gate; subscribing is a manual,
+        // signed-in action handled by handleSubscribe().
+        if (false && (_ccPlan === "monthly" || _ccPlan === "annual")) {
           var _ccTargetBtn = (_ccPlan === "annual")
             ? document.getElementById("cc-subscribe-btn-annual")
             : document.getElementById("cc-subscribe-btn");
