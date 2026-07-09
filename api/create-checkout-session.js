@@ -3,9 +3,10 @@
 // Secrets come from Vercel environment variables, never hard-coded.
 //
 // Product-aware: supports "currency", "coins", and "bundle" (currency + coins).
-// Pay-first flow: userId/email are OPTIONAL. When absent, checkout starts
-// anonymously and Stripe collects the email; the account is created afterward
-// and reconciled by the webhook (by email or stripe_customer_id).
+// Email is REQUIRED so we can look up / create a single Stripe customer per
+// email and reliably block duplicate subscriptions. userId is optional (present
+// when the buyer is logged into Supabase); the account/entitlements are
+// reconciled by the webhook (by email or stripe_customer_id).
 
 const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -43,48 +44,52 @@ module.exports = async (req, res) => {
     const cfg = PRODUCTS[product];
     if (!cfg) return res.status(400).json({ error: "Unknown product: " + product });
 
-    // Build the customer param. If we have an email, reuse/create a customer
-    // for it. If not (anonymous pay-first), omit it entirely: in subscription
-    // mode Stripe Checkout creates the customer and collects the email itself.
-    let customerParam = {};
-    if (email) {
-      const existing = await stripe.customers.list({ email: email, limit: 1 });
-      if (existing.data.length) {
-        customerParam.customer = existing.data[0].id;
-      } else {
-        const created = await stripe.customers.create({
-          email: email,
-          metadata: userId ? { supabase_user_id: userId } : {},
-        });
-        customerParam.customer = created.id;
-      }
+    // Email is required so we can dedupe customers/subscriptions reliably.
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return res.status(400).json({ error: "A valid email is required to start checkout." });
     }
 
-    // Guard: if this customer already has an active/trialing subscription for
-    // this product, do not create another one - send them to manage billing.
-    if (customerParam.customer) {
-      const subs = await stripe.subscriptions.list({
-        customer: customerParam.customer,
-        status: "all",
-        limit: 20,
+    // Email is required (validated above). Always reuse an existing customer for
+  // this email, or create one, so the duplicate-subscription guard below can run
+  // even in the pay-first flow. This prevents multiple customers/subscriptions
+  // being created for the same email by rapid or repeated checkouts.
+  let customerParam = {};
+  const existing = await stripe.customers.list({ email: email, limit: 1 });
+  if (existing.data.length) {
+    customerParam.customer = existing.data[0].id;
+  } else {
+    const created = await stripe.customers.create({
+      email: email,
+      metadata: userId ? { supabase_user_id: userId } : {},
+    });
+    customerParam.customer = created.id;
+  }
+
+  // Guard: if this customer already has an active/trialing subscription for
+  // this product, do not create another one - send them to manage billing.
+  {
+    const subs = await stripe.subscriptions.list({
+      customer: customerParam.customer,
+      status: "all",
+      limit: 20,
+    });
+    const wanted = cfg.grants.join(",");
+    const dupe = subs.data.find(
+      (s) =>
+        (s.status === "active" || s.status === "trialing") &&
+        s.metadata &&
+        s.metadata.products === wanted
+    );
+    if (dupe) {
+      return res.status(200).json({
+        alreadySubscribed: true,
+        error:
+          "You already have an active subscription for this product. Use the Subscriptions link to manage your plan.",
       });
-      const wanted = cfg.grants.join(",");
-      const dupe = subs.data.find(
-        (s) =>
-          (s.status === "active" || s.status === "trialing") &&
-          s.metadata &&
-          s.metadata.products === wanted
-      );
-      if (dupe) {
-        return res.status(200).json({
-          alreadySubscribed: true,
-          error:
-            "You already have an active subscription for this product. Use the Subscriptions link to manage your plan.",
-        });
-      }
     }
+  }
 
-    // Choose monthly (default) or annual price for the selected product.
+  // Choose monthly (default) or annual price for the selected product.
     const priceEnvName = plan === "annual" ? cfg.annual : cfg.monthly;
     const selectedPrice = process.env[priceEnvName];
     if (!selectedPrice) {
