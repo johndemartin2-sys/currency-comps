@@ -1180,14 +1180,39 @@ function fmt(n) { return (n || 0).toLocaleString(); }
       var sessionId = params.get("session_id");
       var boughtProduct = params.get("product") || "currency";
       var boughtPlan = params.get("plan") || "monthly";
-      if (sessionId) {
-        // Pay-first onboarding: verify the paid session, then create the account.
-        ccOnboardAfterPayment(sessionId, boughtProduct, boughtPlan);
-      } else {
-        // Logged-in user returning from checkout: just refresh entitlements.
-        history.replaceState({}, "", window.location.pathname);
-        setTimeout(function () { window.location.reload(); }, 2500);
-      }
+      // Auth-first: the account already exists (created before checkout). On return
+      // from Stripe, if the user is still logged in, just link the subscription and
+      // drop them into the app. Only fall back to the old create-account onboarding
+      // if there is no active session.
+      (async function ccHandleCheckoutReturn() {
+        var sbClient = (typeof sb !== "undefined" && sb) ? sb : null;
+        var session = null;
+        if (sbClient) {
+          try { var sess = await sbClient.auth.getSession(); session = sess && sess.data ? sess.data.session : null; } catch (e) {}
+        }
+        if (session && session.user) {
+          // Logged-in user: link the paid subscription to their existing profile, then enter the app.
+          if (sessionId) {
+            try {
+              await fetch("/api/reconcile-after-signup", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId: sessionId }),
+              });
+            } catch (e) { /* webhook will reconcile as fallback */ }
+          }
+          history.replaceState({}, "", window.location.pathname);
+          setTimeout(function () { window.location.reload(); }, 800);
+          return;
+        }
+        // No active session. Offer to log in, or fall back to onboarding for the pay-first path.
+        if (sessionId) {
+          ccOnboardAfterPayment(sessionId, boughtProduct, boughtPlan);
+        } else {
+          history.replaceState({}, "", window.location.pathname);
+          setTimeout(function () { window.location.reload(); }, 2500);
+        }
+      })();
     } else if (checkout === "cancel") {
       history.replaceState({}, "", window.location.pathname);
     }
