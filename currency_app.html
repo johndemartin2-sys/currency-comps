@@ -1207,7 +1207,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
         }
         // No active session. Offer to log in, or fall back to onboarding for the pay-first path.
         if (sessionId) {
-          ccOnboardAfterPayment(sessionId, boughtProduct, boughtPlan);
+          /* onboarding fallback retired (Option A): auth-first flow reconciles via webhook/next login */ history.replaceState({}, "", window.location.pathname); setTimeout(function () { window.location.reload(); }, 2500);
         } else {
           history.replaceState({}, "", window.location.pathname);
           setTimeout(function () { window.location.reload(); }, 2500);
