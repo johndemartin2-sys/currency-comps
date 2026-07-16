@@ -855,8 +855,8 @@ function renderTable() {
     const star = r.is_star_note ? "★" : "";
     const fr = r.display_fr || "—";
     const ch = r.charter_number || "—";
-    const den = r.denomination_canonical || "—";
-    const sType = r.series_canonical || "—";
+    const den = r.denomination_canonical || r.display_denom || r.denomination || "—";
+    const sType = r.series_canonical || r.display_type || r.series_type || "—";
     const grade = r.grade_raw || "—";
     const srcLabel = r.source === "heritage_auctions" ? "HA"
                    : r.source === "stacks_bowers" ? "SB" : "—";
