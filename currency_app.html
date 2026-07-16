@@ -179,10 +179,12 @@ body.light {
 
 /* ── ESTIMATE CARD ── */
 .est-card {
+  position: relative;
   margin: 16px 24px; padding: 14px 20px;
   background: linear-gradient(135deg, var(--surface2), var(--surface3));
   border: 1px solid var(--border); border-radius: 8px;
-  display: flex; gap: 30px; align-items: stretch;
+  display: flex; gap: 30px; align-items: center;
+  min-height: 150px;
   box-shadow: 0 2px 12px var(--gold-glow);
 }
 .est-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; font-weight: 600; }
@@ -414,7 +416,7 @@ td a:hover { text-decoration: underline; }
     <div><span>Sample size</span> <b id="estN">—</b></div>
   </div>
 </div>
-  <div id="ccCensusPanel" style="display:none;margin-left:auto;align-self:center;padding-left:26px;border-left:1px solid var(--border);font-size:12.5px;line-height:1.5;color:var(--text2);max-width:380px">
+  <div id="ccCensusPanel" style="display:none;position:absolute;top:14px;right:20px;padding-left:22px;border-left:1px solid var(--border);font-size:12.5px;line-height:1.5;color:var(--text2);width:390px">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600;margin-bottom:4px">Census Population <span id="ccCensusType" style="color:var(--gold)"></span></div>
     <div id="ccCensusBody"></div>
   </div>
