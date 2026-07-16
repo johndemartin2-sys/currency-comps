@@ -997,8 +997,22 @@ async function ccLoadCensus() {
       const { data } = await sb.from("census_summary").select("*").eq("census_type","national").eq("lookup_key",ch).limit(1);
       if (data && data.length) match = data[0];
     } else if (fr) {
-      const { data } = await sb.from("census_summary").select("*").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
-      if (data && data.length) match = data[0];
+      const _frAllA = (function(){ var e=document.getElementById("frModeAll"); return e?e.checked:true; })();
+      const _frBaseA = fr.replace(/\D/g,"");
+      if (_frAllA && _frBaseA) {
+        const { data } = await sb.from("census_summary").select("*").in("census_type",["large","small"]).ilike("lookup_key",_frBaseA+"%").limit(200);
+        const _fam = (data||[]).filter(function(r){ var m=String(r.lookup_key).match(/^\d+/); return m && m[0]===_frBaseA; });
+        if (_fam.length) {
+          var _distA={}, _hasRegA=false, _hasStarA=false;
+          var _aggA={census_type:_fam[0].census_type,total_population:0,regular_count:0,star_count:0,graded_count:0,top_grade:0,grade_distribution:_distA,bank_name:null,fed_signature:null,large_note_count:null,small_note_count:null,_filtered:true};
+          _fam.forEach(function(r){ _aggA.total_population+=r.total_population||0; if(r.regular_count!=null){_aggA.regular_count+=r.regular_count;_hasRegA=true;} if(r.star_count!=null){_aggA.star_count+=r.star_count;_hasStarA=true;} _aggA.graded_count+=r.graded_count||0; if((r.top_grade||0)>_aggA.top_grade)_aggA.top_grade=r.top_grade||0; var _d=r.grade_distribution||{}; for(var _k in _d){_distA[_k]=(_distA[_k]||0)+_d[_k];} });
+          if(!_hasRegA)_aggA.regular_count=null; if(!_hasStarA)_aggA.star_count=null;
+          match = _aggA;
+        }
+      } else {
+        const { data } = await sb.from("census_summary").select("*").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
+        if (data && data.length) match = data[0];
+      }
     }
   } else if (ch || fr) {
     // live filtered aggregation against the note-level tables
@@ -1008,17 +1022,26 @@ async function ccLoadCensus() {
     let ctype = isNat ? "national" : null;
     // resolve fr -> large or small by probing census_summary
     let noteTable = null;
+    let frFamilyKeys = null;
     if (isNat) { noteTable = "national_currency_census"; ctype = "national"; }
     else if (fr) {
-      const { data: sd } = await sb.from("census_summary").select("census_type").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
-      if (sd && sd.length) { ctype = sd[0].census_type; noteTable = ctype === "small" ? "small_currency_census" : "large_currency_census"; }
+      const _frAllB = (function(){ var e=document.getElementById("frModeAll"); return e?e.checked:true; })();
+      const _frBaseB = fr.replace(/\D/g,"");
+      if (_frAllB && _frBaseB) {
+        const { data: sd } = await sb.from("census_summary").select("lookup_key,census_type").in("census_type",["large","small"]).ilike("lookup_key",_frBaseB+"%").limit(200);
+        const _famB = (sd||[]).filter(function(r){ var m=String(r.lookup_key).match(/^\d+/); return m && m[0]===_frBaseB; });
+        if (_famB.length) { ctype = _famB[0].census_type; noteTable = ctype === "small" ? "small_currency_census" : "large_currency_census"; frFamilyKeys = _famB.map(function(r){return r.lookup_key;}); }
+      } else {
+        const { data: sd } = await sb.from("census_summary").select("census_type").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
+        if (sd && sd.length) { ctype = sd[0].census_type; noteTable = ctype === "small" ? "small_currency_census" : "large_currency_census"; }
+      }
     }
     if (!noteTable) return hide();
 
     const keyCol = isNat ? "charter_number" : "fr_number";
     const keyVal = isNat ? ch : fr;
     const applyFilters = (qb) => {
-      qb = qb.eq(keyCol, keyVal);
+      if (!isNat && frFamilyKeys && frFamilyKeys.length) { qb = qb.in("fr_number", frFamilyKeys); } else { qb = qb.eq(keyCol, keyVal); }
       if (denom) qb = qb.eq("denomination", denom);
       if (gMin) qb = qb.gte("grade_numeric", parseInt(gMin,10));
       if (gMax) qb = qb.lte("grade_numeric", parseInt(gMax,10));
