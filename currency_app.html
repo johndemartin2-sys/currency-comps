@@ -291,7 +291,7 @@ td a:hover { text-decoration: underline; }
         <input id="fFr" placeholder="" style="width:100px">
         <div class="fr-mode-stack">
           <label class="fr-opt" title="Show only star-note items"><input type="checkbox" id="fStar"> ★ Star only</label>
-          <label class="fr-opt" title="Match all letter / seal / mule variants of the base number; uncheck for exact Friedberg match"><input type="checkbox" id="frModeAll" checked> All variants</label>
+          <label class="fr-opt" title="Match all letter / seal / mule variants of the base number; uncheck for exact Friedberg match. Typing a district letter (e.g. 2011-B) narrows to that district."><input type="checkbox" id="frModeAll" checked> All variants</label>
         </div>
       </div>
     </div>
@@ -754,7 +754,10 @@ function applyFilters(q) {
   const fr = v("fFr");
   if (fr) {
     const frAll = document.getElementById("frModeAll") ? document.getElementById("frModeAll").checked : true;
-    if (frAll) {
+    const _frLet = (fr.toUpperCase().match(/^\d+[\s-]*([A-Z])/)||[])[1]||null;
+    if (_frLet) {
+      q = q.ilike("display_fr", fr.replace(/\D/g, "") + "-" + _frLet + "%");
+    } else if (frAll) {
       const frBase = fr.replace(/\D/g, "");
       q = frBase ? q.eq("friedberg_base", frBase) : q.eq("display_fr", fr);
     } else {
@@ -999,9 +1002,10 @@ async function ccLoadCensus() {
     } else if (fr) {
       const _frAllA = (function(){ var e=document.getElementById("frModeAll"); return e?e.checked:true; })();
       const _frBaseA = fr.replace(/\D/g,"");
-      if (_frAllA && _frBaseA) {
+      const _frLetA = (fr.toUpperCase().match(/^\d+[\s-]*([A-Z])/)||[])[1]||null;
+      if ((_frAllA || _frLetA) && _frBaseA) {
         const { data } = await sb.from("census_summary").select("*").in("census_type",["large","small"]).ilike("lookup_key",_frBaseA+"%").limit(200);
-        const _fam = (data||[]).filter(function(r){ var m=String(r.lookup_key).match(/^\d+/); return m && m[0]===_frBaseA; });
+        const _fam = (data||[]).filter(function(r){ var m=String(r.lookup_key).match(/^\d+/); return m && m[0]===_frBaseA && (!_frLetA || new RegExp("^"+_frBaseA+_frLetA+"(?:$|[^A-Za-z-]|\\*)").test(String(r.lookup_key))); });
         if (_fam.length) {
           var _distA={}, _hasRegA=false, _hasStarA=false;
           var _aggA={census_type:_fam[0].census_type,total_population:0,regular_count:0,star_count:0,graded_count:0,top_grade:0,grade_distribution:_distA,bank_name:null,fed_signature:null,large_note_count:null,small_note_count:null,_filtered:true};
@@ -1027,9 +1031,10 @@ async function ccLoadCensus() {
     else if (fr) {
       const _frAllB = (function(){ var e=document.getElementById("frModeAll"); return e?e.checked:true; })();
       const _frBaseB = fr.replace(/\D/g,"");
-      if (_frAllB && _frBaseB) {
+      const _frLetB = (fr.toUpperCase().match(/^\d+[\s-]*([A-Z])/)||[])[1]||null;
+      if ((_frAllB || _frLetB) && _frBaseB) {
         const { data: sd } = await sb.from("census_summary").select("lookup_key,census_type").in("census_type",["large","small"]).ilike("lookup_key",_frBaseB+"%").limit(200);
-        const _famB = (sd||[]).filter(function(r){ var m=String(r.lookup_key).match(/^\d+/); return m && m[0]===_frBaseB; });
+        const _famB = (sd||[]).filter(function(r){ var m=String(r.lookup_key).match(/^\d+/); return m && m[0]===_frBaseB && (!_frLetB || new RegExp("^"+_frBaseB+_frLetB+"(?:$|[^A-Za-z-]|\\*)").test(String(r.lookup_key))); });
         if (_famB.length) { ctype = _famB[0].census_type; noteTable = ctype === "small" ? "small_currency_census" : "large_currency_census"; frFamilyKeys = _famB.map(function(r){return r.lookup_key;}); }
       } else {
         const { data: sd } = await sb.from("census_summary").select("census_type").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
