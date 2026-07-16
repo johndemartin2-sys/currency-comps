@@ -680,6 +680,13 @@ function filterByFr(fr){
       if (typeof doSearch === 'function') doSearch();
       try { window.scrollTo({top:0,behavior:'smooth'}); } catch(e) {}
     }
+
+    function filterByCharter(ch){
+      const el = document.getElementById('fCharter');
+      if (el) el.value = ch;
+      if (typeof doSearch === 'function') doSearch();
+      try { window.scrollTo({top:0,behavior:'smooth'}); } catch(e) {}
+    }
     async function doSearch() {
   if (!sb) return alert("Not connected to database."); hasSearched = true;
   page = 0;
@@ -860,7 +867,7 @@ function renderTable() {
     return `<tr>
       <td>${n}</td>
       <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
-      <td>${fr ? `<span class="fr-link" style="cursor:pointer;color:var(--gold);text-decoration:underline" onclick="filterByFr('${esc(String(fr))}')">${fr}</span>` : ''}</td><td>${ch}</td>
+      <td>${fr ? `<span class="fr-link" style="cursor:pointer;color:var(--gold);text-decoration:underline" onclick="filterByFr('${esc(String(fr))}')">${fr}</span>` : ''}</td><td>${ch && ch !== "\u2014" ? `<span class="fr-link" style="cursor:pointer;color:var(--gold);text-decoration:underline" onclick="filterByCharter('${esc(String(ch))}')">${ch}</span>` : ch}</td>
       <td>${r.display_year ? r.display_year + ("") : "—"}</td>
       <td>${fmtDen(den)}</td>
       <td>${sType}</td>
