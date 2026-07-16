@@ -1031,6 +1031,15 @@ async function ccLoadCensus() {
     const dist = {};
     for (const g of grades) { if (topGrade === null || g > topGrade) topGrade = g; dist[g] = (dist[g] || 0) + 1; }
 
+    // pull constant bank/base fields from the pre-aggregated summary row
+    let base = {};
+    {
+      const bq = isNat
+        ? sb.from("census_summary").select("bank_name,large_note_count,small_note_count,fed_signature,bank_signature").eq("census_type","national").eq("lookup_key",ch).limit(1)
+        : sb.from("census_summary").select("bank_name,large_note_count,small_note_count,fed_signature,bank_signature").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
+      const { data: bd } = await bq;
+      if (bd && bd.length) base = bd[0];
+    }
     match = {
       census_type: ctype,
       total_population: total,
@@ -1039,10 +1048,10 @@ async function ccLoadCensus() {
       graded_count: gradedCount,
       top_grade: topGrade,
       grade_distribution: dist,
-      bank_name: null,
-      fed_signature: null,
-      large_note_count: null,
-      small_note_count: null,
+      bank_name: base.bank_name || null,
+      fed_signature: base.fed_signature || null,
+      large_note_count: (base.large_note_count != null ? base.large_note_count : null),
+      small_note_count: (base.small_note_count != null ? base.small_note_count : null),
       _filtered: true
     };
   }
