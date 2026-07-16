@@ -413,7 +413,7 @@ td a:hover { text-decoration: underline; }
     <div><span>Low / High</span> <b id="estRange">—</b></div>
     <div><span>Sample size</span> <b id="estN">—</b></div>
   </div>
-  <div id="ccCensusPanel" style="display:none;order:-1;padding-right:26px;border-right:1px solid var(--border);font-size:12.5px;line-height:1.5;color:var(--text2);width:360px;flex:0 0 auto">
+  <div id="ccCensusPanel" style="order:-1;padding-right:26px;border-right:1px solid var(--border);font-size:12.5px;line-height:1.5;color:var(--text2);width:360px;flex:0 0 auto">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600;margin-bottom:4px">Census Population <span id="ccCensusType" style="color:var(--gold)"></span></div>
     <div id="ccCensusBody"></div>
   </div>
@@ -960,6 +960,14 @@ async function ccLoadCensus() {
   const typeEl = document.getElementById("ccCensusType");
   if (!panel || !sb) return;
   const hide = () => { panel.style.display = "none"; };
+  const showTpl = () => {
+    if (typeEl) typeEl.textContent = "";
+    if (body) body.innerHTML = '<div><span>Total graded</span> <b style="color:var(--text)">\u2014</b></div>'
+      + '<div><span>Regular / Star</span> <b style="color:var(--text)">\u2014</b></div>'
+      + '<div><span>Top graded</span> <b style="color:var(--gold)">\u2014</b></div>'
+      + '<div style="margin-top:6px"><span style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:2px">Grade breakdown (top)</span><span style="color:var(--muted);font-size:11px">Search a Friedberg # or charter # to load census</span></div>';
+    panel.style.display = "block";
+  };
   if (MODE === "coins") return hide();
   const fr = (document.getElementById("fFr")?.value || "").trim();
   const ch = (document.getElementById("fCharter")?.value || "").trim();
@@ -1056,7 +1064,7 @@ async function ccLoadCensus() {
     };
   }
 
-  if (!match) return hide();
+  if (!match) return showTpl();
   const labels = { large:"Large-size", small:"Small-size", national:"National" };
   typeEl.textContent = (labels[match.census_type] || "") + (match._filtered ? " · filtered" : "");
   const rows = [];
@@ -1099,6 +1107,7 @@ function clearFilters() {
   document.getElementById("estRange").textContent = "—";
   document.getElementById("estN").textContent = "—";
   document.getElementById("matchCount").textContent = "—";
+  ccLoadCensus();
 }
 
 
