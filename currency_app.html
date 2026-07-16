@@ -969,7 +969,7 @@ async function ccLoadCensus() {
     panel.style.display = "block";
   };
   if (MODE === "coins") return hide();
-  const fr = (document.getElementById("fFr")?.value || "").trim();
+  const fr = (document.getElementById("fFr")?.value || "").trim().toUpperCase();
   const ch = (document.getElementById("fCharter")?.value || "").trim();
 
   // active sub-filters that should narrow the census
