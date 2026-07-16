@@ -963,17 +963,93 @@ async function ccLoadCensus() {
   if (MODE === "coins") return hide();
   const fr = (document.getElementById("fFr")?.value || "").trim();
   const ch = (document.getElementById("fCharter")?.value || "").trim();
+
+  // active sub-filters that should narrow the census
+  const denomRaw = (document.getElementById("fDenom")?.value || "").trim();
+  const denom = denomRaw.replace(/^\$/, "");
+  const gMin = (document.getElementById("fGradeMin")?.value || "").trim();
+  const gMax = (document.getElementById("fGradeMax")?.value || "").trim();
+  const starOnly = !!document.getElementById("fStar")?.checked;
+  const year = (document.getElementById("fYear")?.value || "").trim();
+  const hasFilters = !!(denom || gMin || gMax || starOnly || year);
+
   let match = null;
-  if (ch) {
-    const { data } = await sb.from("census_summary").select("*").eq("census_type","national").eq("lookup_key",ch).limit(1);
-    if (data && data.length) match = data[0];
-  } else if (fr) {
-    const { data } = await sb.from("census_summary").select("*").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
-    if (data && data.length) match = data[0];
+
+  if (!hasFilters) {
+    if (ch) {
+      const { data } = await sb.from("census_summary").select("*").eq("census_type","national").eq("lookup_key",ch).limit(1);
+      if (data && data.length) match = data[0];
+    } else if (fr) {
+      const { data } = await sb.from("census_summary").select("*").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
+      if (data && data.length) match = data[0];
+    }
+  } else if (ch || fr) {
+    // live filtered aggregation against the note-level tables
+    const isNat = !!ch;
+    const table = isNat ? "national_currency_census"
+      : (fr ? null : null);
+    let ctype = isNat ? "national" : null;
+    // resolve fr -> large or small by probing census_summary
+    let noteTable = null;
+    if (isNat) { noteTable = "national_currency_census"; ctype = "national"; }
+    else if (fr) {
+      const { data: sd } = await sb.from("census_summary").select("census_type").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
+      if (sd && sd.length) { ctype = sd[0].census_type; noteTable = ctype === "small" ? "small_currency_census" : "large_currency_census"; }
+    }
+    if (!noteTable) return hide();
+
+    const keyCol = isNat ? "charter_number" : "fr_number";
+    const keyVal = isNat ? ch : fr;
+    const applyFilters = (qb) => {
+      qb = qb.eq(keyCol, keyVal);
+      if (denom) qb = qb.eq("denomination", denom);
+      if (gMin) qb = qb.gte("grade_numeric", parseInt(gMin,10));
+      if (gMax) qb = qb.lte("grade_numeric", parseInt(gMax,10));
+      if (year) { if (isNat) qb = qb.like("series_type", year + "%"); else qb = qb.eq(isNat ? "series_type" : "series", year); }
+      if (starOnly && !isNat) qb = qb.eq("is_star", true);
+      return qb;
+    };
+
+    // total population (all rows matching filters)
+    const totRes = await applyFilters(sb.from(noteTable).select("*", { count: "exact", head: true }));
+    const total = totRes.count || 0;
+    if (!total) return hide();
+
+    // star / regular (large & small only)
+    let starCount = 0, regularCount = total;
+    if (!isNat) {
+      const sRes = await applyFilters(sb.from(noteTable).select("*", { count: "exact", head: true })).eq("is_star", true);
+      starCount = sRes.count || 0;
+      regularCount = total - starCount;
+    }
+
+    // graded rows: pull grade_numeric for matching rows excluding sentinel 99
+    const gRes = await applyFilters(sb.from(noteTable).select("grade_numeric")).neq("grade_numeric", 99).limit(100000);
+    const grades = (gRes.data || []).map(r => r.grade_numeric).filter(g => g != null);
+    const gradedCount = grades.length;
+    let topGrade = null;
+    const dist = {};
+    for (const g of grades) { if (topGrade === null || g > topGrade) topGrade = g; dist[g] = (dist[g] || 0) + 1; }
+
+    match = {
+      census_type: ctype,
+      total_population: total,
+      regular_count: regularCount,
+      star_count: starCount,
+      graded_count: gradedCount,
+      top_grade: topGrade,
+      grade_distribution: dist,
+      bank_name: null,
+      fed_signature: null,
+      large_note_count: null,
+      small_note_count: null,
+      _filtered: true
+    };
   }
+
   if (!match) return hide();
   const labels = { large:"Large-size", small:"Small-size", national:"National" };
-  typeEl.textContent = labels[match.census_type] || "";
+  typeEl.textContent = (labels[match.census_type] || "") + (match._filtered ? " · filtered" : "");
   const rows = [];
   rows.push('<div><span>Total graded</span> <b style="color:var(--text)">' + fmt(match.total_population) + '</b></div>');
   if (match.census_type === "national") {
