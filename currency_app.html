@@ -698,7 +698,7 @@ async function runQuery() {
     '<tr class="loading-row"><td colspan="11">Searching…</td></tr>';
 
   try {
-    let _u=null; try{const {data:{session:_s}}=await sb.auth.getSession(); _u=_s?_s.user:null;}catch(_e){_u=null;} if(_u){let _ok=false,_ee=false; async function _chk(){try{if(MODE==="coins"){const {data:_ent,error:_er}=await sb.rpc("has_entitlement",{p_product:"coins"});if(_er)throw _er;_ok=(_ent===true);}else{const {data:_prof,error:_er}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single();if(_er)throw _er;_ok=!!(_prof&&_prof.subscription_status==="active");}return true;}catch(_e){_ee=true;return false;}} let _ck1=await _chk(); if(!_ck1){await new Promise(function(r){setTimeout(r,600);}); _ee=false; await _chk();} if(!_ok&&!_ee){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fDenom","fService","fQual","fGradeMin","fGradeMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
+    let _u=null; try{const {data:{session:_s}}=await sb.auth.getSession(); _u=_s?_s.user:null;}catch(_e){_u=null;} if(_u){let _ok=false,_ee=false; async function _chk(){try{if(MODE==="coins"){const {data:_ent,error:_er}=await sb.rpc("has_entitlement",{p_product:"coins"});if(_er)throw _er;_ok=(_ent===true);}else{const {data:_prof,error:_er}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single();if(_er)throw _er;_ok=!!(_prof&&_prof.subscription_status==="active");}return true;}catch(_e){_ee=true;return false;}} let _ck1=await _chk(); if(!_ck1){await new Promise(function(r){setTimeout(r,600);}); _ee=false; await _chk();} window.ccHasAccess=_ok;if(!_ok&&!_ee){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fDenom","fService","fQual","fGradeMin","fGradeMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
     q = applyFilters(q);
     q = q.order(sortCol, { ascending: sortAsc, nullsFirst: false });
     q = q.range(page * PER, (page + 1) * PER - 1);
@@ -1370,7 +1370,7 @@ function fmt(n) { return (n || 0).toLocaleString(); }
     window.ccUpdatePaywall = function (rowCount) {
       var el = document.getElementById("cc-paywall");
       if (!el) return;
-      el.style.display = (rowCount === 0) ? "block" : "none";
+      el.style.display = (rowCount === 0 && !window.ccHasAccess) ? "block" : "none";
     };
 
     var btn = document.getElementById("cc-subscribe-btn");
