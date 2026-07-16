@@ -954,6 +954,8 @@ async function computeEstimate() {
   } catch (e) { console.warn("Estimate:", e); }
   try { ccLoadCensus(); } catch (e) { console.warn("Census:", e); }
 
+}
+
 async function ccLoadCensus() {
   const panel = document.getElementById("ccCensusPanel");
   const body  = document.getElementById("ccCensusBody");
@@ -1087,7 +1089,6 @@ async function ccLoadCensus() {
   }
   body.innerHTML = rows.join("");
   panel.style.display = "block";
-}
 }
 
 // ── CLEAR ──
