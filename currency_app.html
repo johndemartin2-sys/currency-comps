@@ -414,6 +414,10 @@ td a:hover { text-decoration: underline; }
     <div><span>Sample size</span> <b id="estN">—</b></div>
   </div>
 </div>
+  <div id="ccCensusPanel" style="display:none;margin-left:auto;padding-left:26px;border-left:1px solid var(--border);font-size:13px;line-height:1.7;color:var(--text2);max-width:360px">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600;margin-bottom:4px">Census Population <span id="ccCensusType" style="color:var(--gold)"></span></div>
+    <div id="ccCensusBody"></div>
+  </div>
 
 <!-- ═══ TABLE ═══ -->
 <div id="liveResults" style="display:none;margin-top:8px"></div>
@@ -948,6 +952,49 @@ async function computeEstimate() {
     elR.textContent = "$" + Math.min(...prices).toLocaleString() + " / $" + Math.max(...prices).toLocaleString();
     elN.textContent = fmt(prices.length) + " sales";
   } catch (e) { console.warn("Estimate:", e); }
+  try { ccLoadCensus(); } catch (e) { console.warn("Census:", e); }
+
+async function ccLoadCensus() {
+  const panel = document.getElementById("ccCensusPanel");
+  const body  = document.getElementById("ccCensusBody");
+  const typeEl = document.getElementById("ccCensusType");
+  if (!panel || !sb) return;
+  const hide = () => { panel.style.display = "none"; };
+  if (MODE === "coins") return hide();
+  const fr = (document.getElementById("fFr")?.value || "").trim();
+  const ch = (document.getElementById("fCharter")?.value || "").trim();
+  let match = null;
+  if (ch) {
+    const { data } = await sb.from("census_summary").select("*").eq("census_type","national").eq("lookup_key",ch).limit(1);
+    if (data && data.length) match = data[0];
+  } else if (fr) {
+    const { data } = await sb.from("census_summary").select("*").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
+    if (data && data.length) match = data[0];
+  }
+  if (!match) return hide();
+  const labels = { large:"Large-size", small:"Small-size", national:"National" };
+  typeEl.textContent = labels[match.census_type] || "";
+  const rows = [];
+  rows.push('<div><span>Total graded</span> <b style="color:var(--text)">' + fmt(match.total_population) + '</b></div>');
+  if (match.census_type === "national") {
+    if (match.bank_name) rows.push('<div><span>Bank</span> <b style="color:var(--text)">' + match.bank_name + '</b></div>');
+    if (match.large_note_count != null) rows.push('<div><span>Large / Small notes</span> <b style="color:var(--text)">' + fmt(match.large_note_count) + ' / ' + fmt(match.small_note_count) + '</b></div>');
+  } else {
+    rows.push('<div><span>Regular / Star</span> <b style="color:var(--text)">' + fmt(match.regular_count) + ' / ' + fmt(match.star_count) + '</b></div>');
+    if (match.fed_signature) rows.push('<div><span>Signature</span> <b style="color:var(--text)">' + match.fed_signature + '</b></div>');
+  }
+  if (match.top_grade != null) rows.push('<div><span>Top graded</span> <b style="color:var(--gold)">' + match.top_grade + '</b> <span style="color:var(--muted)">(' + fmt(match.graded_count) + ' graded)</span></div>');
+  const gd = match.grade_distribution;
+  if (gd && typeof gd === "object") {
+    const bands = Object.keys(gd).map(k => [parseInt(k,10), gd[k]]).filter(e => !isNaN(e[0])).sort((a,b) => b[0]-a[0]).slice(0,6);
+    if (bands.length) {
+      const chips = bands.map(e => '<span style="display:inline-block;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:1px 7px;margin:2px 3px 0 0;font-size:11px;color:var(--text2)"><b style="color:var(--gold)">' + e[0] + '</b> \u00d7' + fmt(e[1]) + '</span>').join("");
+      rows.push('<div style="margin-top:6px"><span style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:2px">Grade breakdown (top)</span>' + chips + '</div>');
+    }
+  }
+  body.innerHTML = rows.join("");
+  panel.style.display = "block";
+}
 }
 
 // ── CLEAR ──
