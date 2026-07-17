@@ -57,13 +57,13 @@ grant execute on function suggest_title_terms(text, int) to anon, authenticated;
 --    REQUIRES pg_cron enabled:
 --    Dashboard > Database > Extensions > pg_cron  (or uncomment below)
 -- ------------------------------------------------------------
--- create extension if not exists pg_cron with schema cron;
+create extension if not exists pg_cron with schema cron;
 
--- select cron.schedule(
---   'refresh_title_word_freq',   -- job name (re-running replaces it)
---   '17 4 * * *',                -- 04:17 UTC daily (off-peak)
---   $$refresh materialized view concurrently title_word_freq;$$
--- );
+select cron.schedule(
+  'refresh_title_word_freq',   -- job name (re-running replaces it)
+  '17 4 * * *',                -- 04:17 UTC daily (off-peak)
+  $$refresh materialized view concurrently title_word_freq;$$
+);
 
 -- Management helpers:
 --   select * from cron.job;
