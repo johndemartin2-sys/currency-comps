@@ -914,6 +914,7 @@ async function computeEstimate() {
   const elM = document.getElementById("estMean");
   const elR = document.getElementById("estRange");
   const elN = document.getElementById("estN");
+  try { ccLoadCensus(); } catch (e) { console.warn("Census:", e); }
 
   if (!sb || totalMatching === 0) {
     elP.textContent = elM.textContent = elR.textContent = "—";
@@ -962,7 +963,6 @@ async function computeEstimate() {
     elR.textContent = "$" + Math.min(...prices).toLocaleString() + " / $" + Math.max(...prices).toLocaleString();
     elN.textContent = fmt(prices.length) + " sales";
   } catch (e) { console.warn("Estimate:", e); }
-  try { ccLoadCensus(); } catch (e) { console.warn("Census:", e); }
 
 }
 
