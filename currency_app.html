@@ -295,7 +295,7 @@ td a:hover { text-decoration: underline; }
         </div>
       </div>
     </div>
-    <div class="fg narrow"><label>Year</label><input id="fYear" type="number" placeholder=""></div>
+    <div class="fg narrow"><label>Year / Series</label><input id="fYear" type="text" placeholder="1950A" title="Year or series. A letter/type suffix narrows to that series (e.g. 1950A, 1902PB); a bare year shows all series when All variants is checked."></div>
     
     <div class="fg"><label>Denom</label>
       <select id="fDenom">
@@ -728,7 +728,14 @@ function applyCoinFilters(q) {
   const title = v("fTitle");
   if (title) title.split(/\s+/).filter(Boolean).forEach(function(term){ q = q.ilike("title", `%${term}%`); });
   const den = v("fCoinDenom"); if (den) q = q.ilike("denomination_raw", `%${den}%`);
-  const yr = v("fYear"); if (yr) q = q.eq("display_year", yr);
+  const yr = v("fYear");
+  if (yr) {
+    const _yM = yr.toUpperCase().match(/^(\d{4})[\s-]*([A-Z][A-Z0-9]*)?$/);
+    const _yAll = document.getElementById("frModeAll") ? document.getElementById("frModeAll").checked : true;
+    if (_yM && _yM[2]) { q = q.or("display_year.ilike." + _yM[1] + _yM[2] + "%,display_year.ilike." + _yM[1] + "-" + _yM[2] + "%"); }
+    else if (_yM && _yAll) { q = q.ilike("display_year", _yM[1] + "%"); }
+    else { q = q.eq("display_year", yr); }
+  }
   const svc = v("fService"); if (svc) q = q.eq("grading_company", svc);
   const gMin = v("fGradeMin"); if (gMin) q = q.gte("grade_numeric", parseFloat(gMin));
   const gMax = v("fGradeMax"); if (gMax) q = q.lte("grade_numeric", parseFloat(gMax));
@@ -767,7 +774,13 @@ function applyFilters(q) {
   }
 
   const yr = v("fYear");
-  if (yr) q = q.eq("display_year", yr);
+  if (yr) {
+    const _yM = yr.toUpperCase().match(/^(\d{4})[\s-]*([A-Z][A-Z0-9]*)?$/);
+    const _yAll = document.getElementById("frModeAll") ? document.getElementById("frModeAll").checked : true;
+    if (_yM && _yM[2]) { q = q.or("display_year.ilike." + _yM[1] + _yM[2] + "%,display_year.ilike." + _yM[1] + "-" + _yM[2] + "%"); }
+    else if (_yM && _yAll) { q = q.ilike("display_year", _yM[1] + "%"); }
+    else { q = q.eq("display_year", yr); }
+  }
 
   const ltr = "";
   if (ltr) q = q.eq("series_letter", ltr.trim().toUpperCase());
@@ -1162,7 +1175,14 @@ async function ccLoadCensus() {
       if (denom) qb = qb.eq("denomination", denom);
       if (gMin) qb = qb.gte("grade_numeric", parseInt(gMin,10));
       if (gMax) qb = qb.lte("grade_numeric", parseInt(gMax,10));
-      if (year) { if (isNat) qb = qb.like("series_type", year + "%"); else qb = qb.eq(isNat ? "series_type" : "series", year); }
+      if (year) {
+        const _yM = year.toUpperCase().match(/^(\d{4})[\s-]*([A-Z][A-Z0-9]*)?$/);
+        const _yAll = document.getElementById("frModeAll") ? document.getElementById("frModeAll").checked : true;
+        if (isNat) { qb = _yM && _yM[2] ? qb.ilike("series_type", _yM[1] + _yM[2] + "%") : qb.ilike("series_type", (_yM ? _yM[1] : year) + "%"); }
+        else if (_yM && _yM[2]) { qb = qb.or("series.ilike." + _yM[1] + _yM[2] + "%,series.ilike." + _yM[1] + "-" + _yM[2] + "%"); }
+        else if (_yM && _yAll) { qb = qb.ilike("series", _yM[1] + "%"); }
+        else { qb = qb.eq("series", year); }
+      }
       if (starOnly && !isNat) qb = qb.eq("is_star", true);
       return qb;
     };
