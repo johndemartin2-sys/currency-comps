@@ -9,12 +9,18 @@
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1. Title-word dictionary (distinct words from lot titles, >=3 chars)
+-- 1. Title-word dictionary (distinct words from lot titles).
+--    Punctuation is stripped from each token so suggestions are
+--    clean (e.g. "silver" not "silver.") and de-duplicated.
+--    Keeps words with >= 3 alphanumeric chars.
 -- ------------------------------------------------------------
 create materialized view if not exists title_word_freq as
 select word, count(*) as n
 from (
-  select unnest(regexp_split_to_array(lower(title), '\s+')) as word
+  select regexp_replace(
+           lower(unnest(regexp_split_to_array(title, '\s+'))),
+           '[^a-z0-9]+', '', 'g'
+         ) as word
   from lots_currency_resolved
   where title is not null
 ) w
@@ -51,15 +57,24 @@ grant execute on function suggest_title_terms(text, int) to anon, authenticated;
 --    REQUIRES pg_cron enabled:
 --    Dashboard > Database > Extensions > pg_cron  (or uncomment below)
 -- ------------------------------------------------------------
--- create extension if not exists pg_cron;
+-- create extension if not exists pg_cron with schema cron;
 
-select cron.schedule(
-  'refresh_title_word_freq',   -- job name (re-running replaces it)
-  '17 4 * * *',                -- 04:17 UTC daily (off-peak)
-  $$refresh materialized view concurrently title_word_freq;$$
-);
+-- select cron.schedule(
+--   'refresh_title_word_freq',   -- job name (re-running replaces it)
+--   '17 4 * * *',                -- 04:17 UTC daily (off-peak)
+--   $$refresh materialized view concurrently title_word_freq;$$
+-- );
 
 -- Management helpers:
 --   select * from cron.job;
 --   select * from cron.job_run_details order by start_time desc limit 10;
 --   select cron.unschedule('refresh_title_word_freq');
+
+-- ------------------------------------------------------------
+-- NOTE: If the materialized view already exists from an earlier
+-- version WITHOUT punctuation stripping, drop and recreate it so
+-- the new definition takes effect (CREATE OR REPLACE cannot alter
+-- an MV's query):
+--   drop materialized view if exists title_word_freq;
+--   ... then re-run section 1 above.
+-- ------------------------------------------------------------
