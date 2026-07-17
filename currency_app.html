@@ -714,6 +714,7 @@ async function runQuery() {
     renderTable();
     renderPager();
     computeEstimate();
+    if (!(await maybeSuggestTitle())) { await suggestRelax(); }
   } catch (e) {
     console.error("Search error:", e);
     document.getElementById("tbody").innerHTML =
@@ -807,6 +808,117 @@ function applyFilters(q) {
 
   return q;
 }
+
+// ── ZERO-RESULT UX HELPERS (search suggestions) ──
+const FILTER_MAP = [
+  { id: "fTitle",    label: "Title contains" },
+  { id: "fFr",       label: "Friedberg #" },
+  { id: "fYear",     label: "Year" },
+  { id: "fDenom",    label: "Denomination" },
+  { id: "fService",  label: "Grading company" },
+  { id: "fQual",     label: "PPQ/EPQ" },
+  { id: "fGradeMin", label: "Grade min" },
+  { id: "fGradeMax", label: "Grade max" },
+  { id: "fState",    label: "State" },
+  { id: "fCharter",  label: "Charter #" },
+];
+
+// Feature 1: fuzzy "did you mean" on the title keyword search (uses pg_trgm RPC).
+// Returns true if a suggestion was shown (so the relax helper can defer to it).
+async function maybeSuggestTitle() {
+  const titleEl = document.getElementById("fTitle");
+  const raw = titleEl ? titleEl.value.trim() : "";
+  if (!raw || totalMatching > 0) return false;
+
+  const terms = raw.split(/\s+/).filter(Boolean);
+  const fixes = [];
+  for (const term of terms) {
+    try {
+      const { data, error } = await sb.rpc("suggest_title_terms", { p_term: term, p_limit: 1 });
+      if (!error && data && data.length && data[0].suggestion &&
+          data[0].suggestion.toLowerCase() !== term.toLowerCase()) {
+        fixes.push({ from: term, to: data[0].suggestion });
+      }
+    } catch (e) { /* RPC missing or offline -> silently skip */ }
+  }
+  if (!fixes.length) return false;
+
+  const corrected = terms.map(function (term) {
+    const f = fixes.find(function (x) { return x.from.toLowerCase() === term.toLowerCase(); });
+    return f ? f.to : term;
+  }).join(" ");
+
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML =
+    '<tr class="empty-row"><td colspan="11">No results for \u201c' + esc(raw) +
+    '\u201d. Did you mean <a href="#" id="didYouMean" style="color:var(--accent);text-decoration:underline">' +
+    esc(corrected) + '</a>?</td></tr>';
+  const link = document.getElementById("didYouMean");
+  if (link) link.addEventListener("click", function (e) {
+    e.preventDefault();
+    titleEl.value = corrected;
+    doSearch();
+  });
+  return true;
+}
+
+// Feature 2: when a multi-filter search returns 0, find which single filter,
+// if removed, would return results, and offer one-click relaxing.
+async function suggestRelax() {
+  if (totalMatching > 0) return;
+
+  const active = FILTER_MAP.filter(function (f) {
+    const el = document.getElementById(f.id);
+    return el && String(el.value).trim() !== "";
+  });
+  const starEl = document.getElementById("fStar");
+  if (starEl && starEl.checked) active.push({ id: "fStar", label: "Star only" });
+  if (active.length < 2) return;
+
+  const results = [];
+  for (const f of active) {
+    const el = document.getElementById(f.id);
+    let saved;
+    if (f.id === "fStar") { saved = el.checked; el.checked = false; }
+    else { saved = el.value; el.value = ""; }
+
+    let count = 0;
+    try {
+      let q = sb.from(TABLE).select("*", { count: "exact", head: true });
+      q = applyFilters(q);
+      const res = await q;
+      count = res.count || 0;
+    } catch (e) { count = 0; }
+
+    if (f.id === "fStar") el.checked = saved; else el.value = saved;
+    if (count > 0) results.push({ id: f.id, label: f.label, count: count });
+  }
+  if (!results.length) return;
+
+  results.sort(function (a, b) { return b.count - a.count; });
+
+  const links = results.slice(0, 3).map(function (r) {
+    return '<a href="#" class="relax-link" data-id="' + r.id +
+      '" style="color:var(--accent);text-decoration:underline">remove \u201c' +
+      esc(r.label) + '\u201d (' + fmt(r.count) + ' results)</a>';
+  }).join(" &middot; ");
+
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML =
+    '<tr class="empty-row"><td colspan="11">No results with all filters. Try: ' + links +
+    '</td></tr>';
+
+  tbody.querySelectorAll(".relax-link").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      const id = a.dataset.id;
+      const el = document.getElementById(id);
+      if (id === "fStar") el.checked = false; else el.value = "";
+      doSearch();
+    });
+  });
+}
+
 
 // ── RENDER COIN TABLE ──
 function renderCoinTable() {
