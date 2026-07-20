@@ -690,6 +690,7 @@ function filterByFr(fr){
     async function doSearch() {
   if (!sb) return alert("Not connected to database."); hasSearched = true;
   page = 0;
+  window.__ccDoLog = true;   // only log on a fresh search (not sort/pagination)
   await runQuery();
 }
 
@@ -714,7 +715,7 @@ async function runQuery() {
     renderTable();
     renderPager();
     computeEstimate();
-    logSearch(totalMatching);   // fire-and-forget; never awaited
+    if (window.__ccDoLog) { window.__ccDoLog = false; logSearch(totalMatching); }   // fire-and-forget; only on fresh search
     if (!(await maybeSuggestTitle())) { await suggestRelax(); }
   } catch (e) {
     console.error("Search error:", e);
