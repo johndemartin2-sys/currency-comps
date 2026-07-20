@@ -714,6 +714,7 @@ async function runQuery() {
     renderTable();
     renderPager();
     computeEstimate();
+    logSearch(totalMatching);   // fire-and-forget; never awaited
     if (!(await maybeSuggestTitle())) { await suggestRelax(); }
   } catch (e) {
     console.error("Search error:", e);
@@ -1286,6 +1287,41 @@ document.querySelectorAll(".filters input, .nbn-row input").forEach(el => {
 
 // ── HELPERS ──
 function fmt(n) { return (n || 0).toLocaleString(); }
+// ── SEARCH LOGGING ──
+function getCcSessionId() {
+  let id = sessionStorage.getItem("cc_sid");
+  if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random())); sessionStorage.setItem("cc_sid", id); }
+  return id;
+}
+function logSearch(resultCount) {
+  try {
+    if (!sb) return;
+    const g = id => (document.getElementById(id)?.value || "").trim();
+    const titleQuery = g("fTitle");
+    const filters = {
+      mode: MODE,
+      friedberg: g("fFr"),
+      year: g("fYear"),
+      denom: g("fDenom") || g("fCoinDenom"),
+      grading_co: g("fService"),
+      ppq_epq: g("fQual"),
+      grade_min: g("fGradeMin"),
+      grade_max: g("fGradeMax"),
+      state: g("fState"),
+      charter: g("fCharter"),
+      series: activeSeries,
+      star_only: !!document.getElementById("fStar")?.checked
+    };
+    Object.keys(filters).forEach(k => { if (filters[k] === "" || filters[k] === false) delete filters[k]; });
+    sb.from("search_log").insert({
+      session_id:   getCcSessionId(),
+      title_query:  titleQuery || null,
+      filters:      filters,
+      mode:         MODE,
+      result_count: resultCount
+    }).then(null, function(){});
+  } catch (e) { /* never let logging affect the app */ }
+}
 
 // ── BOOT ──
     startApp();
