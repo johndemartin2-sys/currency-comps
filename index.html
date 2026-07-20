@@ -47,6 +47,10 @@ a{color:inherit;text-decoration:none}
 .hero{position:relative;padding:96px 0 80px;text-align:center;overflow:hidden}
 .hero::before{content:"";position:absolute;inset:0;background:
   radial-gradient(600px 320px at 50% -10%,var(--gold-glow),transparent 70%);pointer-events:none}
+.hero-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.hero-overlay{position:absolute;inset:0;z-index:1;
+  background:linear-gradient(180deg,rgba(11,11,15,.55),rgba(11,11,15,.85))}
+.hero .wrap{position:relative;z-index:2}
 .eyebrow{display:inline-block;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);
   border:1px solid var(--border-hi);border-radius:999px;padding:6px 14px;margin-bottom:24px}
 .hero h1{font-family:var(--font-display);font-weight:800;font-size:clamp(34px,5.5vw,60px);line-height:1.08;max-width:880px;margin:0 auto 22px}
@@ -94,7 +98,15 @@ section{padding:72px 0}
 footer{border-top:1px solid var(--border);padding:34px 0;color:var(--muted);font-size:13px}
 .foot-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px}
 .foot-row a{color:var(--text2)}.foot-row a:hover{color:var(--gold)}
-@media(max-width:820px){.grid{grid-template-columns:1fr}.price-grid{grid-template-columns:1fr}.nav a:not(.btn){display:none}}
+@media(max-width:820px){.grid{grid-template-columns:1fr}.price-grid{grid-template-columns:1fr}.nav a:not(.btn){display:none}
+  .hero{padding:64px 0 56px}
+  .hero-video{height:100%}
+  .hero-overlay{background:linear-gradient(180deg,rgba(11,11,15,.6),rgba(11,11,15,.9))}
+}
+@media(prefers-reduced-motion:reduce){
+  .hero-video{display:none}
+  .hero{background:#0b0b0f center/cover no-repeat url(hero-poster.jpg)}
+}
 </style>
 </head>
 <body>
@@ -110,6 +122,10 @@ footer{border-top:1px solid var(--border);padding:34px 0;color:var(--muted);font
 
 <main>
   <section class="hero">
+    <video class="hero-video" autoplay loop muted playsinline poster="hero-poster.jpg">
+      <source src="hero-loop.mp4" type="video/mp4">
+    </video>
+    <div class="hero-overlay"></div>
     <div class="wrap">
       <span class="eyebrow">Real Auction Data &middot; U.S. Paper Money</span>
       <h1>Price any note with <em>real</em> auction comps &mdash; in seconds.</h1>
