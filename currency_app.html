@@ -235,29 +235,6 @@ td a:hover { text-decoration: underline; }
   .fg input, .fg select { font-size: 14px; }
   .est-card { flex-direction: column; gap: 10px; }
 }
-  /* === MOBILE CARD VIEW START — remove this whole block to revert === */
-  @media (max-width: 640px) {
-    .tbl-wrap table thead { display: none; }
-    .tbl-wrap table, .tbl-wrap table tbody, .tbl-wrap table tr, .tbl-wrap table td { display: block; width: 100%; }
-    .tbl-wrap table tr { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin: 0 0 12px; padding: 10px 12px; }
-    .tbl-wrap table td { display: flex; justify-content: space-between; gap: 12px; text-align: right; padding: 5px 0; border: none; font-size: 13px; }
-    .tbl-wrap table td::before { content: ""; text-align: left; color: var(--muted); font-weight: 600; flex: 0 0 40%; }
-    .tbl-wrap table td:nth-of-type(1)::before { content: "#"; }
-    .tbl-wrap table td:nth-of-type(2)::before { content: "Title"; }
-    .tbl-wrap table td:nth-of-type(3)::before { content: "Fr."; }
-    .tbl-wrap table td:nth-of-type(4)::before { content: "Charter #"; }
-    .tbl-wrap table td:nth-of-type(5)::before { content: "Year"; }
-    .tbl-wrap table td:nth-of-type(6)::before { content: "Denom"; }
-    .tbl-wrap table td:nth-of-type(7)::before { content: "Type"; }
-    .tbl-wrap table td:nth-of-type(8)::before { content: "Grade"; }
-    .tbl-wrap table td:nth-of-type(9)::before { content: "\2605"; }
-    .tbl-wrap table td:nth-of-type(10)::before { content: "Sold"; }
-    .tbl-wrap table td:nth-of-type(11)::before { content: "Date"; }
-    .tbl-wrap table td:nth-of-type(12)::before { content: "Src"; }
-    .tbl-wrap table tr.loading-row td::before, .tbl-wrap table tr.empty-row td::before { content: ""; }
-    .tbl-wrap table tr.loading-row td, .tbl-wrap table tr.empty-row td { justify-content: center; text-align: center; }
-  }
-  /* === MOBILE CARD VIEW END === */
 </style>
 </head>
 <body>
