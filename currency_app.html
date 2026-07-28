@@ -750,6 +750,26 @@ function applyCoinFilters(q) {
 }
 
 // ── APPLY FILTERS ──
+// ── CANONICAL FRIEDBERG KEY (mirrors SQL public.fr_canon / public.fr_base_canon) ──
+function frCanon(s) {
+  if (s === null || s === undefined) return null;
+  var t = String(s);
+  t = t.replace(/^\s*(?:Fr|F)\s*\.\s*/i, "");
+  t = t.replace(/\s+/g, "");
+  t = t.replace(/(\d)-(\d)/g, "$1~$2");
+  t = t.replace(/-/g, "");
+  t = t.replace(/~/g, "-");
+  t = t.replace(/[^A-Za-z0-9-]/g, "");
+  t = t.toUpperCase();
+  t = t.replace(/^-+/, "").replace(/-+$/, "");
+  return t === "" ? null : t;
+}
+function frBaseCanon(s) {
+  if (s === null || s === undefined) return null;
+  var t = String(s).replace(/^\s*(?:Fr|F)\s*\.\s*/i, "").replace(/\s+/g, "");
+  var m = t.match(/^(\d+)/);
+  return m ? m[1] : null;
+}
 function applyFilters(q) {
   if (MODE === "coins") return applyCoinFilters(q);
   q = q.in("data_quality", DQ_FILTER).neq("needs_review", true);
@@ -764,14 +784,12 @@ function applyFilters(q) {
   const fr = v("fFr");
   if (fr) {
     const frAll = document.getElementById("frModeAll") ? document.getElementById("frModeAll").checked : true;
-    const _frLet = (fr.toUpperCase().match(/^\d+[\s-]*([A-Z])/)||[])[1]||null;
-    if (_frLet) {
-      q = q.ilike("display_fr", fr.replace(/\D/g, "") + "-" + _frLet + "%");
-    } else if (frAll) {
-      const frBase = fr.replace(/\D/g, "");
-      q = frBase ? q.eq("friedberg_base", frBase) : q.eq("display_fr", fr);
-    } else {
-      q = q.eq("display_fr", fr);
+    const frC = frCanon(fr);
+    const frB = frBaseCanon(fr);
+    if (frAll && frB) {
+      q = q.eq("fr_base_canon", frB);
+    } else if (frC) {
+      q = q.eq("fr_canon", frC);
     }
   }
 
