@@ -291,6 +291,7 @@ td a:hover { text-decoration: underline; }
         <input id="fFr" placeholder="" style="width:100px">
         <div class="fr-mode-stack">
           <label class="fr-opt" title="Show only star-note items"><input type="checkbox" id="fStar"> ★ Star only</label>
+          <label class="fr-opt" title="Also include lots with no realized price or no sale date. These are usually incomplete records rather than comparable sales."><input type="checkbox" id="incIncomplete"> Include incomplete</label>
           <label class="fr-opt" title="Match all letter / seal / mule variants of the base number; uncheck for exact Friedberg match. Typing a district letter (e.g. 2011-B) narrows to that district."><input type="checkbox" id="frModeAll" checked> All variants</label>
         </div>
       </div>
@@ -609,7 +610,7 @@ async function loadSeriesTypes() {
         let q = sb
           .from(TABLE)
           .select("series_canonical")
-          .in("data_quality", DQ_FILTER).neq("needs_review", true)
+          .in("data_quality", DQ_FILTER).eq("search_visible", true)
           .not("series_canonical", "is", null)
           .order("series_canonical", { ascending: true })
           .limit(1);
@@ -628,7 +629,7 @@ async function loadSeriesTypes() {
         const { count } = await sb
           .from(TABLE)
           .select("*", { count: "exact", head: true })
-          .in("data_quality", DQ_FILTER).neq("needs_review", true)
+          .in("data_quality", DQ_FILTER).eq("search_visible", true)
           .eq("series_canonical", v);
         if ((count || 0) >= MIN_CHIP_COUNT) withCounts.push([v, count]);
       }
@@ -772,7 +773,9 @@ function frBaseCanon(s) {
 }
 function applyFilters(q) {
   if (MODE === "coins") return applyCoinFilters(q);
-  q = q.in("data_quality", DQ_FILTER).neq("needs_review", true);
+  q = q.in("data_quality", DQ_FILTER);
+  const incIncomplete = document.getElementById("incIncomplete") ? document.getElementById("incIncomplete").checked : false;
+  if (!incIncomplete) q = q.eq("search_visible", true);
   const v = id => document.getElementById(id).value.trim();
 
   const src = "";
@@ -1011,10 +1014,11 @@ function renderTable() {
     const t = r.title || "—";
     const url = r.lot_url || "#";
     const tShort = t.length > 80 ? t.substring(0, 77) + "…" : t;
+    const rvBadge = r.review_reason ? ' <span title="Unreviewed (' + String(r.review_reason).replace(/_/g, " ") + '): automatic classification did not complete for this lot." style="font-size:9px;padding:0 3px;border:1px solid var(--gold);border-radius:3px;color:var(--gold);opacity:.7;vertical-align:middle">unreviewed</span>' : "";
 
     return `<tr>
       <td>${n}</td>
-      <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a></td>
+      <td><a href="${url}" target="_blank" rel="noopener" title="${t.replace(/"/g,'&quot;')}">${tShort}</a>${rvBadge}</td>
       <td>${fr ? `<span class="fr-link" style="cursor:pointer;color:var(--gold);text-decoration:underline" onclick="filterByFr('${esc(String(fr))}')">${fr}</span>` : ''}</td><td>${ch && ch !== "\u2014" ? `<span class="fr-link" style="cursor:pointer;color:var(--gold);text-decoration:underline" onclick="filterByCharter('${esc(String(ch))}')">${ch}</span>` : ch}</td>
       <td>${r.display_year ? r.display_year + ("") : "—"}</td>
       <td>${fmtDen(den)}</td>
