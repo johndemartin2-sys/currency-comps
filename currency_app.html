@@ -802,8 +802,8 @@ function applyFilters(q) {
   else if (qual === "none") q = q.is("ppq_epq", null);
 
   const gMin = v("fGradeMin"), gMax = v("fGradeMax");
-  if (gMin) q = q.gte("grade_numeric", parseInt(gMin));
-  if (gMax) q = q.lte("grade_numeric", parseInt(gMax));
+  if (gMin) q = q.gte("grade_numeric_search", parseInt(gMin));
+  if (gMax) q = q.lte("grade_numeric_search", parseInt(gMax));
 
 
   const dFrom = "", dTo = "";
