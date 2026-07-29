@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Heritage Coin Harvester
 // @namespace    jdmstrategy.coins
-// @version      1.4.8
+// @version      1.4.9
 // @description  Sweep + Top Up harvester for Heritage sold coin lots -> Supabase
 // @match        https://coins.ha.com/c/search/results.zx*
 // @run-at       document-idle
@@ -229,9 +229,27 @@ function pickStrikeType(cat, title, g){
 
 // Strike DESIGNATION = full-strike award. RPC vocab is FS/FB/FBL/FH/FT/5FS, but bare
 // 'FS' on a cent is a Fivaz-Stanton variety number, so it is never emitted here.
+// Heritage spells the strike designation out in the lot title ("Full Bands"),
+// never as the FB/FBL/FH/FT/5FS abbreviation the RPC expects, so v1.4.8 and
+// earlier sent NULL for every one of them -- a dimes sweep would have filed all
+// 43,065 Full Bands lots under ND. Match both spellings, but only over the head
+// of the title (up to and including the grading service) so description prose
+// such as "lacks full bands" can never win.
+function desigHead(t){
+  const s = String(t || '');
+  const m = /^([\s\S]*?\b(?:PCGS|NGC|CACG|ANACS|ICG|SEGS)\b)/.exec(s);
+  return m ? m[1] : s.trim().split(/\s+/).slice(0, 12).join(' ');
+}
 function pickStrikeDesig(title){
-  const m = /\b(5FS|FBL|FB|FH|FT)\b/.exec(title || '');
-  return m ? m[1] : null;
+  const hd = desigHead(title);
+  const m = /\b(5FS|FBL|FB|FH|FT)\b/.exec(hd);
+  if (m) return m[1];
+  if (/\bfull\s+bell\s+lines\b/i.test(hd))       return 'FBL';
+  if (/\bfull\s+(?:split\s+)?bands\b/i.test(hd)) return 'FB';
+  if (/\bfull\s+head\b/i.test(hd))               return 'FH';
+  if (/\bfull\s+torch\b/i.test(hd))              return 'FT';
+  if (/\bfull\s+steps\b/i.test(hd))              return '5FS';
+  return null;
 }
 
 // Canonical surface vocabulary (CAM / DCAM / PL), not Heritage's CA / DC codes.
