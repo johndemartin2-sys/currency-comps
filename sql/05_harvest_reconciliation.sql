@@ -57,6 +57,10 @@
 --                                           all three series in a 3862 result page
 --     4148  Two and Three Cents    40,614   Heritage combines 2C and 3C here;
 --                                           there is no separate id for either
+--                                           2C, 3CN and 3CS are kept apart in
+--                                           lots_coins; the 4148 sweep is seeded
+--                                           with denomination '*' and reconciled
+--                                           jointly. See section 3.
 --     2078  Dimes                 149,676
 --     2513  Half Dimes             28,475
 --     3164  Nickels               154,701
@@ -76,7 +80,10 @@ create table if not exists public.harvest_expectations (
   source       text        not null default 'heritage',
   category     text,                    -- HA coin_category id, e.g. '3862' (Small Cents),
                                         -- or a Heritage series name, e.g. 'Lincoln Cents'.
-  denomination text,                    -- normalized denom, e.g. '1C'
+  denomination text,                    -- normalized denom, e.g. '1C'. The literal
+                                        -- '*' means 'every denomination in this
+                                        -- category' -- used for Heritage 4148,
+                                        -- which counts 2C + 3CN + 3CS as one facet.
   series_year  int         not null,
   ha_desig     text        not null,    -- HA short code: RD RB BN ND CA DC PL
   expected_n   int         not null,    -- result count Heritage reported for the slice
@@ -298,7 +305,13 @@ from public.harvest_expectations e
 left join landed l
        on l.series_year   = e.series_year
       and l.ha_desig      = e.ha_desig
-      and l.denomination  = e.denomination
+      -- '*' is a wildcard: the expectation covers every denomination in the
+      -- category. Heritage's 4148 facet (Two and Three Cents) reports 2C, 3CN
+      -- and 3CS as a single count and offers no way to split them, so that
+      -- sweep is seeded once per (year x desig) with denomination '*' while
+      -- lots_coins keeps the three denominations apart. Every other category
+      -- is still matched denomination for denomination.
+      and (e.denomination = '*' or l.denomination = e.denomination)
       -- an expectation keyed on a numeric HA category id reconciles against the
       -- category the sweep actually ran (lots_coins.ha_category); one keyed on a
       -- Heritage series name reconciles against the series name on the row. That
