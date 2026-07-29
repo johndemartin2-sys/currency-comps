@@ -7,6 +7,20 @@
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
+
+// v1.4.4 (2026-07-29), pairs with RPC v2.1:
+//   * Strike TYPE and strike DESIGNATION are now separate fields.
+//     pickStrikeType()  -> p_strike_type ('PROOF' | 'SPECIMEN' | 'BUSINESS')
+//     pickStrikeDesig() -> p_strike_designation (FB/FBL/FH/FT/5FS only; bare 'FS' on a
+//     cent is a Fivaz-Stanton variety number, never Full Steps, so it is never sent).
+//     v1.4.3 sent 'PR' as p_strike_designation, which the RPC rejected, so every proof
+//     lot 400'd and was silently lost (1,248 in one sweep).
+//   * Surface designations are sent canonical (CAM / DCAM / PL) rather than Heritage's
+//     CA / DC short codes.
+//   * New PR chip: unchecking it skips proof and specimen lots. Heritage exposes no
+//     proof facet, so unlike the other chips this filters client-side.
+//   * RPC 'reject:' responses now count as rej instead of err.
+
 (function () {
 'use strict';
 
@@ -30,19 +44,16 @@ const sleep = ms => new Promise(function(r){
   if (!ms){ const c = new MessageChannel(); c.port1.onmessage = function(){ r(); }; c.port2.postMessage(0); return; }
   setTimeout(r, ms);
 });
-
 const el = id => document.getElementById(id);
 
 function FRESH(){ return { mode:'idle', running:false, i:0, slices:[], cutoff:'', expect:0,
   total:null, msg:'', errs:[], stats:{pages:0,seen:0,new:0,upd:0,rej:0,skip:0,err:0} }; }
 
 let st = load();
-
 function load(){ try { const o = Object.assign(FRESH(), JSON.parse(localStorage.getItem(LS_KEY)));
                        if (!o.errs) o.errs = []; return o; }
                 catch(e){ return FRESH(); } }
 function save(){ try { localStorage.setItem(LS_KEY, JSON.stringify(st)); } catch(e){} }
-
 function logErr(m){
   st.errs.unshift(m.slice(0,180));
   if (st.errs.length > 5) st.errs.length = 5;
@@ -63,7 +74,6 @@ function sliceUrl(year, code, page){
 }
 function curDesig(){ return BY_CODE[P('coin_designation')] || null; }
 function sliceLabel(){ return (P('us_coin_year')||'?') + ' ' + (curDesig()||'ALL'); }
-
 function category(){
   const t = (document.title || '').split(',').slice(1).join(',').trim();
   if (t) return t;
@@ -76,7 +86,6 @@ function isCopper(cat){
   if (/flying eagle/i.test(cat)) return false;
   return /(cent|two cent|half cent)/i.test(cat);
 }
-
 function pickColor(cat, title, d){
   if (!isCopper(cat)) return null;
   if (/\b(steel|zinc[- ]?coated)\b/i.test(title)) return null;
@@ -87,22 +96,25 @@ function pickColor(cat, title, d){
   return null;
 }
 
-/* v1.4.4 ---------- strike TYPE vs strike DESIGNATION ----------
-   Strike TYPE is the method of manufacture (PROOF / BUSINESS / SPECIMEN) and belongs in
-   p_strike_type. The strike_designation column is reserved for the full-strike family
-   (FB/FBL/FH/FT/5FS); sending 'PR' there is rejected by the RPC, which is what silently
-   dropped every proof lot up to v1.4.3. */
+// Strike TYPE = method of manufacture. Mirrors RPC v2.1 derivation exactly:
+// certified grade wins, category is the fallback. Title text is deliberately NOT
+// used ("...from the proof set" on an MS coin would mislabel it).
 function pickStrikeType(cat, title, g){
-  if (/^\s*(PR|PF)/i.test(g) || /\bproof\b/i.test(cat) || /\bproof\b/i.test(title)) return 'PROOF';
-  if (/^\s*SP/i.test(g) || /\bspecimen\b/i.test(title) || /\bsms\b/i.test(cat)) return 'SPECIMEN';
+  if (/^\s*(PR|PF)/i.test(g || '')) return 'PROOF';
+  if (/^\s*SP/i.test(g || ''))      return 'SPECIMEN';
+  if (/^proof/i.test(cat || ''))    return 'PROOF';
+  if (/\bsms\b/i.test(cat || ''))   return 'SPECIMEN';
   return 'BUSINESS';
 }
-// 'FS' is deliberately absent: on a cent FS-### is a Fivaz-Stanton variety, never Full Steps.
+
+// Strike DESIGNATION = full-strike award. RPC vocab is FS/FB/FBL/FH/FT/5FS, but bare
+// 'FS' on a cent is a Fivaz-Stanton variety number, so it is never emitted here.
 function pickStrikeDesig(title){
-  const m = /\b(FBL|FB|FH|FT|5FS)\b/.exec(title || '');
+  const m = /\b(5FS|FBL|FB|FH|FT)\b/.exec(title || '');
   return m ? m[1] : null;
 }
-// Heritage short codes -> canonical surface vocabulary (PL / DPL / CAM / DCAM / SP).
+
+// Canonical surface vocabulary (CAM / DCAM / PL), not Heritage's CA / DC codes.
 function pickSurface(title, d){
   if (d === 'CA') return 'CAM';
   if (d === 'DC') return 'DCAM';
@@ -112,9 +124,6 @@ function pickSurface(title, d){
   if (/\bproof-?like\b/i.test(title)) return 'PL';
   return null;
 }
-// The PR chip is NOT a Heritage facet (Heritage has no proof designation value; proofs live in
-// their own categories). It is a local include/exclude filter: checked = include proof lots.
-function proofsIncluded(){ const c = el('chq14-d-PR'); return !c || c.checked; }
 
 function toISO(s){
   s = (s || '').replace(/\s+/g,' ').trim(); if (!s) return null;
@@ -132,13 +141,11 @@ function parseRow(li){
   const title = (b ? b.textContent : a.textContent).replace(/\s+/g,' ').trim();
   const idm = /\/a\/(\d+)-(\d+)/.exec(href);
   if (!idm) return { reject:'no lot id' };
-
   const pEl = li.querySelector('div.item-value span.bot-price-data') || li.querySelector('.bot-price-data');
   const pTxt = pEl ? pEl.textContent.trim() : '';
   if (!pEl || /sign/i.test(pTxt) || !/\d/.test(pTxt)) return { reject:'no price' };
   const price = Number(pTxt.replace(/[^0-9.]/g,''));
   if (!(price > 0)) return { reject:'no price' };
-
   let service = '', grade = '';
   li.querySelectorAll('.data-block').forEach(function(bl){
     const k = ((bl.querySelector('span.title') || {}).textContent || '');
@@ -146,11 +153,9 @@ function parseRow(li){
     if (/service/i.test(k)) service = v;
     if (/grade/i.test(k))   grade   = v;
   });
-
   const dEl = li.querySelector('strong.time-remaining');
   const sold_on = toISO(dEl ? dEl.textContent : '');
   if (!sold_on) return { reject:'no date' };
-
   const gm = /(\d{1,3})/.exec(grade);
   const cat = category();
   const d   = curDesig();
@@ -159,7 +164,6 @@ function parseRow(li){
   const ym = /\b(1[6-9]\d{2}|20\d{2})\b/.exec(title);
   const vm = /\b(FS-\d{3,4}[A-Za-z]?)\b/.exec(title);
   const img = li.querySelector('img.thumbnail');
-
   return { sold_on: sold_on, title: title, payload: {
     p_source_lot_id: idm[1] + '-' + idm[2],
     p_lot_url: href,
@@ -185,9 +189,9 @@ function parseRow(li){
     p_series_year: ym ? parseInt(ym[1],10) : null,
     p_thumbnail_url: img ? img.src : null,
     p_color: pickColor(cat, title, d),
+    p_strike_type: pickStrikeType(cat, title, grade),
     p_strike_designation: pickStrikeDesig(title),
-    p_surface_designation: pickSurface(title, d),
-    p_strike_type: pickStrikeType(cat, title, grade)
+    p_surface_designation: pickSurface(title, d)
   }};
 }
 
@@ -237,7 +241,8 @@ function waitForRows(){
 async function processPage(dry){
   const rows = Array.prototype.slice.call(document.querySelectorAll('li.item-block'));
   const r = { seen:0, ins:0, upd:0, rej:0, skip:0, err:0, noPrice:0, newest:null, oldest:null };
-
+  // PR chip: Heritage exposes no proof facet, so proofs are filtered client-side.
+  const wantPR = !el('chq14-d-PR') || el('chq14-d-PR').checked;
   for (let i = 0; i < rows.length; i++){
     r.seen++;
     const p = parseRow(rows[i]);
@@ -251,19 +256,16 @@ async function processPage(dry){
       if (!r.newest || p.sold_on > r.newest) r.newest = p.sold_on;
       if (!r.oldest || p.sold_on < r.oldest) r.oldest = p.sold_on;
     }
-    // v1.4.4: PR chip unchecked = skip proof lots locally.
-    if (!proofsIncluded() && p.payload.p_strike_type === 'PROOF'){ r.skip++; continue; }
+    if (!wantPR && p.payload.p_strike_type !== 'BUSINESS'){ r.skip++; continue; }
     if (dry){ r.skip++; continue; }
     try {
       const out = await post(p.payload);
       if (/^upd/.test(out)) r.upd++; else r.ins++;
     } catch(e){
-      // v1.4.4: an RPC 'reject:' is a data rule, not a transport failure. Count it as rej so the
-      // err counter only ever means something is actually broken.
       const msg = String(e.message || e);
-      const tag = /reject:/i.test(msg) ? 'REJ' : 'ERR';
-      if (tag === 'REJ') r.rej++; else r.err++;
-      logErr(tag + ' ' + msg + ' :: lot ' + p.payload.p_source_lot_id +
+      const isReject = /reject:/.test(msg);
+      if (isReject) r.rej++; else r.err++;
+      logErr((isReject ? 'REJ ' : 'ERR ') + msg + ' :: lot ' + p.payload.p_source_lot_id +
              ' svc ' + p.payload.p_grading_company + ' gr ' + p.payload.p_grade_raw);
     }
     await sleep(ROW_PAUSE);
@@ -298,22 +300,17 @@ async function tick(){
   if (!st.running) return;
   const got = await waitForRows();
   const page = curPage();
-
   if (st.expect && page < st.expect){
     return st.mode === 'sweep'
       ? nextSlice('page did not advance (' + page + ' < ' + st.expect + ')')
       : finish('page did not advance (' + page + ' < ' + st.expect + ')');
   }
-
   if (st.total == null) await getTotal();
   st.msg = 'working page ' + page + ' ... ' + sliceLabel(); paint();
-
   const r = await processPage(false);
   tally(r); save(); paint();
-
   if (r.seen && r.noPrice === r.seen)
     return finish('prices hidden - sign in to Heritage again');
-
   if (!r.seen){
     if (!got) return st.mode === 'sweep'
       ? nextSlice('rows never rendered on page ' + page)
@@ -322,17 +319,14 @@ async function tick(){
       ? nextSlice('empty slice ' + sliceLabel())
       : finish('no rows on page ' + page);
   }
-
   if (st.mode === 'topup'){
     if (r.upd === r.seen) return finish('whole page already harvested');
     if (st.cutoff && r.newest && r.newest <= st.cutoff) return finish('reached cutoff ' + st.cutoff);
   }
-
   if (r.seen < PER_PAGE)
     return st.mode === 'sweep' ? nextSlice('slice complete') : finish('last page');
   if (st.total && page >= Math.ceil(st.total / PER_PAGE))
     return st.mode === 'sweep' ? nextSlice('slice complete') : finish('last page');
-
   st.expect = page + 1; save();
   location.href = withPage(page + 1);
 }
@@ -369,11 +363,10 @@ async function getTotal(){
 /* ---------- start modes ---------- */
 async function buildSweep(){
   const y1 = parseInt(el('chq14-y1').value, 10), y2 = parseInt(el('chq14-y2').value, 10);
-  const ds = ORDER.filter(function(d){ return el('chq14-d-' + d).checked; });   // PR is not a facet
+  const ds = ORDER.filter(function(d){ return el('chq14-d-' + d).checked; });
   if (!y1 || !y2 || !ds.length){ st.msg = 'need both years and at least one designation'; return paint(); }
   const lo = Math.min(y1,y2), hi = Math.max(y1,y2);
   st.msg = 'building queue, checking facets ' + lo + '-' + hi + ' ...'; paint();
-
   const slices = [];
   for (let y = lo; y <= hi; y++){
     let c = null;
@@ -385,7 +378,6 @@ async function buildSweep(){
     st.msg = 'building queue ... ' + y + '  (' + slices.length + ' slices)'; paint();
   }
   if (!slices.length){ st.msg = 'no non-empty slices in that range'; return paint(); }
-
   const lots = slices.reduce(function(a,s){ return a + (s.n || 0); }, 0);
   st = Object.assign(FRESH(), { mode:'sweep', running:true, i:0, slices:slices, expect:1,
         total: slices[0].n || null,
@@ -428,7 +420,7 @@ function paint(){
   el('chq14-slice').textContent = 'cat ' + (P('coin_category')||'-') + '/' + (P('coin_category_child')||'-') +
     '  year ' + (P('us_coin_year')||'ALL') + '  desig ' + (P('coin_designation')||'-') +
     ' -> ' + (curDesig()||'-') + '  color ' + (pickColor(category(), '', curDesig())||'-') +
-    '  proof ' + (proofsIncluded() ? 'on' : 'off');
+    '  PR ' + ((!el('chq14-d-PR') || el('chq14-d-PR').checked) ? 'on' : 'off');
   el('chq14-mode').textContent = 'mode ' + st.mode + ' ' + (st.running ? 'RUNNING' : 'idle') +
     '  page ' + curPage() + '/' + (st.total ? Math.ceil(st.total/PER_PAGE) : '?') +
     '  sold ' + (st.total == null ? '?' : st.total) +
@@ -455,7 +447,7 @@ function buildPanel(){
     'padding:3px 7px;margin:2px 3px 2px 0;cursor:pointer}' +
     '#chq14-panel button:hover{background:#2e343c}' +
     '#chq14-panel label{margin-right:6px;white-space:nowrap}' +
-    '#chq14-panel .prchip{margin-left:6px;padding-left:8px;border-left:1px solid #3a3f47;color:#ffd479}' +
+    '#chq14-panel .sep{color:#4a505a;margin-right:6px}' +
     '#chq14-stats{color:#8ee08e;margin-top:6px}' +
     '#chq14-errs{color:#ff8f8f;margin-top:4px;white-space:pre-wrap;word-break:break-word;max-height:96px;overflow:auto}';
   document.head.appendChild(css);
@@ -479,16 +471,17 @@ function buildPanel(){
     '<div id="chq14-errs"></div>';
   document.body.appendChild(p);
 
-  // Heritage designation facets, then the local PR (proof) include/exclude chip.
+  // The Heritage facet chips build sweep slices; the PR chip is a client-side
+  // strike-type filter (Heritage has no proof designation facet).
   el('chq14-desigs').innerHTML = ORDER.map(function(d){
-    return '<label><input type="checkbox" id="chq14-d-' + d + '" checked>' + d + '</label>';
-  }).join('') +
-    '<label class="prchip" title="include proof lots (local filter, not a Heritage facet)">' +
+      return '<label><input type="checkbox" id="chq14-d-' + d + '" checked>' + d + '</label>';
+    }).join('') +
+    '<span class="sep">|</span>' +
+    '<label title="Include proof and specimen lots (client-side filter, not a Heritage facet)">' +
     '<input type="checkbox" id="chq14-d-PR" checked>PR</label>';
 
   el('chq14-y1').value = P('us_coin_year') || '';
   el('chq14-y2').value = P('us_coin_year') || '';
-
   el('chq14-build').onclick  = buildSweep;
   el('chq14-topup').onclick  = startTopUp;
   el('chq14-dry').onclick    = function(){ onePage(true); };
@@ -510,157 +503,4 @@ function boot(){
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
-})();
-// ==UserScript==
-// @name         Heritage Coin Comp Harvester — HA v1.0
-// @namespace    jdmstrategy.comp-tool
-// @version      1.0.0
-// @description  Harvest Heritage coin sold-lot comps from search results into lots_coins
-// @match        https://coins.ha.com/c/search/results.zx*
-// @grant        none
-// @run-at       document-idle
-// ==/UserScript==
-(function () {
-  'use strict';
-
-  /* ---------- CONFIG ---------- */
-  const SUPABASE_URL = 'https://wqizwluccqqfkedpgvve.supabase.co';
-  const SUPABASE_ANON_KEY = 'PASTE_PUBLISHABLE_ANON_KEY_HERE'; // paste your anon/publishable key; do not commit a secret
-  const RPC = 'ingest_heritage_coin_lot';
-
-  /* ---------- MAPS / NORMALIZERS ---------- */
-  const FACE = {
-    'half cent':'1/2C','large cent':'1C','cent':'1C','two cent':'2C','three cent':'3CS',
-    'half dime':'H10C','dime':'10C','twenty cent':'20C','quarter eagle':'$2.50',
-    'quarter':'25C','half dollar':'50C','gold dollar':'G$1','trade dollar':'$1',
-    'morgan dollar':'$1','peace dollar':'$1','silver dollar':'$1','dollar':'$1',
-    'three dollar':'$3','half eagle':'$5','double eagle':'$20','eagle':'$10',
-    'shilling':'SHILLING','sixpence':'6P','threepence':'3P','twopence':'2P'
-  };
-  function denomFromTitle(title) {
-        const raw = (title || '').trim();
-        // Heritage format is "YEAR TOKEN Description"; the token right after the year is the denomination.
-        const POST_YEAR = {
-                '1/2C':'1/2C','1C':'1C','2C':'2C','3CS':'3CS','3CN':'3CN','5C':'5C','H10C':'H10C','10C':'10C',
-                '20C':'20C','25C':'25C','50C':'50C','$1':'$1','$2.50':'$2.50','$3':'$3','$4':'$4','$5':'$5','$10':'$10','$20':'$20',
-                '1/2P':'1/2P','1P':'1P','2P':'2P','2PENCE':'2P','TWOPENCE':'2P','3P':'3P','THREEPENCE':'3P',
-                '6P':'6P','6PENCE':'6P','SIXPENCE':'6P','SHILLING':'SHILLING','SHILNG':'SHILLING','SHILLNG':'SHILLING',
-                'PENNY':'1P','HALFPENNY':'1/2P','FARTHING':'1/4P','DENIER':'DEN','DEN':'DEN','SOL':'SOL','REAL':'REAL',
-                'ESCUDO':'ESCUDO','COPPER':'COPPER','TOKEN':'TOKEN','MEDAL':'MEDAL'
-        };
-        // grab the first whitespace-delimited token following a 4-digit year (optionally with a mint letter)
-        const ym = raw.match(/\b(?:1[6-9]|20)\d{2}(?:-[A-Za-z0-9]+)?\s+([0-9]*\/?[0-9]*[A-Za-z][A-Za-z0-9.\/]*)/);
-        if (ym) {
-                const tok = ym[1].toUpperCase();
-                if (POST_YEAR[tok]) return POST_YEAR[tok];
-        }
-        // fallback: scan for a denomination word anywhere in the title
-        const t = raw.toLowerCase();
-        let best = null;
-        for (const k of Object.keys(FACE)) if (t.includes(k) && (!best || k.length > best.length)) best = k;
-        return best ? FACE[best] : null;
-  }
-
-  function normGrade(rawIn) {
-    if (!rawIn) return { grade_raw: null, grade_numeric: null, has_plus: false };
-    const raw = rawIn.trim().toUpperCase().replace(/\s+/g, '');
-    const plus = /\+/.test(raw);
-    const nm = raw.match(/(\d{1,2})/);
-    const num = nm ? nm[1] : null;
-    let desc = (raw.match(/^([A-Z]{1,3})/) || [])[1] || '';
-    if (!desc && num) {
-      const n = +num;
-      desc = n >= 60 ? 'MS' : n >= 50 ? 'AU' : n >= 40 ? 'XF' : n >= 20 ? 'VF' : n >= 12 ? 'F' : n >= 8 ? 'VG' : n >= 4 ? 'G' : 'AG';
-    }
-    const grade_raw = num ? (desc + num + (plus ? '+' : '')) : ((desc + (plus ? '+' : '')) || null);
-    return { grade_raw: grade_raw || null, grade_numeric: num ? parseInt(num, 10) : null, has_plus: plus };
-  }
-
-  function mapService(s) {
-    const m = { PCGS:'PCGS', NGC:'NGC', ANACS:'ANACS', CGC:'CGC', CACG:'CACG', CAC:'CACG', ICG:'unknown' };
-    return s ? (m[s] || 'unknown') : '';
-  }
-  function money(s) { if (!s) return null; const n = parseFloat(s.replace(/[^0-9.]/g, '')); return isNaN(n) ? null : n; }
-  function dateISO(s) { if (!s) return null; const d = new Date(s); return isNaN(d) ? null : d.toISOString().slice(0, 10); }
-  function titleCase(s) { return s ? s.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : null; }
-
-  function categoryFromLot(li, lot_url) {
-    const slug = (lot_url.match(/\/itm\/([^/]+)\//) || [])[1];
-    if (slug) return titleCase(slug);
-    const full = (li.innerText || '').replace(/\s+/g, ' ').trim();
-    return (full.match(/»\s*([A-Za-z'&./\- ]+?)(?=\s*(?:\(|\d|No |IN |Small |Large |Pellets|H\.))/) || [])[1] || null;
-  }
-
-  /* ---------- ROW PARSER ---------- */
-  function parseRow(li) {
-    const txt = li.innerText || '';
-    const g = re => { const m = txt.match(re); return m ? m[1].trim() : null; };
-    const titleEl = li.querySelector('a.item-title');
-    const title = titleEl ? titleEl.textContent.trim() : '';
-    const lot_url = titleEl ? titleEl.href : '';
-    const service = g(/SERVICE\s+([A-Z]+)/);
-    const grade = normGrade(g(/GRADE\s+([A-Za-z0-9+]+)/));
-    const denomRaw = (title.match(/(Double Eagle|Half Eagle|Quarter Eagle|Eagle|Gold Dollar|Trade Dollar|Morgan Dollar|Peace Dollar|Silver Dollar|Dollar|Half Dollar|Quarter|Dime|Half Dime|Half Cent|Cent|Shilling|Sixpence|Threepence|Twopence)/i) || [])[1] || null;
-    const yr = (title.match(/\b(1[6-9]\d{2}|20[0-2]\d)\b/) || [])[1];
-    const priceEl = li.querySelector('.bot-price-data') || li.querySelector('.item-value');
-    return {
-      p_source_lot_id: li.id,
-      p_lot_url: lot_url,
-      p_title: title,
-      p_sold_on: dateISO(g(/AUCTION ENDED\s+([A-Za-z]+ \d+, \d{4})/)),
-      p_price_realized: money(priceEl ? priceEl.textContent : null),
-      p_category: categoryFromLot(li, lot_url),
-      p_denomination: denomFromTitle(title),
-      p_denomination_raw: denomRaw,
-      p_grading_company: mapService(service),
-      p_grade_raw: grade.grade_raw,
-      p_grade_numeric: grade.grade_numeric,
-      p_has_cac: /\bCAC\b/.test(txt),
-      p_has_plus: !!grade.has_plus,
-      p_pcgs_number: g(/PCGS#\s*([0-9]+)/) || g(/NGC#\s*([0-9]+)/),
-      p_designation: (title.match(/\b(DCAM|CAM|PL|DMPL|FB|FBL|FS|RD|RB|BN)\b/) || [])[0] || null,
-      p_variety: (title.match(/(Breen-[\w.]+|Noe-[\w.]+|W-[\w.]+|FS-[\w.]+|VP-[\w.]+|Salmon [\w.\-]+)/) || [])[0] || null,
-      p_die_state: null,
-      p_rarity: (title.match(/\bR\.?\s?(\d(?:\.\d)?)\b/) || [])[0] || null,
-      p_auction_event_id: g(/Auction (\d+)/),
-      p_series_year: yr ? parseInt(yr, 10) : null,
-      p_thumbnail_url: li.querySelector('img') ? (li.querySelector('img').src || null) : null,
-      p_raw: { v: 'coin1', service: service, id: li.id, category_slug: (lot_url.match(/\/itm\/([^/]+)\//) || [])[1] || null }
-    };
-  }
-
-  /* ---------- HARVEST ---------- */
-  async function harvest(dryRun) {
-    const rows = Array.from(document.querySelectorAll('li.item-block')).map(parseRow);
-    if (dryRun) {
-      console.log('[CoinHarvester] DRY RUN — parsed', rows.length, 'rows');
-      console.table(rows.map(r => ({ id:r.p_source_lot_id, cat:r.p_category, denom:r.p_denomination, grade:r.p_grade_raw, svc:r.p_grading_company, cac:r.p_has_cac, price:r.p_price_realized, sold:r.p_sold_on })));
-      alert('Dry run: parsed ' + rows.length + ' rows — see console (F12).');
-      return;
-    }
-    let ok = 0, rej = 0; const errs = [];
-    for (const r of rows) {
-      try {
-        const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + RPC, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-          body: JSON.stringify(r)
-        });
-        if (res.ok) { ok++; } else { rej++; errs.push(r.p_source_lot_id + ': ' + (await res.text()).slice(0, 120)); }
-      } catch (e) { rej++; errs.push(r.p_source_lot_id + ': ' + e.message); }
-    }
-    if (errs.length) console.warn('[CoinHarvester] rejects:\n' + errs.join('\n'));
-    alert('Coin harvest: ' + ok + ' ok, ' + rej + ' rejected of ' + rows.length + (errs.length ? '\n(see console for reasons)' : ''));
-  }
-
-  /* ---------- UI ---------- */
-  function addBtn(label, bottom, dry) {
-    const b = document.createElement('button');
-    b.textContent = label;
-    b.style.cssText = 'position:fixed;right:16px;bottom:' + bottom + 'px;z-index:99999;background:' + (dry ? '#555' : '#b8860b') + ';color:#fff;border:0;padding:10px 14px;border-radius:6px;font:600 13px sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)';
-    b.onclick = () => harvest(dry);
-    document.body.appendChild(b);
-  }
-  addBtn('⛏ Harvest Coins (HA)', 16, false);
-  addBtn('🔍 Dry Run', 60, true);
 })();
