@@ -187,7 +187,7 @@ $function$;
 
 GRANT EXECUTE ON FUNCTION public.ingest_heritage_coin_lot(
 text,text,text,date,numeric,text,text,text,text,text,integer,boolean,boolean,
-text,text,text,text,text,text,jsonb,integer,text,text,text,text,text
+text,text,text,text,text,text,jsonb,integer,text,text,text,text,text,text
 ) TO anon, authenticated;
 
 -- One-time backfill for rows ingested before v2.1 (already applied in prod 2026-07-29):
