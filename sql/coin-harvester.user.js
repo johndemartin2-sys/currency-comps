@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Heritage Coin Harvester
 // @namespace    jdmstrategy.coins
-// @version      1.4.6
+// @version      1.4.7
 // @description  Sweep + Top Up harvester for Heritage sold coin lots -> Supabase
 // @match        https://coins.ha.com/c/search/results.zx*
 // @run-at       document-idle
@@ -20,6 +20,11 @@
 //   * New PR chip: unchecking it skips proof and specimen lots. Heritage exposes no
 //     proof facet, so unlike the other chips this filters client-side.
 //   * RPC 'reject:' responses now count as rej instead of err.
+// v1.4.7 (2026-07-29), pairs with RPC v2.2:
+//   * Sends p_ha_category: the numeric Heritage coin_category this page was swept
+//     against, taken from CUR_CAT. lots_coins.category holds Heritage's series name,
+//     which is not one-to-one with a category id, so reconciliation could not tell
+//     Small Cents 3862 from Large Cents 2755 -- both land as denomination '1C'.
 // v1.4.6 (2026-07-29):
 //   * Denomination is now anchored on Heritage's own denomination token instead of
 //     keyword-scanning the whole title. The old scan matched attribution wording:
@@ -237,6 +242,7 @@ function parseRow(li){
     p_sold_on: sold_on,
     p_price_realized: price,
     p_category: cat,
+    p_ha_category: CUR_CAT || null,
     p_denomination: denomTok || (dm ? dm[0] : null),
     p_denomination_raw: denomTok || (dm ? dm[0] : null),
     p_grading_company: mapService(service),
