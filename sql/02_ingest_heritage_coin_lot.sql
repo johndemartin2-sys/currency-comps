@@ -1,4 +1,9 @@
--- 02_ingest_heritage_coin_lot.sql (v2.1)
+-- 02_ingest_heritage_coin_lot.sql (v2.2)
+-- v2.2: adds p_ha_category, the numeric Heritage coin_category the sweep was run
+-- against, stored verbatim on the row. Reconciliation needs the category that was
+-- actually swept: lots_coins.category holds Heritage's series name, which is not
+-- one-to-one with a category id (Small Cents 3862 and Large Cents 2755 are both '1C',
+-- and a single sweep returns several series names), so the id cannot be inferred back.
 -- Heritage coin ingest RPC. Mirrors ingest_heritage_lot (currency) with coin rules:
 -- price_kind 'realized'; grade descriptor REQUIRED, grade_numeric OPTIONAL; no raw.v gate;
 -- denomination = face value; when blank, derived from category (Colonials left NULL); upsert on (source, source_lot_id).
@@ -21,6 +26,16 @@ DROP FUNCTION IF EXISTS public.ingest_heritage_coin_lot(
 text,text,text,date,numeric,text,text,text,text,text,integer,boolean,boolean,
 text,text,text,text,text,text,jsonb,integer,text,text,text,text);
 
+-- Same reason, one version on: drop the v2.1 (26-arg) signature before creating the
+-- 27-arg v2.2, so PostgREST never sees two candidate overloads.
+DROP FUNCTION IF EXISTS public.ingest_heritage_coin_lot(
+text,text,text,date,numeric,text,text,text,text,text,integer,boolean,boolean,
+text,text,text,text,text,text,jsonb,integer,text,text,text,text,text);
+
+ALTER TABLE public.lots_coins ADD COLUMN IF NOT EXISTS ha_category text;
+CREATE INDEX IF NOT EXISTS lots_coins_ha_category_year_idx
+  ON public.lots_coins (ha_category, series_year);
+
 CREATE OR REPLACE FUNCTION public.ingest_heritage_coin_lot(
 p_source_lot_id text, p_lot_url text, p_title text,
 p_sold_on date, p_price_realized numeric,
@@ -35,7 +50,8 @@ p_series_year integer DEFAULT NULL, p_thumbnail_url text DEFAULT NULL,
 p_color text DEFAULT NULL,
 p_strike_designation text DEFAULT NULL,
 p_surface_designation text DEFAULT NULL,
-p_strike_type text DEFAULT NULL
+p_strike_type text DEFAULT NULL,
+p_ha_category text DEFAULT NULL
 ) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
 AS $function$
@@ -133,7 +149,7 @@ category, denomination, denomination_raw, grading_company, grade_raw, grade_nume
 has_cac, has_plus, pcgs_number,
 color, strike_designation, surface_designation, strike_type,
 variety, die_state, rarity,
-auction_event_id, series_year, thumbnail_url, raw, scraped_at, updated_at
+auction_event_id, series_year, thumbnail_url, raw, scraped_at, updated_at, ha_category
 ) VALUES (
 'heritage_auctions', p_source_lot_id, p_lot_url, p_title, p_sold_on, p_price_realized, 'realized',
 p_category, v_denom, NULLIF(p_denomination_raw,''),
@@ -142,12 +158,13 @@ COALESCE(p_has_cac,false), COALESCE(p_has_plus,false),
 NULLIF(p_pcgs_number,''),
 v_color, v_strike, v_surface, v_stype,
 v_variety, NULLIF(p_die_state,''), NULLIF(p_rarity,''),
-p_auction_event_id, p_series_year, NULLIF(p_thumbnail_url,''), p_raw, v_now, v_now
+p_auction_event_id, p_series_year, NULLIF(p_thumbnail_url,''), p_raw, v_now, v_now, NULLIF(p_ha_category,'')
 )
 ON CONFLICT (source, source_lot_id) DO UPDATE SET
 lot_url=EXCLUDED.lot_url, title=EXCLUDED.title, sold_on=EXCLUDED.sold_on,
 price_realized=EXCLUDED.price_realized, price_kind=EXCLUDED.price_kind,
 category=EXCLUDED.category,
+ha_category=COALESCE(EXCLUDED.ha_category, lots_coins.ha_category),
 denomination=COALESCE(EXCLUDED.denomination, lots_coins.denomination),
 denomination_raw=EXCLUDED.denomination_raw,
 grading_company=EXCLUDED.grading_company, grade_raw=EXCLUDED.grade_raw, grade_numeric=EXCLUDED.grade_numeric,
