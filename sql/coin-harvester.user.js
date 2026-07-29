@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Heritage Coin Harvester
 // @namespace    jdmstrategy.coins
-// @version      1.4.4
+// @version      1.4.5
 // @description  Sweep + Top Up harvester for Heritage sold coin lots -> Supabase
 // @match        https://coins.ha.com/c/search/results.zx*
 // @run-at       document-idle
@@ -20,6 +20,18 @@
 //   * New PR chip: unchecking it skips proof and specimen lots. Heritage exposes no
 //     proof facet, so unlike the other chips this filters client-side.
 //   * RPC 'reject:' responses now count as rej instead of err.
+// v1.4.5 (2026-07-29):
+//   * DESIG is now per coin_category. Every category exposes a different designation
+//     set and the facet counts sum exactly to the category total, so any id missing
+//     from the map is silently skipped rather than raising: sweeping dimes on v1.4.4
+//     would have dropped all 43,065 Full Bands lots (29% of the category) while the
+//     panel reported zero rejects the whole way.
+//   * Added FB 2250 (dimes) and 5F 1353 (large cents), each re-verified live against
+//     the category sold count before being trusted.
+//   * Large Cents caveat: its facets sum to 49,591 against a 49,599 category total,
+//     so an 8 lot delta there is Heritage's own arithmetic, not a harvester miss.
+//   * Bare '5F' is NOT an accepted p_strike_designation, so expect
+//     'reject: strike_designation 5F' if the large cent path ever emits it.
 
 (function () {
 'use strict';
@@ -34,10 +46,30 @@ const LS_KEY = 'chq14';
 // which stretched a 50 row page from 6s to 50s. See sleep() below.
 const PER_PAGE = 50, ROW_PAUSE = 0, ROW_WAIT = 20000, POLL_MS = 250;
 
-// verified live: Heritage coin_designation facet values
-const DESIG = { RD:'3596', RB:'3595', BN:'1682', ND:'3172', CA:'1776', DC:'2053', PL:'3416' };
-const BY_CODE = {}; Object.keys(DESIG).forEach(k => BY_CODE[DESIG[k]] = k);
-const ORDER = ['RD','RB','BN','ND','CA','DC','PL'];
+// verified live 2026-07-29: Heritage coin_designation facet ids. Counts sum EXACTLY to
+// the category total, so a designation missing from the active category's list is
+// silently skipped -- lost lots, never an error. Each id below was confirmed by
+// re-querying it against that category's sold count:
+//   dimes 2078: FB 2250 = 43,065, ND 3172 = 95,730   large cents 2755: 5F 1353 = 131
+const DESIG_IDS = { RD:'3596', RB:'3595', BN:'1682', ND:'3172', CA:'1776', DC:'2053',
+                    PL:'3416', FB:'2250', '5F':'1353' };
+const DESIG_BY_CAT = {
+  '3862': ['RD','RB','BN','ND','CA','DC','PL'],   // Small Cents
+  '2755': ['BN','RB','RD','5F','ND'],             // Large Cents
+  '2078': ['FB','ND','DC','CA','PL','BN','RD']    // Dimes
+};
+const DESIG_FALLBACK = ['RD','RB','BN','ND','CA','DC','PL'];
+const CUR_CAT = (function(){
+  try { return new URL(location.href).searchParams.get('coin_category') || ''; }
+  catch (e) { return ''; }
+})();
+if (!DESIG_BY_CAT[CUR_CAT]) console.warn('[harvester] no designation map for ' +
+  'coin_category ' + (CUR_CAT || '(none)') + '; using the small cent set. Verify that ' +
+  'category\'s facets sum to its total before sweeping it.');
+// ORDER drives both the chip row and the facet sweep, so it must be category specific.
+const ORDER = (DESIG_BY_CAT[CUR_CAT] || DESIG_FALLBACK).slice();
+const DESIG = {}; ORDER.forEach(function(k){ DESIG[k] = DESIG_IDS[k]; });
+const BY_CODE = {}; Object.keys(DESIG).forEach(function(k){ BY_CODE[DESIG[k]] = k; });
 
 // MessageChannel is NOT subject to background tab timer clamping
 const sleep = ms => new Promise(function(r){
