@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Heritage Coin Harvester
 // @namespace    jdmstrategy.coins
-// @version      1.4.9
+// @version      1.4.10
 // @description  Sweep + Top Up harvester for Heritage sold coin lots -> Supabase
 // @match        https://coins.ha.com/c/search/results.zx*
 // @run-at       document-idle
@@ -67,12 +67,20 @@ const PER_PAGE = 50, ROW_PAUSE = 0, ROW_WAIT = 20000, POLL_MS = 250;
 // silently skipped -- lost lots, never an error. Each id below was confirmed by
 // re-querying it against that category's sold count:
 //   dimes 2078: FB 2250 = 43,065, ND 3172 = 95,730   large cents 2755: 5F 1353 = 131
+//   colonials 1915: BN 20,573 RB 537 RD 174 CA 5 DC 1 ND 4,881       = 26,171
+//   half cents 2512: BN 19,303 RB 1,307 RD 357 CA 3 ND 6             = 20,976
+//   two+three cents 4148: BN 4,624 RB 4,281 RD 1,810 PL 5 CA 4,469
+//                         DC 452 ND 24,973                           = 40,614
+//   each read live 2026-07-29 and each sums EXACTLY to its category total
 const DESIG_IDS = { RD:'3596', RB:'3595', BN:'1682', ND:'3172', CA:'1776', DC:'2053',
                     PL:'3416', FB:'2250', '5F':'1353' };
 const DESIG_BY_CAT = {
   '3862': ['RD','RB','BN','ND','CA','DC','PL'],   // Small Cents
   '2755': ['BN','RB','RD','5F','ND'],             // Large Cents
-  '2078': ['FB','ND','DC','CA','PL','BN','RD']    // Dimes
+  '2078': ['FB','ND','DC','CA','PL','BN','RD'],    // Dimes
+  '1915': ['BN','RB','RD','CA','DC','ND'],        // Colonials
+  '2512': ['BN','RB','RD','CA','ND'],             // Half Cents
+  '4148': ['BN','RB','RD','PL','CA','DC','ND']    // Two and Three Cents
 };
 const DESIG_FALLBACK = ['RD','RB','BN','ND','CA','DC','PL'];
 const CUR_CAT = (function(){
