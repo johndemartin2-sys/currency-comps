@@ -1,9 +1,14 @@
--- 02_ingest_heritage_coin_lot.sql (v2.2)
+-- 02_ingest_heritage_coin_lot.sql (v2.3)
 -- v2.2: adds p_ha_category, the numeric Heritage coin_category the sweep was run
 -- against, stored verbatim on the row. Reconciliation needs the category that was
 -- actually swept: lots_coins.category holds Heritage's series name, which is not
 -- one-to-one with a category id (Small Cents 3862 and Large Cents 2755 are both '1C',
 -- and a single sweep returns several series names), so the id cannot be inferred back.
+-- v2.3: category fallback for denomination is now pattern-based instead of an exact
+--       IN-list. The IN-list silently missed Heritage series names it had never seen
+--       (notably 'Small Cents', which left 394 rows with a NULL denomination), and it
+--       would miss every future Proof/Sms/Restrike variant. Order matters: half cent,
+--       two cent, twenty cent and three cent are tested before the generic cent rule.
 -- Heritage coin ingest RPC. Mirrors ingest_heritage_lot (currency) with coin rules:
 -- price_kind 'realized'; grade descriptor REQUIRED, grade_numeric OPTIONAL; no raw.v gate;
 -- denomination = face value; when blank, derived from category (Colonials left NULL); upsert on (source, source_lot_id).
@@ -134,11 +139,14 @@ IF v_strike IS NOT NULL AND v_strike NOT IN ('FS','FB','FBL','FH','FT','5FS') TH
 -- Colonials are intentionally left NULL (mixed denominations; parsed from title by the harvester).
 IF v_denom IS NULL THEN
 v_denom := CASE
-WHEN p_category IN ('Half Cents','Proof Half Cents','Proof Braided Hair Half Cents','Proof Classic Head Half Cents') THEN '1/2C'
-WHEN p_category IN ('Large Cents','Proof Large Cents','Flying Eagle Cents','Proof Flying Eagle Cents','Indian Cents','Proof Indian Cents','Lincoln Cents','Proof Lincoln Cents','Sms Lincoln Cents') THEN '1C'
-WHEN p_category IN ('Two Cent Pieces','Proof Two Cent Pieces') THEN '2C'
-WHEN p_category IN ('Three Cent Nickels','Proof Three Cent Nickels') THEN '3CN'
-WHEN p_category IN ('Three Cent Silver','Proof Three Cent Silver') THEN '3CS'
+WHEN p_category ~* 'half cent'         THEN '1/2C'
+WHEN p_category ~* 'two cent'          THEN '2C'
+WHEN p_category ~* 'twenty cent'       THEN '20C'
+WHEN p_category ~* 'three cent nickel' THEN '3CN'
+WHEN p_category ~* 'three cent silver' THEN '3CS'
+WHEN p_category ~* 'three cent'        THEN NULL   -- ambiguous metal, do not guess
+WHEN p_category ~* 'colonial'          THEN NULL   -- mixed denominations
+WHEN p_category ~* '\mcents?\M'        THEN '1C'
 ELSE NULL
 END;
 END IF;
