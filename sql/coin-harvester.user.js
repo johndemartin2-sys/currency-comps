@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Heritage Coin Harvester
 // @namespace    jdmstrategy.coins
-// @version      1.4.7
+// @version      1.4.8
 // @description  Sweep + Top Up harvester for Heritage sold coin lots -> Supabase
 // @match        https://coins.ha.com/c/search/results.zx*
 // @run-at       document-idle
@@ -137,6 +137,27 @@ function category(){
 // Take the FIRST token that is a denomination and stop at the grade, so descriptive
 // wording can never win. Anything with no token falls back to the keyword scan.
 const DENOM_TOKEN = /^(?:1C|2C|3CS|3CN|5C|H10C|10C|20C|25C|50C|1\/2C|G\$1|\$1|\$2\.50|\$3|\$4|\$5|\$10|\$20|\$25|\$50)$/;
+// Colonial / early-American face values sit in the same slot Heritage uses for
+// the federal tokens above, but with their own vocabulary. Normalised to match
+// the SHILLING / 2P / 3P / 6P convention already in lots_coins.denomination.
+const COLONIAL_TOKEN = {
+  '1/2P':'1/2P', 'FARTH':'1/4P', 'PENNY':'1P',
+  'SHILNG':'SHILLING', 'SHILLING':'SHILLING',
+  '2PENCE':'2P', '3PENCE':'3P', '4PENCE':'4P', '6PENCE':'6P',
+  'SOU':'SOU', 'SOL':'SOL', 'LIARD':'LIARD',
+  '1/24RL':'1/24RL', '1/2RL':'1/2RL'
+};
+// Two-token halves, e.g. '1740-P 1/2 SOU M ...' -> 1/2SOU (mirrors the 1/2 C rule).
+const COLONIAL_HALF = { 'P':'1/2P', 'SOU':'1/2SOU', 'SOL':'1/2SOL', 'RL':'1/2RL' };
+function colonialToken(tk, nx){
+  if (COLONIAL_TOKEN[tk]) return COLONIAL_TOKEN[tk];
+  if (tk === '1/2' && COLONIAL_HALF[nx]) return COLONIAL_HALF[nx];
+  if (/^(?:6|9|12|15|24|30)DEN$/.test(tk)) return tk;
+  if (/^(?:5|20)SOL$/.test(tk)) return tk;
+  if (/^\d{1,2}$/.test(tk) && /^DENIERS?$/.test(nx)) return tk + 'DEN';
+  if (/^\d{1,2}$/.test(tk) && /^SOLS?$/.test(nx)) return tk + 'SOL';
+  return null;
+}
 // Letter+number grades (MS64, G4, F12) and holder/adjectival grade words. Tested
 // after DENOM_TOKEN so the gold dollar token G$1 is never read as grade 'G'.
 const GRADE_TOKEN = /^(?:(?:MS|PR|PF|SP|SMS|AU|XF|EF|VF|VG|AG|FR|PO|G|F)-?\d|(?:Good|Fine|Very|Extremely|About|Choice|Gem|Genuine|Proof|Unc|BU|NGC|PCGS|ANACS|Details)$)/i;
@@ -147,8 +168,38 @@ function pickDenom(t){
     if (DENOM_TOKEN.test(tk)) return tk;
     // half cents are written as two tokens: '1793 1/2 C AU50'
     if (tk === '1/2' && (toks[i+1] || '').replace(/[.,;:]+$/, '') === 'C') return '1/2C';
+    // colonial face values occupy the same post-date slot; keep the window tight
+    if (i < 3){
+      const nx = (toks[i+1] || '').replace(/[.,;:]+$/, '').toUpperCase();
+      const cd = colonialToken(tk.toUpperCase(), nx);
+      if (cd) return cd;
+    }
     if (GRADE_TOKEN.test(tk)) break;
   }
+  return null;
+}
+function isColonial(cat){ return /colonial/i.test(String(cat || '')); }
+// Keyword fallback for colonials only, and only over the head of the title
+// (everything before the grade), so description prose can never win.
+function colonialDenom(title, cat){
+  if (!isColonial(cat)) return null;
+  const ut = String(title || '').toUpperCase();
+  const m = /^([\s\S]*?)\s(?:MS|PR|PF|SP|SMS|AU|XF|EF|VF|VG|AG|FR|PO|G|F)-?\d/.exec(ut);
+  const hd = m ? m[1] : ut.trim().split(/\s+/).slice(0, 10).join(' ');
+  if (/HALF SOU|1\/2 ?SOU/.test(hd)) return '1/2SOU';
+  if (/HALF SOL|1\/2 ?SOL/.test(hd)) return '1/2SOL';
+  if (/\bSOUS?\b/.test(hd)) return 'SOU';
+  if (/HALF ?PENNY|HALFPENNY/.test(hd)) return '1/2P';
+  if (/\bPENNY\b/.test(hd)) return '1P';
+  if (/\bFARTHING\b/.test(hd)) return '1/4P';
+  if (/\bSHILLING\b/.test(hd)) return 'SHILLING';
+  if (/\bTWO ?PENCE\b/.test(hd)) return '2P';
+  if (/\bTHREE ?PENCE\b/.test(hd)) return '3P';
+  if (/\bSIX ?PENCE\b/.test(hd)) return '6P';
+  if (/1\/24 (?:PART )?REAL/.test(hd)) return '1/24RL';
+  const dn = /\b(\d{1,2}) DENIERS?\b/.exec(hd);
+  if (dn) return dn[1] + 'DEN';
+  if (/\bLIARD\b/.test(hd)) return 'LIARD';
   return null;
 }
 function isCopper(cat){
@@ -243,8 +294,8 @@ function parseRow(li){
     p_price_realized: price,
     p_category: cat,
     p_ha_category: CUR_CAT || null,
-    p_denomination: denomTok || (dm ? dm[0] : null),
-    p_denomination_raw: denomTok || (dm ? dm[0] : null),
+    p_denomination: denomTok || colonialDenom(title, cat) || (dm ? dm[0] : null),
+    p_denomination_raw: denomTok || colonialDenom(title, cat) || (dm ? dm[0] : null),
     p_grading_company: mapService(service),
     p_grade_raw: grade || null,
     p_grade_numeric: gm ? parseInt(gm[1],10) : null,
