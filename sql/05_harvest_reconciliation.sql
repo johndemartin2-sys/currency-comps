@@ -41,6 +41,34 @@
 
 
 -- -----------------------------------------------------------------------------
+-- VERIFIED HERITAGE coin_category IDS
+--
+--   Read straight off the Coin Category facet on coins.ha.com on 2026-07-29,
+--   with archive_state=5327 + sold_status=1526 applied, and each id then
+--   re-loaded on its own to confirm the facet label came back matching.
+--   Counts are Heritage's own sold totals at that moment.
+--
+--     1915  Colonials              26,171
+--     2512  Half Cents             20,976
+--     2755  Large Cents            49,599
+--     3862  Small Cents           208,903   contains Flying Eagle, Indian and
+--                                           Lincoln cents plus their Proof and
+--                                           Sms variants -- confirmed by seeing
+--                                           all three series in a 3862 result page
+--     4148  Two and Three Cents    40,614   Heritage combines 2C and 3C here;
+--                                           there is no separate id for either
+--     2078  Dimes                 149,676
+--     2513  Half Dimes             28,475
+--     3164  Nickels               154,701
+--     3584  Quarters and Twenty Cents 192,606
+--     2514  Half Dollars          299,766
+--
+--   Do NOT infer these. lots_coins.category holds Heritage's SERIES name, which
+--   is finer than the category facet, so the id cannot be recovered from it
+--   without a table like this one.
+-- -----------------------------------------------------------------------------
+
+-- -----------------------------------------------------------------------------
 -- 1. Expectations: the source site's own claimed result count per slice
 -- -----------------------------------------------------------------------------
 create table if not exists public.harvest_expectations (
