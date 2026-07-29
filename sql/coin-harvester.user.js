@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Heritage Coin Harvester
 // @namespace    jdmstrategy.coins
-// @version      1.4.5
+// @version      1.4.6
 // @description  Sweep + Top Up harvester for Heritage sold coin lots -> Supabase
 // @match        https://coins.ha.com/c/search/results.zx*
 // @run-at       document-idle
@@ -20,6 +20,17 @@
 //   * New PR chip: unchecking it skips proof and specimen lots. Heritage exposes no
 //     proof facet, so unlike the other chips this filters client-side.
 //   * RPC 'reject:' responses now count as rej instead of err.
+// v1.4.6 (2026-07-29):
+//   * Denomination is now anchored on Heritage's own denomination token instead of
+//     keyword-scanning the whole title. The old scan matched attribution wording:
+//     'Eagle Eye Photo Seal' on an Indian cent landed as $10 and 'Flying Eagle' as
+//     $20. 2,117 rows in lots_coins carry a gold denomination while their title's
+//     own token is a minor coin, 1,276 of them from 'eagle eye' alone.
+//   * The keyword scan is kept, but only as a fallback for titles with no token at
+//     all -- mainly colonials, whose denominations are words (SHILNG, FARTH, SOU,
+//     2PENCE, 9DEN, TOKEN) rather than tokens.
+//   * Tokens are stored verbatim, so three cent nickels now land as 3CN rather than
+//     being folded into 3CS, and dimes will land as 10C / H10C.
 // v1.4.5 (2026-07-29):
 //   * DESIG is now per coin_category. Every category exposes a different designation
 //     set and the facet counts sum exactly to the category total, so any id missing
@@ -114,6 +125,27 @@ function category(){
 }
 
 /* ---------- field pickers ---------- */
+// Denomination. Heritage writes the denomination as its own token in the lot title,
+// after the date and after any variety text:
+//   1859 1C MS64 PCGS          1909-S VDB 1C MS65 RD
+//   1793 1/2 C AU50            1918-D 10C MS64 Full Bands
+// Take the FIRST token that is a denomination and stop at the grade, so descriptive
+// wording can never win. Anything with no token falls back to the keyword scan.
+const DENOM_TOKEN = /^(?:1C|2C|3CS|3CN|5C|H10C|10C|20C|25C|50C|1\/2C|G\$1|\$1|\$2\.50|\$3|\$4|\$5|\$10|\$20|\$25|\$50)$/;
+// Letter+number grades (MS64, G4, F12) and holder/adjectival grade words. Tested
+// after DENOM_TOKEN so the gold dollar token G$1 is never read as grade 'G'.
+const GRADE_TOKEN = /^(?:(?:MS|PR|PF|SP|SMS|AU|XF|EF|VF|VG|AG|FR|PO|G|F)-?\d|(?:Good|Fine|Very|Extremely|About|Choice|Gem|Genuine|Proof|Unc|BU|NGC|PCGS|ANACS|Details)$)/i;
+function pickDenom(t){
+  const toks = String(t || '').trim().split(/\s+/);
+  for (let i = 0; i < toks.length && i < 12; i++){
+    const tk = toks[i].replace(/[.,;:]+$/, '');
+    if (DENOM_TOKEN.test(tk)) return tk;
+    // half cents are written as two tokens: '1793 1/2 C AU50'
+    if (tk === '1/2' && (toks[i+1] || '').replace(/[.,;:]+$/, '') === 'C') return '1/2C';
+    if (GRADE_TOKEN.test(tk)) break;
+  }
+  return null;
+}
 function isCopper(cat){
   if (/flying eagle/i.test(cat)) return false;
   return /(cent|two cent|half cent)/i.test(cat);
@@ -196,6 +228,8 @@ function parseRow(li){
   const ym = /\b(1[6-9]\d{2}|20\d{2})\b/.exec(title);
   const vm = /\b(FS-\d{3,4}[A-Za-z]?)\b/.exec(title);
   const img = li.querySelector('img.thumbnail');
+  // Anchored token wins; dm is the old keyword scan, now only a fallback.
+  var denomTok = pickDenom(title);
   return { sold_on: sold_on, title: title, payload: {
     p_source_lot_id: idm[1] + '-' + idm[2],
     p_lot_url: href,
@@ -203,8 +237,8 @@ function parseRow(li){
     p_sold_on: sold_on,
     p_price_realized: price,
     p_category: cat,
-    p_denomination: dm ? dm[0] : null,
-    p_denomination_raw: dm ? dm[0] : null,
+    p_denomination: denomTok || (dm ? dm[0] : null),
+    p_denomination_raw: denomTok || (dm ? dm[0] : null),
     p_grading_company: mapService(service),
     p_grade_raw: grade || null,
     p_grade_numeric: gm ? parseInt(gm[1],10) : null,
