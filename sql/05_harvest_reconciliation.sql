@@ -46,7 +46,7 @@
 create table if not exists public.harvest_expectations (
   id           bigserial   primary key,
   source       text        not null default 'heritage',
-  category     text,                    -- HA coin_category label, e.g. 'Small Cents'
+  category     text,                    -- HA coin_category id, e.g. '3862' (Small Cents)
   denomination text,                    -- normalized denom, e.g. '1C'
   series_year  int         not null,
   ha_desig     text        not null,    -- HA short code: RD RB BN ND CA DC PL
@@ -69,7 +69,7 @@ revoke all on public.harvest_expectations from anon, authenticated;
 -- -----------------------------------------------------------------------------
 insert into public.harvest_expectations
   (source, category, denomination, series_year, ha_desig, expected_n)
-select 'heritage', 'Small Cents', '1C', v.year, v.desig, v.n
+select 'heritage', '3862', '1C', v.year, v.desig, v.n
 from (values
   (1931, 'RD', 1751),
   (1931, 'RB',  937),
@@ -261,6 +261,7 @@ left join landed l
        on l.series_year = e.series_year
       and l.ha_desig    = e.ha_desig
 where e.source       = 'heritage'
+  and e.category     = '3862'
   and e.denomination = '1C';
 
 comment on view public.harvest_reconciliation is
