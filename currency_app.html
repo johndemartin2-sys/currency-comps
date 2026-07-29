@@ -754,8 +754,8 @@ function applyCoinFilters(q) {
 // ── CANONICAL FRIEDBERG KEY (mirrors SQL public.fr_canon / public.fr_base_canon) ──
 function frCanon(s) {
   if (s === null || s === undefined) return null;
-  var t = String(s);
-  t = t.replace(/^\s*(?:Fr|F)\s*\.\s*/i, "");
+  var t = String(s).trim();
+  t = t.replace(/^(?:fr|f)\.?\s*/i, "");
   t = t.replace(/\s+/g, "");
   t = t.replace(/(\d)-(\d)/g, "$1~$2");
   t = t.replace(/-/g, "");
@@ -767,7 +767,7 @@ function frCanon(s) {
 }
 function frBaseCanon(s) {
   if (s === null || s === undefined) return null;
-  var t = String(s).replace(/^\s*(?:Fr|F)\s*\.\s*/i, "").replace(/\s+/g, "");
+  var t = String(s).trim().replace(/^(?:fr|f)\.?\s*/i, "").replace(/\s+/g, "");
   var m = t.match(/^(\d+)/);
   return m ? m[1] : null;
 }
@@ -1150,11 +1150,11 @@ async function ccLoadCensus() {
       if (data && data.length) match = data[0];
     } else if (fr) {
       const _frAllA = (function(){ var e=document.getElementById("frModeAll"); return e?e.checked:true; })();
-      const _frBaseA = fr.replace(/\D/g,"");
-      const _frLetA = (fr.toUpperCase().match(/^\d+[\s-]*([A-Z])/)||[])[1]||null;
-      if ((_frAllA || _frLetA) && _frBaseA) {
-        const { data } = await sb.from("census_summary").select("*").in("census_type",["large","small"]).ilike("lookup_key",_frBaseA+"%").limit(200);
-        const _fam = (data||[]).filter(function(r){ var m=String(r.lookup_key).match(/^\d+/); return m && m[0]===_frBaseA && (!_frLetA || new RegExp("^"+_frBaseA+_frLetA+"(?:$|[^A-Za-z-]|\\*)").test(String(r.lookup_key))); });
+      const _frCA = frCanon(fr);
+      const _frBaseA = frBaseCanon(fr);
+      if ((_frAllA && _frBaseA) || _frCA) {
+        const { data } = await ((_frAllA && _frBaseA) ? sb.from("census_summary").select("*").in("census_type",["large","small"]).eq("fr_base_canon",_frBaseA) : sb.from("census_summary").select("*").in("census_type",["large","small"]).eq("fr_canon",_frCA)).limit(300);
+        const _fam = (data||[]);
         if (_fam.length) {
           var _distA={}, _hasRegA=false, _hasStarA=false;
           var _aggA={census_type:_fam[0].census_type,total_population:0,regular_count:0,star_count:0,graded_count:0,top_grade:0,grade_distribution:_distA,bank_name:null,fed_signature:null,large_note_count:null,small_note_count:null,_filtered:true};
@@ -1179,11 +1179,11 @@ async function ccLoadCensus() {
     if (isNat) { noteTable = "national_currency_census"; ctype = "national"; }
     else if (fr) {
       const _frAllB = (function(){ var e=document.getElementById("frModeAll"); return e?e.checked:true; })();
-      const _frBaseB = fr.replace(/\D/g,"");
-      const _frLetB = (fr.toUpperCase().match(/^\d+[\s-]*([A-Z])/)||[])[1]||null;
-      if ((_frAllB || _frLetB) && _frBaseB) {
-        const { data: sd } = await sb.from("census_summary").select("lookup_key,census_type").in("census_type",["large","small"]).ilike("lookup_key",_frBaseB+"%").limit(200);
-        const _famB = (sd||[]).filter(function(r){ var m=String(r.lookup_key).match(/^\d+/); return m && m[0]===_frBaseB && (!_frLetB || new RegExp("^"+_frBaseB+_frLetB+"(?:$|[^A-Za-z-]|\\*)").test(String(r.lookup_key))); });
+      const _frCB = frCanon(fr);
+      const _frBaseB = frBaseCanon(fr);
+      if ((_frAllB && _frBaseB) || _frCB) {
+        const { data: sd } = await ((_frAllB && _frBaseB) ? sb.from("census_summary").select("lookup_key,census_type").in("census_type",["large","small"]).eq("fr_base_canon",_frBaseB) : sb.from("census_summary").select("lookup_key,census_type").in("census_type",["large","small"]).eq("fr_canon",_frCB)).limit(300);
+        const _famB = (sd||[]);
         if (_famB.length) { ctype = _famB[0].census_type; noteTable = ctype === "small" ? "small_currency_census" : "large_currency_census"; frFamilyKeys = _famB.map(function(r){return r.lookup_key;}); }
       } else {
         const { data: sd } = await sb.from("census_summary").select("census_type").in("census_type",["large","small"]).eq("lookup_key",fr).limit(1);
