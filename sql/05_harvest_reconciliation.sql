@@ -46,7 +46,8 @@
 create table if not exists public.harvest_expectations (
   id           bigserial   primary key,
   source       text        not null default 'heritage',
-  category     text,                    -- HA coin_category id, e.g. '3862' (Small Cents)
+  category     text,                    -- HA coin_category id, e.g. '3862' (Small Cents),
+                                        -- or a Heritage series name, e.g. 'Lincoln Cents'.
   denomination text,                    -- normalized denom, e.g. '1C'
   series_year  int         not null,
   ha_desig     text        not null,    -- HA short code: RD RB BN ND CA DC PL
@@ -235,37 +236,52 @@ drop view if exists public.harvest_reconciliation;
 create view public.harvest_reconciliation as
 with landed as (
   select
+    c.ha_category,
+    c.category,
+    c.denomination,
     c.series_year,
     case
-      when c.surface_designation = 'CAM'  then 'CA'
-      when c.surface_designation = 'DCAM' then 'DC'
-      when c.surface_designation = 'PL'   then 'PL'
-      when c.color in ('RD', 'RB', 'BN')  then c.color
+      -- strike designations are tested first: they are the headline HA facet for
+      -- the series that have them (dimes FB, large cents 5F) and never co-occur
+      -- with a colour, which only copper carries.
+      when c.strike_designation in ('FB','FBL','FT','FH','FS') then c.strike_designation
+      when c.strike_designation in ('5FS','5F')                then '5F'
+      when c.surface_designation = 'CAM'                       then 'CA'
+      when c.surface_designation = 'DCAM'                      then 'DC'
+      when c.surface_designation = 'PL'                        then 'PL'
+      when c.color in ('RD', 'RB', 'BN')                       then c.color
       else 'ND'
     end as ha_desig,
     count(*)          as landed_n,
     max(c.scraped_at) as last_scraped_at
   from public.lots_coins c
-  where c.denomination = '1C'
-  group by 1, 2
+  group by 1, 2, 3, 4, 5
 )
 select
+  e.category,
+  e.denomination,
   e.series_year,
   e.ha_desig,
   e.expected_n,
-  coalesce(l.landed_n, 0)                as landed_n,
-  coalesce(l.landed_n, 0) - e.expected_n as delta,
-  l.last_scraped_at
+  coalesce(sum(l.landed_n), 0)                as landed_n,
+  coalesce(sum(l.landed_n), 0) - e.expected_n as delta,
+  max(l.last_scraped_at)                      as last_scraped_at
 from public.harvest_expectations e
 left join landed l
-       on l.series_year = e.series_year
-      and l.ha_desig    = e.ha_desig
-where e.source       = 'heritage'
-  and e.category     = '3862'
-  and e.denomination = '1C';
+       on l.series_year   = e.series_year
+      and l.ha_desig      = e.ha_desig
+      and l.denomination  = e.denomination
+      -- an expectation keyed on a numeric HA category id reconciles against the
+      -- category the sweep actually ran (lots_coins.ha_category); one keyed on a
+      -- Heritage series name reconciles against the series name on the row. That
+      -- lets pre-ha_category rows be checked without inventing an id for them.
+      and (case when e.category ~ '^[0-9]+$' then l.ha_category else l.category end)
+          = e.category
+where e.source = 'heritage'
+group by e.category, e.denomination, e.series_year, e.ha_desig, e.expected_n;
 
 comment on view public.harvest_reconciliation is
-  'Per-slice expected vs landed. DIAGNOSTIC ONLY: the landed-side bucket is inferred from color/surface_designation, so rejected or absent surface codes shift lots between buckets. Use harvest_reconciliation_by_year to decide whether to re-sweep; use this view to work out why.';
+  'Per-slice expected vs landed, keyed on each expectation row''s own category and denomination. DIAGNOSTIC ONLY: the landed-side bucket is inferred from strike_designation/surface_designation/color, so rejected or absent codes shift lots between buckets. Use harvest_reconciliation_by_year to decide whether to re-sweep; use this view to work out why.';
 
 
 -- -----------------------------------------------------------------------------
@@ -280,6 +296,8 @@ comment on view public.harvest_reconciliation is
 -- -----------------------------------------------------------------------------
 create view public.harvest_reconciliation_by_year as
 select
+  r.category,
+  r.denomination,
   r.series_year,
   sum(r.expected_n)                    as expected_n,
   sum(r.landed_n)                      as landed_n,
@@ -294,10 +312,10 @@ select
   end                                  as status,
   max(r.last_scraped_at)               as last_scraped_at
 from public.harvest_reconciliation r
-group by r.series_year;
+group by r.category, r.denomination, r.series_year;
 
 comment on view public.harvest_reconciliation_by_year is
-  'Per-year harvest completeness. Act on status: short = real gap, re-sweep that year; pending = sweep has not reached it; near/ok = done. Year totals are trustworthy because they do not depend on inferring the HA facet bucket.';
+  'Per-category, per-denomination, per-year harvest completeness. Act on status: short = real gap, re-sweep that slice; pending = sweep has not reached it; near/ok = done. Year totals are trustworthy because they do not depend on inferring the HA facet bucket.';
 
 
 -- -----------------------------------------------------------------------------
