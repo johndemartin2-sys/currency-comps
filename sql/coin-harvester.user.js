@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Heritage Coin Harvester
 // @namespace    jdmstrategy.coins
-// @version      1.4.10
+// @version      1.4.11
 // @description  Sweep + Top Up harvester for Heritage sold coin lots -> Supabase
 // @match        https://coins.ha.com/c/search/results.zx*
 // @run-at       document-idle
@@ -145,6 +145,10 @@ function category(){
 // Take the FIRST token that is a denomination and stop at the grade, so descriptive
 // wording can never win. Anything with no token falls back to the keyword scan.
 const DENOM_TOKEN = /^(?:1C|2C|3CS|3CN|5C|H10C|10C|20C|25C|50C|1\/2C|G\$1|\$1|\$2\.50|\$3|\$4|\$5|\$10|\$20|\$25|\$50)$/;
+// Heritage also writes half cents as H1C and half-cent patterns as E1/2C, and it
+// glues holder notes onto the token with a double dash ('1/2 C--Scratched--ANACS').
+// Both are normalised to the canonical token before the main test runs.
+const DENOM_ALIAS = { 'H1C':'1/2C', 'E1/2C':'1/2C' };
 // Colonial / early-American face values sit in the same slot Heritage uses for
 // the federal tokens above, but with their own vocabulary. Normalised to match
 // the SHILLING / 2P / 3P / 6P convention already in lots_coins.denomination.
@@ -170,15 +174,17 @@ function colonialToken(tk, nx){
 // after DENOM_TOKEN so the gold dollar token G$1 is never read as grade 'G'.
 const GRADE_TOKEN = /^(?:(?:MS|PR|PF|SP|SMS|AU|XF|EF|VF|VG|AG|FR|PO|G|F)-?\d|(?:Good|Fine|Very|Extremely|About|Choice|Gem|Genuine|Proof|Unc|BU|NGC|PCGS|ANACS|Details)$)/i;
 function pickDenom(t){
-  const toks = String(t || '').trim().split(/\s+/);
+  const toks = String(t || '').replace(/[<>]/g, ' ').trim().split(/\s+/);
   for (let i = 0; i < toks.length && i < 12; i++){
-    const tk = toks[i].replace(/[.,;:]+$/, '');
+    const tk = toks[i].split('--')[0].replace(/[.,;:]+$/, '');
+    // Heritage half-cent and pattern spellings resolve straight to the canonical token
+    if (DENOM_ALIAS[tk.toUpperCase()]) return DENOM_ALIAS[tk.toUpperCase()];
     if (DENOM_TOKEN.test(tk)) return tk;
     // half cents are written as two tokens: '1793 1/2 C AU50'
-    if (tk === '1/2' && (toks[i+1] || '').replace(/[.,;:]+$/, '') === 'C') return '1/2C';
+    if (tk === '1/2' && (toks[i+1] || '').split('--')[0].replace(/[.,;:]+$/, '') === 'C') return '1/2C';
     // colonial face values occupy the same post-date slot; keep the window tight
     if (i < 3){
-      const nx = (toks[i+1] || '').replace(/[.,;:]+$/, '').toUpperCase();
+      const nx = (toks[i+1] || '').split('--')[0].replace(/[.,;:]+$/, '').toUpperCase();
       const cd = colonialToken(tk.toUpperCase(), nx);
       if (cd) return cd;
     }
