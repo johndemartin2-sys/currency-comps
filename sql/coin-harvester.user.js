@@ -1,17 +1,20 @@
 // ==UserScript==
 // @name         Heritage Coin Harvester
 // @namespace    jdmstrategy.coins
-// @version      1.4.11
+// @version      1.4.12
 // @description  Sweep + Top Up harvester for Heritage sold coin lots -> Supabase
 // @match        https://coins.ha.com/c/search/results.zx*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 
+// v1.4.12 (2026-08-03): restored a VERSION constant so the panel header and p_raw stamp track the
+//     real version. In 1.4.11 both were hardcoded to '1.4.4' despite @version 1.4.11. Keeps 1.4.11's
+//     half-cent token aliases (DENOM_ALIAS) and holder-note '--' trimming.
 // v1.4.4 (2026-07-29), pairs with RPC v2.1:
 //   * Strike TYPE and strike DESIGNATION are now separate fields.
 //     pickStrikeType()  -> p_strike_type ('PROOF' | 'SPECIMEN' | 'BUSINESS')
-//     pickStrikeDesig() -> p_strike_designation (FB/FBL/FH/FT/5FS only; bare 'FS' on a
+//     pickStrikeDesig() -> p_strike_designation (FB/FBL/FH/FT/5FS ohnly; bare 'FS' on a
 //     cent is a Fivaz-Stanton variety number, never Full Steps, so it is never sent).
 //     v1.4.3 sent 'PR' as p_strike_designation, which the RPC rejected, so every proof
 //     lot 400'd and was silently lost (1,248 in one sweep).
@@ -51,6 +54,7 @@
 
 (function () {
 'use strict';
+const VERSION = '1.4.12';
 
 const SB_URL  = 'https://wqizwluccqqfkedpgvve.supabase.co';
 // Paste your Supabase publishable key here after installing. Do NOT commit a live key.
@@ -340,7 +344,7 @@ function parseRow(li){
     p_rarity: null,
     p_auction_event_id: idm[1],
     p_raw: { src:'ha', title: title, url: href, service: service, grade: grade,
-             sold: pTxt, desig: d, page: curPage(), cat: cat, v:'1.4.4' },
+             sold: pTxt, desig: d, page: curPage(), cat: cat, v: VERSION },
     p_series_year: ym ? parseInt(ym[1],10) : null,
     p_thumbnail_url: img ? img.src : null,
     p_color: pickColor(cat, title, d),
@@ -610,7 +614,7 @@ function buildPanel(){
   const p = document.createElement('div');
   p.id = 'chq14-panel';
   p.innerHTML =
-    '<div class="hd">Coin Harvester v1.4.4</div>' +
+    '<div class="hd">Coin Harvester v' + VERSION + '</div>' +
     '<div class="ln" id="chq14-slice"></div>' +
     '<div class="ln" id="chq14-mode"></div>' +
     '<div id="chq14-msg"></div>' +
