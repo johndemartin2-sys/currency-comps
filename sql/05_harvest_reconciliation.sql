@@ -335,25 +335,45 @@ comment on view public.harvest_reconciliation is
 --      pending      <  10% of expected      sweep has not reached it yet
 --      short        everything else         REAL GAP -- re-sweep this year
 -- -----------------------------------------------------------------------------
+-- landed_n is a TRUE per-year count(*) from lots_coins (act CTE + left join), not
+-- sum(r.landed_n): summing per-designation buckets dropped lots with null/unbucketed
+-- designations and threw false near/not_started flags. Matches the live view (2026-08-03).
 create view public.harvest_reconciliation_by_year as
+with exp as (
+  select
+    r.category,
+    r.denomination,
+    r.series_year,
+    sum(r.expected_n)                    as expected_n,
+    max(r.last_scraped_at)               as last_scraped_at
+  from public.harvest_reconciliation r
+  group by r.category, r.denomination, r.series_year
+), act as (
+  select
+    lc.ha_category as category,
+    lc.series_year,
+    count(*)::numeric as landed_n
+  from public.lots_coins lc
+  group by lc.ha_category, lc.series_year
+)
 select
-  r.category,
-  r.denomination,
-  r.series_year,
-  sum(r.expected_n)                    as expected_n,
-  sum(r.landed_n)                      as landed_n,
-  sum(r.landed_n) - sum(r.expected_n)  as delta,
-  round(100.0 * sum(r.landed_n) / nullif(sum(r.expected_n), 0), 1) as pct,
+  e.category,
+  e.denomination,
+  e.series_year,
+  e.expected_n,
+  coalesce(a.landed_n, 0::numeric)                                  as landed_n,
+  coalesce(a.landed_n, 0::numeric) - e.expected_n::numeric          as delta,
+  round(100.0 * coalesce(a.landed_n, 0::numeric) / nullif(e.expected_n, 0)::numeric, 1) as pct,
   case
-    when sum(r.landed_n) = 0                                     then 'not_started'
-    when sum(r.landed_n) >= sum(r.expected_n)                    then 'ok'
-    when sum(r.landed_n)::numeric / nullif(sum(r.expected_n),0) >= 0.98 then 'near'
-    when sum(r.landed_n)::numeric / nullif(sum(r.expected_n),0) <  0.10 then 'pending'
-    else 'short'
-  end                                  as status,
-  max(r.last_scraped_at)               as last_scraped_at
-from public.harvest_reconciliation r
-group by r.category, r.denomination, r.series_year;
+    when coalesce(a.landed_n, 0::numeric) >= e.expected_n::numeric then 'ok'::text
+    when coalesce(a.landed_n, 0::numeric) = 0::numeric then 'not_started'::text
+    when (coalesce(a.landed_n, 0::numeric) / nullif(e.expected_n, 0)::numeric) >= 0.98 then 'near'::text
+    when (coalesce(a.landed_n, 0::numeric) / nullif(e.expected_n, 0)::numeric) < 0.10 then 'pending'::text
+    else 'short'::text
+  end                                                              as status,
+  e.last_scraped_at
+from exp e
+  left join act a on a.category = e.category and a.series_year = e.series_year;
 
 comment on view public.harvest_reconciliation_by_year is
   'Per-category, per-denomination, per-year harvest completeness. Act on status: short = real gap, re-sweep that slice; pending = sweep has not reached it; near/ok = done. Year totals are trustworthy because they do not depend on inferring the HA facet bucket.';
