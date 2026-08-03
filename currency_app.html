@@ -701,7 +701,7 @@ async function runQuery() {
 
   try {
     let _u=null; try{const {data:{session:_s}}=await sb.auth.getSession(); _u=_s?_s.user:null;}catch(_e){_u=null;} if(_u){let _ok=false,_ee=false; async function _chk(){try{if(MODE==="coins"){const {data:_ent,error:_er}=await sb.rpc("has_entitlement",{p_product:"coins"});if(_er)throw _er;_ok=(_ent===true);}else{const {data:_prof,error:_er}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single();if(_er)throw _er;_ok=!!(_prof&&_prof.subscription_status==="active");}return true;}catch(_e){_ee=true;return false;}} let _ck1=await _chk(); if(!_ck1){await new Promise(function(r){setTimeout(r,600);}); _ee=false; await _chk();} window.ccHasAccess=_ok;if(!_ok&&!_ee){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fDenom","fService","fQual","fGradeMin","fGradeMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
-    q = applyFilters(q);
+    q = await applyFilters(q);
     q = q.order(sortCol, { ascending: sortAsc, nullsFirst: false });
     q = q.range(page * PER, (page + 1) * PER - 1);
 
@@ -726,10 +726,10 @@ async function runQuery() {
 }
 
 // ── APPLY COIN FILTERS ──
-function applyCoinFilters(q) {
+async function applyCoinFilters(q) {
   const v = id => (document.getElementById(id)?.value || "").trim();
   const title = v("fTitle");
-  if (title) title.split(/\s+/).filter(Boolean).forEach(function(term){ q = q.ilike("title", `%${term}%`); });
+  if (title) { const { data: _fz } = await sb.rpc("search_lots_fuzzy", { p_query: title, p_category: "coins", p_limit: 500, p_threshold: 0.3 }); q = q.in("id", (_fz || []).map(function(r){ return r.id; })); }
   const den = v("fCoinDenom"); if (den) q = q.ilike("denomination_raw", `%${den}%`);
   const yr = v("fYear");
   if (yr) {
@@ -771,7 +771,7 @@ function frBaseCanon(s) {
   var m = t.match(/^(\d+)/);
   return m ? m[1] : null;
 }
-function applyFilters(q) {
+async function applyFilters(q) {
   if (MODE === "coins") return applyCoinFilters(q);
   q = q.in("data_quality", DQ_FILTER);
   const incIncomplete = document.getElementById("incIncomplete") ? document.getElementById("incIncomplete").checked : false;
@@ -782,7 +782,7 @@ function applyFilters(q) {
   if (src) q = q.eq("source", src);
 
   const title = v("fTitle");
-  if (title) title.split(/\s+/).filter(Boolean).forEach(function(term){ q = q.ilike("title", `%${term}%`); });
+  if (title) { const { data: _fz } = await sb.rpc("search_lots_fuzzy", { p_query: title, p_category: "currency", p_limit: 500, p_threshold: 0.3 }); q = q.in("id", (_fz || []).map(function(r){ return r.id; })); }
 
   const fr = v("fFr");
   if (fr) {
@@ -921,7 +921,7 @@ async function suggestRelax() {
     let count = 0;
     try {
       let q = sb.from(TABLE).select("*", { count: "exact", head: true });
-      q = applyFilters(q);
+      q = await applyFilters(q);
       const res = await q;
       count = res.count || 0;
     } catch (e) { count = 0; }
@@ -1073,7 +1073,7 @@ async function computeEstimate() {
 
   try {
     let q = sb.from(TABLE).select("price_realized,sold_on");
-    q = applyFilters(q);
+    q = await applyFilters(q);
     q = q.not("price_realized", "is", null)
          .gt("price_realized", 0)
          .order("sold_on", { ascending: false })
