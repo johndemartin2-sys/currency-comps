@@ -794,6 +794,7 @@ async function applyFilters(q) {
     } else if (frC) {
       q = q.eq("fr_canon", frC);
     }
+    return q;
   }
 
   const yr = v("fYear");
