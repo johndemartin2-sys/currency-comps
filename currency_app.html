@@ -701,7 +701,7 @@ async function runQuery() {
 
   try {
     let _u=null; try{const {data:{session:_s}}=await sb.auth.getSession(); _u=_s?_s.user:null;}catch(_e){_u=null;} if(_u){let _ok=false,_ee=false; async function _chk(){try{if(MODE==="coins"){const {data:_ent,error:_er}=await sb.rpc("has_entitlement",{p_product:"coins"});if(_er)throw _er;_ok=(_ent===true);}else{const {data:_prof,error:_er}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single();if(_er)throw _er;_ok=!!(_prof&&_prof.subscription_status==="active");}return true;}catch(_e){_ee=true;return false;}} let _ck1=await _chk(); if(!_ck1){await new Promise(function(r){setTimeout(r,600);}); _ee=false; await _chk();} window.ccHasAccess=_ok;if(!_ok&&!_ee){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fDenom","fService","fQual","fGradeMin","fGradeMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
-    q = await applyFilters(q);
+    q = (await applyFilters(q)).q;
     q = q.order(sortCol, { ascending: sortAsc, nullsFirst: false });
     q = q.range(page * PER, (page + 1) * PER - 1);
 
@@ -747,7 +747,7 @@ async function applyCoinFilters(q) {
   if (document.getElementById("fCac")?.checked) q = q.eq("has_cac", true);
   if (document.getElementById("fPlus")?.checked) q = q.eq("has_plus", true);
   if (activeSeries) q = q.eq("category", activeSeries);
-  return q;
+  return { q };
 }
 
 // ── APPLY FILTERS ──
@@ -794,7 +794,6 @@ async function applyFilters(q) {
     } else if (frC) {
       q = q.eq("fr_canon", frC);
     }
-    return q;
   }
 
   const yr = v("fYear");
@@ -843,7 +842,7 @@ async function applyFilters(q) {
   const ch = v("fCharter");
   if (ch) q = q.eq("charter_number", ch);
 
-  return q;
+  return { q };
 }
 
 // ── ZERO-RESULT UX HELPERS (search suggestions) ──
@@ -922,7 +921,7 @@ async function suggestRelax() {
     let count = 0;
     try {
       let q = sb.from(TABLE).select("*", { count: "exact", head: true });
-      q = await applyFilters(q);
+      q = (await applyFilters(q)).q;
       const res = await q;
       count = res.count || 0;
     } catch (e) { count = 0; }
@@ -1074,7 +1073,7 @@ async function computeEstimate() {
 
   try {
     let q = sb.from(TABLE).select("price_realized,sold_on");
-    q = await applyFilters(q);
+    q = (await applyFilters(q)).q;
     q = q.not("price_realized", "is", null)
          .gt("price_realized", 0)
          .order("sold_on", { ascending: false })
