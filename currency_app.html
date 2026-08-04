@@ -725,11 +725,31 @@ async function runQuery() {
   }
 }
 
+// ── TITLE MATCHING ───────────────────────────────────────────────────────
+// Split the typed phrase into words and require EVERY word to appear somewhere
+// in the title, in ANY order (partial words are fine). Runs against the GIN
+// trigram index on title, so results are complete (no 200-row cap) and the
+// "Matching" count stays exact.
+function titleTokens(s) {
+  const seen = {}, out = [];
+  String(s || "").toLowerCase().replace(/[%()"'\\]/g, " ").split(/\s+/).forEach(function (w) {
+    const t = w.replace(/^[.,;:!?-]+|[.,;:!?-]+$/g, "");
+    if (t.length >= 2 && /[a-z0-9]/.test(t) && !seen[t]) { seen[t] = 1; out.push(t); }
+  });
+  return out.slice(0, 8);
+}
+function applyTitleTokens(q, s) {
+  const toks = titleTokens(s);
+  if (!toks.length) { const raw = String(s || "").trim(); return raw ? q.ilike("title", "%" + raw + "%") : q; }
+  for (let i = 0; i < toks.length; i++) q = q.ilike("title", "%" + toks[i] + "%");
+  return q;
+}
+
 // ── APPLY COIN FILTERS ──
 async function applyCoinFilters(q) {
   const v = id => (document.getElementById(id)?.value || "").trim();
   const title = v("fTitle");
-  if (title) { const { data: _fz } = await sb.rpc("search_lots_fuzzy", { p_query: title, p_category: "coins", p_limit: 500, p_threshold: 0.3 }); q = q.in("id", (_fz || []).map(function(r){ return r.id; })); }
+  if (title) q = applyTitleTokens(q, title);
   const den = v("fCoinDenom"); if (den) q = q.ilike("denomination_raw", `%${den}%`);
   const yr = v("fYear");
   if (yr) {
@@ -782,7 +802,7 @@ async function applyFilters(q) {
   if (src) q = q.eq("source", src);
 
   const title = v("fTitle");
-  if (title) { const { data: _fz } = await sb.rpc("search_lots_fuzzy", { p_query: title, p_category: "currency", p_limit: 500, p_threshold: 0.3 }); q = q.in("id", (_fz || []).map(function(r){ return r.id; })); }
+  if (title) q = applyTitleTokens(q, title);
 
   const fr = v("fFr");
   if (fr) {
@@ -870,11 +890,20 @@ async function maybeSuggestTitle() {
   const fixes = [];
   for (const term of terms) {
     try {
-      const { data, error } = await sb.rpc("suggest_title_terms", { p_term: term, p_limit: 1 });
-      if (!error && data && data.length && data[0].suggestion &&
-          data[0].suggestion.toLowerCase() !== term.toLowerCase()) {
-        fixes.push({ from: term, to: data[0].suggestion });
-      }
+      const { data, error } = await sb.rpc("suggest_title_terms", { p_term: term, p_limit: 5 });
+      const list = error ? [] : (data || []);
+      // If the word itself is in the index it is spelled fine - never "correct" it.
+      const exact = list.some(function (r) {
+        return r && r.suggestion && r.suggestion.toLowerCase() === term.toLowerCase();
+      });
+      // Only trust a correction that looks like a real typo of what was typed:
+      // similar length plus a decent score. Blocks nonsense like "hawiai" -> "hai".
+      const cand = exact ? null : list.find(function (r) {
+        return r && r.suggestion &&
+               Math.abs(r.suggestion.length - term.length) <= 2 &&
+               (r.score || 0) >= 0.4;
+      });
+      if (cand) fixes.push({ from: term, to: cand.suggestion });
     } catch (e) { /* RPC missing or offline -> silently skip */ }
   }
   if (!fixes.length) return false;
@@ -883,6 +912,22 @@ async function maybeSuggestTitle() {
     const f = fixes.find(function (x) { return x.from.toLowerCase() === term.toLowerCase(); });
     return f ? f.to : term;
   }).join(" ");
+  // Nothing matched the typed words, but every word has a close real-world
+  // spelling — retry once automatically instead of making the user click.
+  if (!window.__ccFixing && corrected.toLowerCase() !== raw.toLowerCase()) {
+    window.__ccFixing = true;
+    titleEl.value = corrected;
+    try { await doSearch(); } finally { window.__ccFixing = false; }
+    if (totalMatching > 0) {
+      const _tb = document.getElementById("tbody");
+      if (_tb) _tb.insertAdjacentHTML("afterbegin",
+        '<tr class="empty-row"><td colspan="11">Showing results for \u201c' + esc(corrected) +
+        '\u201d \u2014 no exact matches for \u201c' + esc(raw) + '\u201d.</td></tr>');
+    } else {
+      titleEl.value = raw;
+    }
+    return true;
+  }
 
   const tbody = document.getElementById("tbody");
   tbody.innerHTML =
