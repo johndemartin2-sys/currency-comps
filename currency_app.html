@@ -602,39 +602,19 @@ async function loadSeriesTypes() {
   // Refresh counts in the BACKGROUND (not awaited) so chips never block load.
   (async () => {
     try {
-      // Walk distinct series_type values via keyset pagination so ALL categories
-      // are discovered (a flat .limit() only sees a partial slice of the table).
-      const set = new Set();
-      let last = null;
-      for (let i = 0; i < 200; i++) {
-        let q = sb
-          .from(TABLE)
-          .select("series_canonical")
-          .in("data_quality", DQ_FILTER).eq("search_visible", true)
-          .not("series_canonical", "is", null)
-          .order("series_canonical", { ascending: true })
-          .limit(1);
-        if (last !== null) { q = q.gt("series_canonical", last); }
-        const { data, error } = await q;
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        last = data[0].series_canonical;
-        const v = (last || "").trim();
-        if (v && !STATE_SLUGS.has(v.toLowerCase())) set.add(v);
-      }
-      // Count each category, hide excluded ones and any below the threshold.
-      const withCounts = [];
-      for (const v of set) {
-        if (HIDDEN_SERIES.has(v)) continue;
-        const { count } = await sb
-          .from(TABLE)
-          .select("*", { count: "exact", head: true })
-          .in("data_quality", DQ_FILTER).eq("search_visible", true)
-          .eq("series_canonical", v);
-        if ((count || 0) >= MIN_CHIP_COUNT) withCounts.push([v, count]);
-      }
-      withCounts.sort((a, b) => b[1] - a[1]); // most common first
-      const fresh = withCounts.map(e => e[0]);
+      // Read the precomputed counts table in ONE request. Replaces the old
+      // keyset walk plus one exact-count HEAD request per category, which
+      // returned 503 against lots_currency_resolved on every page load.
+      // Server-side refresh: select public.refresh_currency_series_counts();
+      const { data, error } = await sb
+        .from("currency_series_counts")
+        .select("series_canonical,n")
+        .gte("n", MIN_CHIP_COUNT || 1)
+        .order("n", { ascending: false });   // most common first
+      if (error) throw error;
+      const fresh = (data || [])
+        .map(r => (r.series_canonical || "").trim())
+        .filter(v => v && !HIDDEN_SERIES.has(v) && !STATE_SLUGS.has(v.toLowerCase()));
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), v: fresh })); } catch(e) {}
       if (JSON.stringify(fresh) !== JSON.stringify(seriesTypes)) {
         seriesTypes = fresh;
