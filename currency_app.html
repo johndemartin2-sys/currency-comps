@@ -785,6 +785,7 @@ async function applyFilters(q) {
   if (title) q = applyTitleTokens(q, title);
 
   const fr = v("fFr");
+  const frStarSuffix = /[*★]\s*$/.test(fr || "");
   if (fr) {
     const frAll = document.getElementById("frModeAll") ? document.getElementById("frModeAll").checked : true;
     const frC = frCanon(fr);
@@ -831,7 +832,7 @@ async function applyFilters(q) {
   if (dFrom) q = q.gte("sold_on", dFrom);
   if (dTo) q = q.lte("sold_on", dTo);
 
-  if (document.getElementById("fStar").checked)
+  if (document.getElementById("fStar").checked || frStarSuffix)
     q = q.eq("is_star_note", true);
 
   if (activeSeries) q = q.eq("series_canonical", activeSeries);
