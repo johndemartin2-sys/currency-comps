@@ -692,6 +692,13 @@ async function runQuery() {
     totalMatching = count || 0;
       try { if (window.ccUpdatePaywall) window.ccUpdatePaywall(rows.length); } catch(e){}
     document.getElementById("matchCount").textContent = fmt(totalMatching);
+    if (totalMatching === 0 && window.__frWarn && window.__frWarn.frB) {
+      try {
+        const _w = window.__frWarn;
+        const _bc = await sb.from(TABLE).select("*", { count: "exact", head: true }).eq("fr_base_canon", _w.frB);
+        window.__frWarnMsg = 'No results for Fr. ' + _w.frC + '. The base Friedberg number ' + _w.frB + ' has ' + fmt(_bc.count || 0) + ' result' + ((_bc.count||0)===1?'':'s') + ' across all variants — clear the suffix or check "All variants" to see them.';
+      } catch (e) { window.__frWarnMsg = null; }
+    } else { window.__frWarnMsg = null; }
 
     renderTable();
     renderPager();
@@ -787,10 +794,16 @@ async function applyFilters(q) {
   const fr = v("fFr");
   const frStarSuffix = /[*★]\s*$/.test(fr || "");
   if (fr) {
-    const frAll = document.getElementById("frModeAll") ? document.getElementById("frModeAll").checked : true;
     const frC = frCanon(fr);
     const frB = frBaseCanon(fr);
-    if (frAll && frB) {
+    const hasSuffix = !!(frC && frB && frC !== frB);
+    const frAll = document.getElementById("frModeAll") ? document.getElementById("frModeAll").checked : true;
+    window.__frWarn = null;
+    if (hasSuffix && frC) {
+      // A specific suffix was typed: always match it exactly, ignore "All variants".
+      q = q.eq("fr_canon", frC);
+      window.__frWarn = { typed: fr, frC: frC, frB: frB };
+    } else if (frAll && frB) {
       q = q.eq("fr_base_canon", frB);
     } else if (frC) {
       q = q.eq("fr_canon", frC);
@@ -1022,7 +1035,9 @@ function renderTable() {
   if (MODE === "coins") return renderCoinTable();
   if (!rows.length) {
     document.getElementById("tbody").innerHTML =
-      '<tr class="empty-row"><td colspan="11">No results match your filters</td></tr>';
+      (window.__frWarnMsg
+        ? '<tr class="empty-row"><td colspan="11">' + esc(window.__frWarnMsg) + '</td></tr>'
+        : '<tr class="empty-row"><td colspan="11">No results match your filters</td></tr>');
     return;
   }
   document.getElementById("tbody").innerHTML = rows.map((r, i) => {
