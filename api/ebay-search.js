@@ -61,7 +61,11 @@ export default async function handler(req, res) {
     }
 
     const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), MAX_LIMIT);
-    const safeOffset = Math.max(Number(offset) || 0, 0);
+    // eBay error 12515: offset must be zero or an exact multiple of limit.
+    // Snap down so a caller passing an arbitrary offset gets the page that
+    // contains it instead of a 400.
+    const rawOffset = Math.max(Number(offset) || 0, 0);
+    const safeOffset = Math.floor(rawOffset / safeLimit) * safeLimit;
 
     const url =
       'https://api.ebay.com/buy/browse/v1/item_summary/search' +
@@ -87,7 +91,6 @@ export default async function handler(req, res) {
       return res.status(502).json({
         error: 'eBay search ' + ebayRes.status,
         detail: detail ? detail.slice(0, 1000) : null,
-        requestUrl: url,
       });
     }
     const data = await ebayRes.json();
