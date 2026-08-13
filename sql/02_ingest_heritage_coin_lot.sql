@@ -1,64 +1,33 @@
--- 02_ingest_heritage_coin_lot.sql (v2.3)
--- v2.2: adds p_ha_category, the numeric Heritage coin_category the sweep was run
--- against, stored verbatim on the row. Reconciliation needs the category that was
--- actually swept: lots_coins.category holds Heritage's series name, which is not
--- one-to-one with a category id (Small Cents 3862 and Large Cents 2755 are both '1C',
--- and a single sweep returns several series names), so the id cannot be inferred back.
--- v2.3: category fallback for denomination is now pattern-based instead of an exact
---       IN-list. The IN-list silently missed Heritage series names it had never seen
---       (notably 'Small Cents', which left 394 rows with a NULL denomination), and it
---       would miss every future Proof/Sms/Restrike variant. Order matters: half cent,
---       two cent, twenty cent and three cent are tested before the generic cent rule.
--- Heritage coin ingest RPC. Mirrors ingest_heritage_lot (currency) with coin rules:
--- price_kind 'realized'; grade descriptor REQUIRED, grade_numeric OPTIONAL; no raw.v gate;
--- denomination = face value; when blank, derived from category (Colonials left NULL); upsert on (source, source_lot_id).
--- v2.0: designation retired, split into color / strike_designation / surface_designation.
--- v2.1: strike_type added (PROOF / BUSINESS / SPECIMEN). Strike TYPE is the method of manufacture and is
---       NOT a strike DESIGNATION (FS/FB/FBL/FH/FT/5FS). PR/PF/SP arriving in the strike_designation slot
---       (harvester <= v1.4.3) are re-routed instead of rejected. When not supplied, strike_type is derived
---       from grade_raw first, then category. Heritage facet short codes (CA/DC/DM/ND) are normalized.
--- Legacy p_designation is still accepted and routed so pre-v1.3 callers keep working.
+-- ============================================================================
+-- 02_ingest_heritage_coin_lot.sql
+--
+-- REGENERATED 2026-08-13 from the live database. The previous contents of this
+-- file were STALE and dangerous to re-run.
+--
+-- What happened:
+--   Migration 20260812200657 rewrote this function in place using a
+--   `do $do$ ... replace(v_def, ...) ... $do$` block, changing the return
+--   value from 'ok:' to 'ins:'/'upd:' so the coin harvester could tell an
+--   insert from an update and stop paging correctly.
+--
+--   Because that migration performed a text substitution rather than shipping
+--   the new body, the current definition was never written to any file. This
+--   file was the old 'ok:' version; re-running it would have silently reverted
+--   the harvester's whole-page stop logic.
+--
+-- Source of truth: pg_get_functiondef() against project wqizwluccqqfkedpgvve.
+-- Verified byte-for-byte by md5 against the live catalog.
+--
+-- NOTE: statements unrelated to this function that previously lived here
+-- (lots_coins column and index changes) are captured in the schema snapshot
+-- produced by export_schema.sql. This file now does exactly what its name says.
+-- ============================================================================
 
--- v2.1 migration (idempotent).
-ALTER TABLE public.lots_coins ADD COLUMN IF NOT EXISTS strike_type text;
-ALTER TABLE public.lots_coins DROP CONSTRAINT IF EXISTS lots_coins_strike_type_chk;
-ALTER TABLE public.lots_coins ADD CONSTRAINT lots_coins_strike_type_chk
-  CHECK (strike_type IS NULL OR strike_type IN ('PROOF','BUSINESS','SPECIMEN'));
-CREATE INDEX IF NOT EXISTS lots_coins_strike_type_idx ON public.lots_coins (strike_type);
-
--- Drop the v2.0 (25-arg) signature so PostgREST never sees two candidate overloads.
-DROP FUNCTION IF EXISTS public.ingest_heritage_coin_lot(
-text,text,text,date,numeric,text,text,text,text,text,integer,boolean,boolean,
-text,text,text,text,text,text,jsonb,integer,text,text,text,text);
-
--- Same reason, one version on: drop the v2.1 (26-arg) signature before creating the
--- 27-arg v2.2, so PostgREST never sees two candidate overloads.
-DROP FUNCTION IF EXISTS public.ingest_heritage_coin_lot(
-text,text,text,date,numeric,text,text,text,text,text,integer,boolean,boolean,
-text,text,text,text,text,text,jsonb,integer,text,text,text,text,text);
-
-ALTER TABLE public.lots_coins ADD COLUMN IF NOT EXISTS ha_category text;
-CREATE INDEX IF NOT EXISTS lots_coins_ha_category_year_idx
-  ON public.lots_coins (ha_category, series_year);
-
-CREATE OR REPLACE FUNCTION public.ingest_heritage_coin_lot(
-p_source_lot_id text, p_lot_url text, p_title text,
-p_sold_on date, p_price_realized numeric,
-p_category text,
-p_denomination text, p_denomination_raw text,
-p_grading_company text, p_grade_raw text, p_grade_numeric integer,
-p_has_cac boolean, p_has_plus boolean,
-p_pcgs_number text, p_designation text,
-p_variety text, p_die_state text, p_rarity text,
-p_auction_event_id text, p_raw jsonb,
-p_series_year integer DEFAULT NULL, p_thumbnail_url text DEFAULT NULL,
-p_color text DEFAULT NULL,
-p_strike_designation text DEFAULT NULL,
-p_surface_designation text DEFAULT NULL,
-p_strike_type text DEFAULT NULL,
-p_ha_category text DEFAULT NULL
-) RETURNS text
-LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
+CREATE OR REPLACE FUNCTION public.ingest_heritage_coin_lot(p_source_lot_id text, p_lot_url text, p_title text, p_sold_on date, p_price_realized numeric, p_category text, p_denomination text, p_denomination_raw text, p_grading_company text, p_grade_raw text, p_grade_numeric integer, p_has_cac boolean, p_has_plus boolean, p_pcgs_number text, p_designation text, p_variety text, p_die_state text, p_rarity text, p_auction_event_id text, p_raw jsonb, p_series_year integer DEFAULT NULL::integer, p_thumbnail_url text DEFAULT NULL::text, p_color text DEFAULT NULL::text, p_strike_designation text DEFAULT NULL::text, p_surface_designation text DEFAULT NULL::text, p_strike_type text DEFAULT NULL::text, p_ha_category text DEFAULT NULL::text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
 AS $function$
 DECLARE
 v_now timestamptz := now();
@@ -69,6 +38,7 @@ v_surface text := NULLIF(upper(btrim(p_surface_designation)),'');
 v_legacy text := NULLIF(upper(btrim(p_designation)),'');
 v_variety text := NULLIF(btrim(p_variety),'');
 v_stype text := NULLIF(upper(btrim(p_strike_type)),'');
+v_inserted boolean;
 BEGIN
 IF p_source_lot_id IS NULL OR p_source_lot_id = '' THEN RAISE EXCEPTION 'reject: source_lot_id missing'; END IF;
 IF p_sold_on IS NULL THEN RAISE EXCEPTION 'reject: sold_on missing'; END IF;
@@ -187,22 +157,25 @@ die_state=COALESCE(EXCLUDED.die_state, lots_coins.die_state),
 rarity=COALESCE(EXCLUDED.rarity, lots_coins.rarity),
 auction_event_id=EXCLUDED.auction_event_id, series_year=EXCLUDED.series_year,
 thumbnail_url=COALESCE(EXCLUDED.thumbnail_url, lots_coins.thumbnail_url),
-raw=EXCLUDED.raw, updated_at=EXCLUDED.updated_at;
+raw=EXCLUDED.raw, updated_at=EXCLUDED.updated_at
+RETURNING (xmax = 0) INTO v_inserted;
 
-RETURN 'ok:' || p_source_lot_id;
+RETURN (CASE WHEN v_inserted THEN 'ins:' ELSE 'upd:' END) || p_source_lot_id;
 END;
-$function$;
+$function$
+;
 
-GRANT EXECUTE ON FUNCTION public.ingest_heritage_coin_lot(
-text,text,text,date,numeric,text,text,text,text,text,integer,boolean,boolean,
-text,text,text,text,text,text,jsonb,integer,text,text,text,text,text,text
-) TO anon, authenticated;
-
--- One-time backfill for rows ingested before v2.1 (already applied in prod 2026-07-29):
--- UPDATE public.lots_coins SET strike_type = CASE
---   WHEN grade_raw ~* '^[[:space:]]*(PR|PF)' THEN 'PROOF'
---   WHEN grade_raw ~* '^[[:space:]]*SP' THEN 'SPECIMEN'
---   WHEN category ILIKE 'Proof%' THEN 'PROOF'
---   WHEN category ILIKE '%Sms%' THEN 'SPECIMEN'
---   ELSE 'BUSINESS' END
--- WHERE strike_type IS NULL;
+-- ---------------------------------------------------------------------------
+-- Privileges. NOT emitted by pg_get_functiondef(), so they must be stated
+-- explicitly or they are lost. Verified against pg_proc.proacl 2026-08-13.
+-- ---------------------------------------------------------------------------
+grant execute on function public.ingest_heritage_coin_lot(
+  p_source_lot_id text, p_lot_url text, p_title text, p_sold_on date,
+  p_price_realized numeric, p_category text, p_denomination text,
+  p_denomination_raw text, p_grading_company text, p_grade_raw text,
+  p_grade_numeric integer, p_has_cac boolean, p_has_plus boolean,
+  p_pcgs_number text, p_designation text, p_variety text, p_die_state text,
+  p_rarity text, p_auction_event_id text, p_raw jsonb, p_series_year integer,
+  p_thumbnail_url text, p_color text, p_strike_designation text,
+  p_surface_designation text, p_strike_type text, p_ha_category text
+) to anon, authenticated, service_role;
