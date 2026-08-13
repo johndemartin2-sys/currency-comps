@@ -29,7 +29,7 @@ async function getToken() {
 
 // eBay category ids
 const CATEGORY_PAPER_MONEY_US = '3412';   // Paper Money: US
-const CATEGORY_COINS = '11116';           // Coins & Paper Money (parent) — verify breadth
+const CATEGORY_COINS = '11975';           // Coins: US
 
 // eBay Browse API allows up to 200 results per page.
 const MAX_LIMIT = 200;
@@ -78,7 +78,17 @@ export default async function handler(req, res) {
       },
     });
     if (!ebayRes.ok) {
-      return res.status(502).json({ error: 'eBay search ' + ebayRes.status });
+      // Surface eBay's own error payload; a bare status code hides which
+      // parameter it rejected.
+      let detail = null;
+      try {
+        detail = await ebayRes.text();
+      } catch (_) {}
+      return res.status(502).json({
+        error: 'eBay search ' + ebayRes.status,
+        detail: detail ? detail.slice(0, 1000) : null,
+        requestUrl: url,
+      });
     }
     const data = await ebayRes.json();
 
