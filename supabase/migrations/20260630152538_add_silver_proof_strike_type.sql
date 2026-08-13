@@ -1,0 +1,1 @@
+ALTER TYPE coin_strike_type ADD VALUE IF NOT EXISTS 'Silver Proof';
