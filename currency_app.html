@@ -1738,7 +1738,6 @@ function buildEbayQuery(){
     const y = val('fYear'); if (y) parts.push(y);
     const cat = (document.querySelector('#catChips .active')?.textContent || '').trim(); if (cat) parts.push(cat);
     const svc = val('fService'); if (svc) parts.push(svc);
-    const g = val('fGradeMin') || val('fGradeMax'); if (g) parts.push(g);
     if (document.getElementById('fCac')?.checked) parts.push('CAC');
     return parts.join(' ').trim();
   }
@@ -1746,67 +1745,174 @@ function buildEbayQuery(){
   const fr = val('fFr'); if (fr) parts.push('Fr ' + fr);
   const year = val('fYear'); if (year) parts.push(year);
   const denom = (document.getElementById('fDenom')?.value || '').trim();
-      if (denom) parts.push(denom.replace(/[$]/,'').replace('¢','').trim() + (denom.indexOf('¢')>=0 ? ' cent' : ' dollar'));
+  if (denom) parts.push(denom.replace(/[$]/,'').replace('¢','').trim() + (denom.indexOf('¢')>=0 ? ' cent' : ' dollar'));
   const type = (document.querySelector('#catChips .active')?.textContent || '').trim();
   if (type) parts.push(type);
-  const gMin = val('fGradeMin'), gMax = val('fGradeMax');
-        if (gMin && gMax && gMin === gMax) parts.push(gMin);
-        const letter = ''; if (letter) parts.push(letter);
-        const svc = (document.getElementById('fService')?.value || '').trim(); if (svc) parts.push(svc);
-        const qual = (document.getElementById('fQual')?.value || '').trim();
-        if (qual === 'PPQ' || qual === 'EPQ') parts.push(qual);
-        const st = (document.getElementById('fState')?.value || '').trim();
-        if (st && st !== 'any') parts.push(st);
-        const ch = val('fCharter'); if (ch) parts.push('charter ' + ch);
+  const letter = ''; if (letter) parts.push(letter);
+  const svc = (document.getElementById('fService')?.value || '').trim(); if (svc) parts.push(svc);
+  const qual = (document.getElementById('fQual')?.value || '').trim();
+  if (qual === 'PPQ' || qual === 'EPQ') parts.push(qual);
+  const st = (document.getElementById('fState')?.value || '').trim();
+  if (st && st !== 'any') parts.push(st);
+  const ch = val('fCharter'); if (ch) parts.push('charter ' + ch);
   if (document.getElementById('fStar')?.checked) parts.push('star');
   return parts.join(' ').trim();
 }
+
+// --- Grade parsing from eBay titles --------------------------------------
+// eBay has no structured grade field, so the numeric grade has to be read out
+// of the listing title. The old regex made the grading service optional, which
+// meant it matched the FIRST 1-2 digit number in the title -- almost always the
+// denomination ($1) or the Friedberg number (Fr. 40), never the grade. Any band
+// above ~40 therefore returned zero results. We now strip the known sources of
+// false positives first, then require a grading service or a grade adjective
+// immediately before the number.
+
+// Tokens that are numbers but are never grades.
+function scrubTitleForGrade(raw){
+  return String(raw || '')
+    .replace(/\bFr\.?\s*[#\-]?\s*\d{1,4}[A-Za-z]?\b/gi, ' ')      // Fr. 40, FR-40, Fr#40, Fr 1302
+    .replace(/\bcharter\s*#?\s*\d+/gi, ' ')                        // charter 1234
+    .replace(/\$\s*\d+(?:[.,]\d+)?/g, ' ')                         // $1, $ 1, $20.00
+    .replace(/\b\d+(?:\.\d+)?\s*(?:cents?|dollars?|shillings?|pence|mm|pcs?)\b/gi, ' ')
+    .replace(/\b\d+\.\d{2}\b/g, ' ')                               // 1.00, 119.99
+    .replace(/\b(?:1[6-9]\d{2}|20\d{2})\b/g, ' ')                  // years
+    .replace(/\b[A-Z]{0,2}\d{6,}[A-Z]?\b/gi, ' ')                  // serial numbers
+    .replace(/#\s*\d+/g, ' ')                                      // lot / stock numbers
+    .replace(/\bseries\s+of\s+\d+/gi, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+const GRADE_CO = '(?:PMG|PCGS|NGC|CGA|CGC|SEGS|ANACS|LEGACY)';
+// "PMG 64", "PCGS Gem 65PPQ", "PMG Choice CU-64", "PMG AU53EPQ", "PMG 30vf"
+const GRADE_AFTER_CO_RE = new RegExp('\\b' + GRADE_CO + '\\b[^0-9]{0,30}?(\\d{1,2})(?:\\.\\d)?(?!\\d)', 'i');
+// "45 PPQ PCGS", "Very Fine 25 PCGS", "66 EPQ PMG"
+const GRADE_BEFORE_CO_RE = new RegExp('(?:^|[^0-9])(\\d{1,2})(?:\\.\\d)?\\s*(?:PPQ|EPQ|NET)?\\s*' + GRADE_CO + '\\b', 'i');
+// Ungraded but explicit: "XF-40", "Gem CU 65", "AU 55"
+const GRADE_ADJ_RE = /\b(?:GEM|CHOICE|SUPERB|CH)?\s*(?:UNC|CU|MS|AU|XF|EF|VF|VG|PR|PF)\s*-?\s*(\d{1,2})(?!\d)/i;
+
+// Returns an integer 1-70, or null when no grade can be read from the title.
+function parseTitleGrade(raw){
+  const t = scrubTitleForGrade(raw);
+  for (const re of [GRADE_AFTER_CO_RE, GRADE_BEFORE_CO_RE, GRADE_ADJ_RE]){
+    const m = t.match(re);
+    if (m){
+      const g = parseInt(m[1], 10);
+      if (!isNaN(g) && g >= 1 && g <= 70) return g;
+    }
+  }
+  return null;
+}
+
+async function ebayFetch(q, opts){
+  const p = new URLSearchParams({ q: q, limit: String(opts.limit || 200) });
+  if (opts.offset) p.set('offset', String(opts.offset));
+  if (opts.priceMin) p.set('priceMin', opts.priceMin);
+  if (opts.priceMax) p.set('priceMax', opts.priceMax);
+  if (MODE === 'coins') p.set('mode', 'coins');
+  const res = await fetch('/api/ebay-search?' + p.toString());
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Search failed');
+  return data.items || [];
+}
+
+function liveCardHtml(it, grade){
+  return '<a href="' + it.url + '" target="_blank" rel="noopener" style="display:flex;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:center">' +
+    (it.image ? '<img src="' + it.image + '" width="56" height="56" style="object-fit:cover;border-radius:4px">' : '') +
+    '<div style="flex:1"><div style="color:var(--text);font-weight:600">' + it.title + '</div>' +
+    '<div style="color:var(--text2);font-size:13px">' + (it.price || '—') +
+    (it.bidCount != null ? ' · ' + it.bidCount + ' bids' : '') +
+    (it.buyingOptions.includes('AUCTION') ? ' · Auction' : '') +
+    (it.buyingOptions.includes('FIXED_PRICE') ? ' · Buy It Now' : '') +
+    (grade != null ? ' · <strong>grade ' + grade + '</strong>' : '') +
+    '</div></div></a>';
+}
+
+const LIVE_RENDER_CAP = 120;
+
 async function runLiveSearch(){
   const box = document.getElementById('liveResults');
   const q = buildEbayQuery();
   if (!q){ box.innerHTML = '<p style="color:var(--muted);padding:12px">Add filters (year, denomination, type, grade) to search live listings.</p>'; return; }
   box.innerHTML = '<p style="color:var(--muted);padding:12px">Searching eBay&hellip;</p>';
   try{
-    const pMin = (document.getElementById('fPriceMin')?.value || '').trim();
-      const pMax = (document.getElementById('fPriceMax')?.value || '').trim();
-      let qs = '/api/ebay-search?q=' + encodeURIComponent(q);
-      if (pMin) qs += '&priceMin=' + encodeURIComponent(pMin);
-      if (pMax) qs += '&priceMax=' + encodeURIComponent(pMax);
-      const res = await fetch(qs);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Search failed');
-    if (!data.items || !data.items.length){ box.innerHTML = '<p style="color:var(--muted);padding:12px">No current listings found.</p>'; return; }
+    const priceMin = (document.getElementById('fPriceMin')?.value || '').trim();
+    const priceMax = (document.getElementById('fPriceMax')?.value || '').trim();
+    const gLo = parseInt(document.getElementById('fGradeMin')?.value, 10);
+    const gHi = parseInt(document.getElementById('fGradeMax')?.value, 10);
+    const hasBand = !isNaN(gLo) || !isNaN(gHi);
 
-      // front-end grade-band filter (eBay has no grade field; parse it from the title)
-      const gLo = parseInt(document.getElementById('fGradeMin')?.value, 10);
-      const gHi = parseInt(document.getElementById('fGradeMax')?.value, 10);
-      let items = data.items;
-      if (!isNaN(gLo) || !isNaN(gHi)) {
-        items = items.filter(it => {
-          const mm = (it.title || '').match(/\b(?:PMG|PCGS|NGC)?\s*([1-9]\d?)\b/i);
-          if (!mm) return false;
-          const g = parseInt(mm[1], 10);
-          if (!isNaN(gLo) && g < gLo) return false;
-          if (!isNaN(gHi) && g > gHi) return false;
-          return true;
-        });
-        if (!items.length) {
-          box.innerHTML = '<p style="color:var(--muted);padding:12px">No listings match the grade band.</p>';
-          return;
-        }
+    // A plain relevance search buries graded material. When a grade band is set
+    // we also run service-scoped variants and merge, which roughly triples the
+    // number of in-band listings that surface.
+    const queries = [q];
+    if (hasBand){
+      const svc = (document.getElementById('fService')?.value || '').trim();
+      const services = (svc && svc !== 'any' && svc !== 'raw' && svc !== 'unknown')
+        ? [svc]
+        : ['PMG', 'PCGS', 'NGC'];
+      services.forEach(s => queries.push(q + ' ' + s));
+      if (!isNaN(gLo) && !isNaN(gHi) && gLo === gHi) queries.push(q + ' ' + gLo);
+    }
+
+    const opts = { limit: 200, priceMin: priceMin, priceMax: priceMax };
+    const batches = await Promise.all(queries.map(qq => ebayFetch(qq, opts).catch(() => [])));
+
+    const seen = new Set();
+    const all = [];
+    batches.forEach(b => b.forEach(it => {
+      const key = it.url || it.title;
+      if (key && !seen.has(key)){ seen.add(key); all.push(it); }
+    }));
+
+    if (!all.length){ box.innerHTML = '<p style="color:var(--muted);padding:12px">No current listings found.</p>'; return; }
+
+    const graded = [], ungraded = [];
+    all.forEach(it => {
+      const g = parseTitleGrade(it.title);
+      if (g == null) ungraded.push(it); else graded.push({ it: it, g: g });
+    });
+
+    let matched = graded;
+    if (hasBand){
+      matched = graded.filter(r => {
+        if (!isNaN(gLo) && r.g < gLo) return false;
+        if (!isNaN(gHi) && r.g > gHi) return false;
+        return true;
+      });
+    }
+    matched.sort((a, b) => b.g - a.g);
+
+    let html = '';
+    html += '<p style="color:var(--muted);padding:4px 12px 10px;font-size:13px">' +
+      all.length + ' listings scanned · ' + matched.length +
+      (hasBand ? ' in grade band' : ' with a readable grade') +
+      (ungraded.length ? ' · ' + ungraded.length + ' with no grade in the title' : '') +
+      '</p>';
+
+    if (matched.length){
+      html += matched.slice(0, LIVE_RENDER_CAP).map(r => liveCardHtml(r.it, r.g)).join('');
+      if (matched.length > LIVE_RENDER_CAP){
+        html += '<p style="color:var(--muted);padding:8px 12px;font-size:13px">Showing first ' + LIVE_RENDER_CAP + ' of ' + matched.length + '. Narrow the filters to see the rest.</p>';
       }
-    box.innerHTML = items.map(it => '<a href="' + it.url + '" target="_blank" rel="noopener" style="display:flex;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:center">' +
-      (it.image ? '<img src="' + it.image + '" width="56" height="56" style="object-fit:cover;border-radius:4px">' : '') +
-      '<div style="flex:1"><div style="color:var(--text);font-weight:600">' + it.title + '</div>' +
-      '<div style="color:var(--text2);font-size:13px">' + (it.price || '—') +
-      (it.bidCount != null ? ' · ' + it.bidCount + ' bids' : '') +
-      (it.buyingOptions.includes('AUCTION') ? ' · Auction' : '') +
-      (it.buyingOptions.includes('FIXED_PRICE') ? ' · Buy It Now' : '') +
-      '</div></div></a>').join('');
+    } else {
+      html += '<p style="color:var(--muted);padding:12px">No listings match the grade band.</p>';
+    }
+
+    // Never silently drop listings we simply could not read a grade from --
+    // raw notes and oddly-titled slabs live here.
+    if (ungraded.length){
+      html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--text2);padding:8px 12px;font-size:13px">' +
+        ungraded.length + ' listing' + (ungraded.length === 1 ? '' : 's') + ' with no grade detected in the title (raw or unparsed) &mdash; click to show</summary>' +
+        '<div style="margin-top:8px">' + ungraded.slice(0, LIVE_RENDER_CAP).map(it => liveCardHtml(it, null)).join('') + '</div></details>';
+    }
+
+    box.innerHTML = html;
   }catch(err){
     box.innerHTML = '<p style="color:#c66;padding:12px">eBay search error: ' + err.message + '</p>';
   }
 }
+
 // Mode buttons use inline onclick=setView(...) in .btn-row
 </script>
 

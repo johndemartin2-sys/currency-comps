@@ -27,13 +27,29 @@ async function getToken() {
   return cachedToken;
 }
 
-// eBay "US Paper Money" category id
-const CATEGORY_PAPER_MONEY_US = '3412';
+// eBay category ids
+const CATEGORY_PAPER_MONEY_US = '3412';   // Paper Money: US
+const CATEGORY_COINS = '11975';           // Coins: US
+
+// eBay Browse API allows up to 200 results per page.
+const MAX_LIMIT = 200;
 
 export default async function handler(req, res) {
   try {
-    const { q = '', limit = 25, priceMin, priceMax } = req.query;
+    const {
+      q = '',
+      limit = 50,
+      offset = 0,
+      priceMin,
+      priceMax,
+      mode,
+      category,
+    } = req.query;
     if (!q.trim()) return res.status(400).json({ error: 'Missing query' });
+
+    const categoryId =
+      (category && String(category).trim()) ||
+      (mode === 'coins' ? CATEGORY_COINS : CATEGORY_PAPER_MONEY_US);
 
     const token = await getToken();
     const filters = ['buyingOptions:{AUCTION|FIXED_PRICE}'];
@@ -44,12 +60,20 @@ export default async function handler(req, res) {
       filters.push('priceCurrency:USD');
     }
 
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), MAX_LIMIT);
+    // eBay error 12515: offset must be zero or an exact multiple of limit.
+    // Snap down so a caller passing an arbitrary offset gets the page that
+    // contains it instead of a 400.
+    const rawOffset = Math.max(Number(offset) || 0, 0);
+    const safeOffset = Math.floor(rawOffset / safeLimit) * safeLimit;
+
     const url =
       'https://api.ebay.com/buy/browse/v1/item_summary/search' +
       `?q=${encodeURIComponent(q)}` +
-      `&category_ids=${CATEGORY_PAPER_MONEY_US}` +
+      `&category_ids=${encodeURIComponent(categoryId)}` +
       `&filter=${encodeURIComponent(filters.join(','))}` +
-      `&limit=${Math.min(Number(limit) || 25, 50)}`;
+      `&limit=${safeLimit}` +
+      `&offset=${safeOffset}`;
 
     const ebayRes = await fetch(url, {
       headers: {
@@ -58,7 +82,16 @@ export default async function handler(req, res) {
       },
     });
     if (!ebayRes.ok) {
-      return res.status(502).json({ error: 'eBay search ' + ebayRes.status });
+      // Surface eBay's own error payload; a bare status code hides which
+      // parameter it rejected.
+      let detail = null;
+      try {
+        detail = await ebayRes.text();
+      } catch (_) {}
+      return res.status(502).json({
+        error: 'eBay search ' + ebayRes.status,
+        detail: detail ? detail.slice(0, 1000) : null,
+      });
     }
     const data = await ebayRes.json();
 
@@ -73,7 +106,13 @@ export default async function handler(req, res) {
     }));
 
     res.setHeader('Cache-Control', 's-maxage=60');
-    return res.status(200).json({ count: data.total || items.length, items });
+    return res.status(200).json({
+      count: data.total || items.length,
+      total: data.total ?? null,
+      limit: safeLimit,
+      offset: safeOffset,
+      items,
+    });
   } catch (err) {
     return res.status(500).json({ error: String(err.message || err) });
   }
