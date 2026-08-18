@@ -1,13 +1,37 @@
 // ==UserScript==
 // @name         Heritage Coin Harvester
 // @namespace    jdmstrategy.coins
-// @version      1.4.12
+// @version      1.5.0
 // @description  Sweep + Top Up harvester for Heritage sold coin lots -> Supabase
 // @match        https://coins.ha.com/c/search/results.zx*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 
+// v1.5.0 (2026-08-18): ENGINE hardening backported from the currency harvester v9.5.0.
+//     Extraction (pickDenom, colonial vocab, pickColor, pickStrikeType/Desig, pickSurface,
+//     mapService, parseRow) is BYTE-UNCHANGED from 1.4.12 -- a full eval of lots_coins
+//     (322,912 rows, 2026-08-18) found the coin extraction correct: year = leftmost
+//     title year on 99.99% of rows (the 19 outliers are circa-dated tokens/medals),
+//     zero out-of-range grades, 100% service/price/date coverage. Coin titles lead
+//     with the date, so the leftmost-year rule that corrupted currency is CORRECT here.
+//   * post(): single retry on transient failures only (network / 5xx / 429).
+//     'reject:' responses and circuit-breaker trips are NEVER retried.
+//   * Posts run through a 4-worker pool per page (POST_WORKERS) instead of one
+//     awaited fetch per row: a 50-row page now spends ~1/4 the wall time in RPC.
+//   * CIRCUIT BREAKER awareness: if the DB ever refuses inserts at systemic rate
+//     (/circuit breaker|ingest_guard/i in the RPC error), the run STOPS with an
+//     explicit message instead of grinding through pages collecting errors.
+//   * Page size is configurable (pg field on the panel, default 50) with page-1
+//     auto-calibration: if Heritage ignores the requested size and serves exactly
+//     50, the harvester corrects itself instead of stopping one page early.
+//     curPage() now parses any 'N~page' shape, not just '50~'.
+//   * Boot self-test (coinSelfTest): 25 pinned extraction checks (denomination
+//     tokens, half-cent aliases, colonial vocab, strike type/designation, surface,
+//     grader mapping, year pick). A failure paints DO NOT SWEEP on the panel.
+//     Same pattern as the currency harvesters' seriesSelfTest.
+//   * facetCounts designation slicing (DESIG_BY_CAT) is unchanged -- it is the
+//     coin-side equivalent of currency's category slicing and already correct.
 // v1.4.12 (2026-08-03): restored a VERSION constant so the panel header and p_raw stamp track the
 //     real version. In 1.4.11 both were hardcoded to '1.4.4' despite @version 1.4.11. Keeps 1.4.11's
 //     half-cent token aliases (DENOM_ALIAS) and holder-note '--' trimming.
@@ -54,7 +78,7 @@
 
 (function () {
 'use strict';
-const VERSION = '1.4.12';
+const VERSION = '1.5.0';
 
 const SB_URL  = 'https://wqizwluccqqfkedpgvve.supabase.co';
 // Paste your Supabase publishable key here after installing. Do NOT commit a live key.
@@ -64,7 +88,8 @@ const LS_KEY = 'chq14';
 
 // ROW_PAUSE must stay 0: Chrome clamps setTimeout to 1000ms in hidden tabs,
 // which stretched a 50 row page from 6s to 50s. See sleep() below.
-const PER_PAGE = 50, ROW_PAUSE = 0, ROW_WAIT = 20000, POLL_MS = 250;
+const PER_PAGE_DEFAULT = 50, ROW_PAUSE = 0, ROW_WAIT = 20000, POLL_MS = 250;
+function pageSize(){ return (st && st.ps) || PER_PAGE_DEFAULT; }
 
 // verified live 2026-07-29: Heritage coin_designation facet ids. Counts sum EXACTLY to
 // the category total, so a designation missing from the active category's list is
@@ -107,7 +132,8 @@ const sleep = ms => new Promise(function(r){
 const el = id => document.getElementById(id);
 
 function FRESH(){ return { mode:'idle', running:false, i:0, slices:[], cutoff:'', expect:0,
-  total:null, msg:'', errs:[], stats:{pages:0,seen:0,new:0,upd:0,rej:0,skip:0,err:0} }; }
+  total:null, ps:PER_PAGE_DEFAULT, msg:'', errs:[],
+  stats:{pages:0,seen:0,new:0,upd:0,rej:0,skip:0,err:0} }; }
 
 let st = load();
 function load(){ try { const o = Object.assign(FRESH(), JSON.parse(localStorage.getItem(LS_KEY)));
@@ -121,15 +147,15 @@ function logErr(m){
 
 /* ---------- URL ---------- */
 function P(n){ return new URL(location.href).searchParams.get(n) || ''; }
-function curPage(){ const m = /^50~(\d+)$/.exec(P('page')); return m ? parseInt(m[1],10) : 1; }
-function withPage(n){ const u = new URL(location.href); u.searchParams.set('page','50~'+n); return u.toString(); }
+function curPage(){ const m = /^(\d+)~(\d+)$/.exec(P('page')); return m ? parseInt(m[2],10) : 1; }
+function withPage(n){ const u = new URL(location.href); u.searchParams.set('page', pageSize()+'~'+n); return u.toString(); }
 function sliceUrl(year, code, page){
   const u = new URL(location.href);
   u.searchParams.set('us_coin_year', year);
   if (code) u.searchParams.set('coin_designation', code); else u.searchParams.delete('coin_designation');
   if (!u.searchParams.get('sb')) u.searchParams.set('sb','5');
   u.searchParams.set('layout','list');
-  u.searchParams.set('page','50~'+page);
+  u.searchParams.set('page', pageSize()+'~'+page);
   return u.toString();
 }
 function curDesig(){ return BY_CODE[P('coin_designation')] || null; }
@@ -355,13 +381,25 @@ function parseRow(li){
 }
 
 /* ---------- RPC ---------- */
-async function post(payload){
+async function postOnce(payload){
   const r = await fetch(RPC_URL, { method:'POST',
     headers:{ 'Content-Type':'application/json', 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY },
     body: JSON.stringify(payload) });
   const t = await r.text();
-  if (!r.ok) throw new Error(r.status + ' ' + t.slice(0,180));
+  if (!r.ok){ const e = new Error(r.status + ' ' + t.slice(0,180)); e.status = r.status; throw e; }
   return t.replace(/^"|"$/g, '');
+}
+// v1.5.0 (from currency v9.3.0): single retry on transient failures only
+// (network, 5xx, 429). 4xx rejects and breaker trips are NEVER retried.
+async function post(payload){
+  try { return await postOnce(payload); }
+  catch(e){
+    const transient = !e.status || e.status >= 500 || e.status === 429;
+    const breaker = /circuit breaker|ingest_guard/i.test(String(e.message || e));
+    if (!transient || breaker) throw e;
+    await sleep(400);
+    return await postOnce(payload);
+  }
 }
 
 /* ---------- grader mapping (prefix based, matches Heritage facet labels) ---------- */
@@ -397,11 +435,15 @@ function waitForRows(){
 }
 
 /* ---------- one page ---------- */
+const POST_WORKERS = 4;   // v1.5.0 (from currency v9.3.0): pooled posts per page
 async function processPage(dry){
   const rows = Array.prototype.slice.call(document.querySelectorAll('li.item-block'));
-  const r = { seen:0, ins:0, upd:0, rej:0, skip:0, err:0, noPrice:0, newest:null, oldest:null };
+  const r = { seen:0, ins:0, upd:0, rej:0, skip:0, err:0, noPrice:0,
+              newest:null, oldest:null, breaker:false };
   // PR chip: Heritage exposes no proof facet, so proofs are filtered client-side.
   const wantPR = !el('chq14-d-PR') || el('chq14-d-PR').checked;
+  // phase 1: parse every row (sequential, cheap)
+  const queue = [];
   for (let i = 0; i < rows.length; i++){
     r.seen++;
     const p = parseRow(rows[i]);
@@ -417,18 +459,40 @@ async function processPage(dry){
     }
     if (!wantPR && p.payload.p_strike_type !== 'BUSINESS'){ r.skip++; continue; }
     if (dry){ r.skip++; continue; }
-    try {
-      const out = await post(p.payload);
-      if (/^upd/.test(out)) r.upd++; else r.ins++;
-    } catch(e){
-      const msg = String(e.message || e);
-      const isReject = /reject:/.test(msg);
-      if (isReject) r.rej++; else r.err++;
-      logErr((isReject ? 'REJ ' : 'ERR ') + msg + ' :: lot ' + p.payload.p_source_lot_id +
-             ' svc ' + p.payload.p_grading_company + ' gr ' + p.payload.p_grade_raw);
-    }
-    await sleep(ROW_PAUSE);
+    queue.push(p.payload);
   }
+  if (dry || !queue.length) return r;
+  // phase 2: pooled posts. ingest_heritage_coin_lot returns 'ins:'/'upd:',
+  // so the top-up whole-page stop stays exact.
+  let cursor = 0;
+  async function worker(){
+    while (true){
+      if (r.breaker) return;
+      const i = cursor++;
+      if (i >= queue.length) return;
+      try {
+        const out = await post(queue[i]);
+        if (/^upd/.test(out)) r.upd++; else r.ins++;
+      } catch(e){
+        const msg = String(e.message || e);
+        if (/circuit breaker|ingest_guard/i.test(msg)){
+          // systemic refusal: the DB is protecting itself. STOP the run;
+          // do not grind through more pages collecting errors.
+          r.breaker = true;
+          logErr('BREAKER ' + msg);
+          return;
+        }
+        const isReject = /reject:/.test(msg);
+        if (isReject) r.rej++; else r.err++;
+        logErr((isReject ? 'REJ ' : 'ERR ') + msg + ' :: lot ' + queue[i].p_source_lot_id +
+               ' svc ' + queue[i].p_grading_company + ' gr ' + queue[i].p_grade_raw);
+      }
+      await sleep(ROW_PAUSE);
+    }
+  }
+  const ws = [];
+  for (let w = 0; w < Math.min(POST_WORKERS, queue.length); w++) ws.push(worker());
+  await Promise.all(ws);
   return r;
 }
 
@@ -466,8 +530,18 @@ async function tick(){
   }
   if (st.total == null) await getTotal();
   st.msg = 'working page ' + page + ' ... ' + sliceLabel(); paint();
+  // v1.5.0 page-size calibration: configured >50 but Heritage served exactly 50 on page 1
+  if (page === 1 && st.ps > 50){
+    const rowsNow = document.querySelectorAll('li.item-block').length;
+    if (rowsNow === 50){
+      st.msg = 'Heritage ignored page size ' + st.ps + ' - auto-corrected to 50';
+      st.ps = 50; save(); paint();
+    }
+  }
   const r = await processPage(false);
   tally(r); save(); paint();
+  if (r.breaker)
+    return finish('CIRCUIT BREAKER tripped - the DB is refusing inserts at systemic rate. Investigate before resuming.');
   if (r.seen && r.noPrice === r.seen)
     return finish('prices hidden - sign in to Heritage again');
   if (!r.seen){
@@ -482,9 +556,9 @@ async function tick(){
     if (r.upd === r.seen) return finish('whole page already harvested');
     if (st.cutoff && r.newest && r.newest <= st.cutoff) return finish('reached cutoff ' + st.cutoff);
   }
-  if (r.seen < PER_PAGE)
+  if (r.seen < pageSize())
     return st.mode === 'sweep' ? nextSlice('slice complete') : finish('last page');
-  if (st.total && page >= Math.ceil(st.total / PER_PAGE))
+  if (st.total && page >= Math.ceil(st.total / pageSize()))
     return st.mode === 'sweep' ? nextSlice('slice complete') : finish('last page');
   st.expect = page + 1; save();
   location.href = withPage(page + 1);
@@ -538,10 +612,12 @@ async function buildSweep(){
   }
   if (!slices.length){ st.msg = 'no non-empty slices in that range'; return paint(); }
   const lots = slices.reduce(function(a,s){ return a + (s.n || 0); }, 0);
-  st = Object.assign(FRESH(), { mode:'sweep', running:true, i:0, slices:slices, expect:1,
+  const ps = parseInt((el('chq14-ps')||{}).value,10) || PER_PAGE_DEFAULT;
+  st = Object.assign(FRESH(), { mode:'sweep', running:true, i:0, slices:slices, expect:1, ps:ps,
         total: slices[0].n || null,
         msg:'sweep armed: ' + slices.length + ' slices - ~' + lots + ' lots - ~' +
-            Math.ceil(lots/PER_PAGE) + ' pages' });
+            Math.ceil(lots/ps) + ' pages' +
+            (ps !== 50 ? ' - page size ' + ps + ' (will auto-correct if ignored)' : '') });
   save(); paint();
   location.href = sliceUrl(slices[0].year, DESIG[slices[0].desig], 1);
 }
@@ -549,14 +625,15 @@ async function buildSweep(){
 function startTopUp(){
   const cut = el('chq14-cut').value.trim();
   if (cut && !/^\d{4}-\d{2}-\d{2}$/.test(cut)){ st.msg = 'cutoff must be YYYY-MM-DD'; return paint(); }
+  const ps = parseInt((el('chq14-ps')||{}).value,10) || PER_PAGE_DEFAULT;
   const u = new URL(location.href);
   if (u.searchParams.get('sb') !== '5'){
-    u.searchParams.set('sb','5'); u.searchParams.set('page','50~1');
-    st = Object.assign(FRESH(), { mode:'topup', running:true, cutoff:cut, expect:1,
+    u.searchParams.set('sb','5'); u.searchParams.set('page', ps+'~1');
+    st = Object.assign(FRESH(), { mode:'topup', running:true, cutoff:cut, expect:1, ps:ps,
           msg:'top up: forcing newest-first' });
     save(); return (location.href = u.toString());
   }
-  st = Object.assign(FRESH(), { mode:'topup', running:true, cutoff:cut, expect:curPage(),
+  st = Object.assign(FRESH(), { mode:'topup', running:true, cutoff:cut, expect:curPage(), ps:ps,
         msg:'top up started' + (cut ? ' - stop at ' + cut : ' - stop on a known page') });
   save(); paint(); tick();
 }
@@ -581,7 +658,7 @@ function paint(){
     ' -> ' + (curDesig()||'-') + '  color ' + (pickColor(category(), '', curDesig())||'-') +
     '  PR ' + ((!el('chq14-d-PR') || el('chq14-d-PR').checked) ? 'on' : 'off');
   el('chq14-mode').textContent = 'mode ' + st.mode + ' ' + (st.running ? 'RUNNING' : 'idle') +
-    '  page ' + curPage() + '/' + (st.total ? Math.ceil(st.total/PER_PAGE) : '?') +
+    '  page ' + curPage() + '/' + (st.total ? Math.ceil(st.total/pageSize()) : '?') +
     '  sold ' + (st.total == null ? '?' : st.total) +
     '  rows ' + document.querySelectorAll('li.item-block').length +
     (st.mode === 'sweep' && st.slices.length ? '  slice ' + (st.i+1) + '/' + st.slices.length : '');
@@ -618,7 +695,8 @@ function buildPanel(){
     '<div class="ln" id="chq14-slice"></div>' +
     '<div class="ln" id="chq14-mode"></div>' +
     '<div id="chq14-msg"></div>' +
-    '<div class="row">SWEEP years <input id="chq14-y1" size="4"> to <input id="chq14-y2" size="4"></div>' +
+    '<div class="row">SWEEP years <input id="chq14-y1" size="4"> to <input id="chq14-y2" size="4">' +
+    ' pg <input id="chq14-ps" size="3" value="' + PER_PAGE_DEFAULT + '" title="Rows per page. 50 is verified; try 72 or 100 - if Heritage ignores it the harvester auto-corrects on page 1"></div>' +
     '<div class="row" id="chq14-desigs"></div>' +
     '<div class="row"><button id="chq14-build">Build + Start Sweep</button></div>' +
     '<div class="row">TOP UP stop at <input id="chq14-cut" size="10" placeholder="YYYY-MM-DD"></div>' +
@@ -652,9 +730,55 @@ function buildPanel(){
   el('chq14-d-PR').onchange  = paint;
 }
 
+/* ---------- boot self-test ---------- */
+// v1.5.0: pins the extraction behavior that the 2026-08-18 lots_coins eval
+// verified correct (322,912 rows, 99.99% year agreement, 0 bad grades).
+// If a future edit changes any of these answers, the panel says DO NOT SWEEP.
+function coinSelfTest(tag){
+  let fails = 0;
+  function chk(what, got, want){
+    if (got !== want){ fails++;
+      console.error('[' + tag + ' SELFTEST FAIL] ' + what + ' => got ' + got + ' want ' + want); }
+  }
+  // denomination: anchored token, aliases, two-token halves, colonial vocab
+  chk('denom 1859 1C',        pickDenom('1859 1C MS64 PCGS'), '1C');
+  chk('denom 1909-S VDB',     pickDenom('1909-S VDB 1C MS65 RD PCGS'), '1C');
+  chk('denom half cent',      pickDenom('1793 1/2 C AU50 PCGS'), '1/2C');
+  chk('denom H1C alias',      pickDenom('1794 H1C Cohen 1a VG8 NGC'), '1/2C');
+  chk('denom holder note',    pickDenom('1852 1/2 C--Scratched--ANACS'), '1/2C');
+  chk('denom dime FB',        pickDenom('1918-D 10C MS64 Full Bands PCGS'), '10C');
+  chk('denom gold dollar',    pickDenom('1854 G$1 AU58 NGC'), 'G$1');
+  chk('denom eagle eye trap', pickDenom('1877 1C MS65 RD PCGS. Eagle Eye Photo Seal.'), '1C');
+  chk('denom colonial farth', pickDenom('1723 FARTH Hibernia VF25 PCGS'), '1/4P');
+  chk('denom colonial 1/2sou',pickDenom('1740-P 1/2 SOU M VF30 PCGS'), '1/2SOU');
+  chk('denom shilling null',  pickDenom('1652 Oak Tree Shilling. Noe-5. Fine 15.'), null);
+  chk('denom shilling fb',    colonialDenom('1652 Oak Tree Shilling. Noe-5. Fine 15.', 'Colonials'), 'SHILLING');
+  // strike designation: spelled-out forms in the title head only
+  chk('desig full bands',     pickStrikeDesig('1918-D 10C MS64 Full Bands PCGS'), 'FB');
+  chk('desig FBL',            pickStrikeDesig('1953-S 50C MS65 Full Bell Lines NGC'), 'FBL');
+  chk('desig full steps',     pickStrikeDesig('1939 5C MS67 Full Steps PCGS'), '5FS');
+  chk('desig prose trap',     pickStrikeDesig('1918-D 10C MS64 PCGS. Lacks full bands.'), null);
+  chk('desig FS variety',     pickStrikeDesig('1918-S 5C FS-101 MS64 PCGS'), null);
+  // surface, strike type, grader mapping, year
+  chk('surface DCAM',         pickSurface('1963 50C PR68 Deep Cameo PCGS', null), 'DCAM');
+  chk('surface CA facet',     pickSurface('anything', 'CA'), 'CAM');
+  chk('type grade wins',      pickStrikeType('Small Cents', '', 'PR64'), 'PROOF');
+  chk('type business',        pickStrikeType('Small Cents', '', 'MS64'), 'BUSINESS');
+  chk('svc PCGS Genuine',     mapService('PCGS Genuine'), 'PCGS');
+  chk('svc NCS -> NGC',       mapService('NCS'), 'NGC');
+  chk('svc uncertified',      mapService('Uncertified'), 'raw');
+  const ym = /\b(1[6-9]\d{2}|20\d{2})\b/.exec('1909-S VDB 1C MS65 RD PCGS');
+  chk('year leftmost',        ym && ym[1], '1909');
+  if (fails) console.error('[' + tag + '] COIN SELF-TEST: ' + fails + ' FAILED');
+  else console.log('[' + tag + '] coin self-test ok (25 checks)');
+  return fails;
+}
+
 /* ---------- boot ---------- */
 function boot(){
   buildPanel(); paint();
+  const tf = coinSelfTest('chq15');
+  if (tf){ st.msg = 'COIN SELF-TEST FAILED (' + tf + ') - see console. Do not sweep.'; paint(); }
   if (SB_KEY.indexOf('PASTE_') === 0){ st.msg = 'SB_KEY not set - paste your publishable key'; paint(); }
   if (st.running){ waitForRows().then(function(){ paint(); tick(); }); }
   else { waitForRows().then(paint); setTimeout(paint, 1200); setTimeout(paint, 3000); }
