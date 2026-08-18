@@ -240,7 +240,18 @@ create table if not exists public.catalog_master (
   imported_at timestamp with time zone default now(),
   status text default 'curated'::text not null,
   fr_join_key text generated always as (fr_canon(fr_number)) stored,
-  catalog_system text default 'friedberg'::text not null
+  catalog_system text default 'friedberg'::text not null,
+  series_designation text,
+  series_source text,
+  series_denom_check text,
+  trust_rank smallint
+);
+
+create table if not exists public.catalog_series_overrides (
+  fr_join_key text not null,
+  series_designation text,
+  reason text not null,
+  created_at timestamp with time zone default now() not null
 );
 
 create table if not exists public.catalog_master_conflicts (
@@ -2630,67 +2641,26 @@ create or replace view public.lots_coins_resolved as
 
 create or replace view public.lots_currency_resolved as
  SELECT lc.id,
-    lc.source,
-    lc.source_lot_id,
-    lc.lot_url,
-    lc.title,
-    lc.sold_on,
-    lc.sold_year,
-    lc.price_realized,
-    lc.price_kind,
-    lc.price_estimate_low,
-    lc.price_estimate_high,
-    lc.currency_code,
-    lc.type_class,
-    lc.series_date,
-    lc.series_type,
-    lc.denomination,
-    lc.denomination_raw,
-    lc.friedberg_number,
-    lc.grading_company,
-    lc.grade_raw,
-    lc.grade_numeric,
-    lc.ppq_epq,
-    lc.serial_number,
-    lc.signatures,
-    lc.is_star_note,
-    lc.auction_event_id,
-    lc.auction_event_name,
-    lc.thumbnail_url,
-    lc.raw,
-    lc.scraped_at,
-    lc.updated_at,
-    lc.state_code,
-    lc.charter_number,
-    lc.data_quality,
-    lc.series_year,
-    lc.series_letter,
-    lc.classified_by,
-    lc.catalog_number,
-    lc.catalog_system,
-    lc.catalog_source,
-    lc.friedberg_base,
-    lc.series_canonical,
-    lc.needs_review,
-    lc.denomination_canonical,
-    lc.is_mixed_denomination,
-    lc.grade_numeric_est,
-    lc.grade_grade_source,
-    lc.fr_canon,
-    lc.fr_base_canon,
-    lc.review_reason,
-    lc.search_visible,
-    lc.is_multi_fr_lot,
+    lc.source, lc.source_lot_id, lc.lot_url, lc.title, lc.sold_on, lc.sold_year,
+    lc.price_realized, lc.price_kind, lc.price_estimate_low, lc.price_estimate_high,
+    lc.currency_code, lc.type_class, lc.series_date, lc.series_type, lc.denomination,
+    lc.denomination_raw, lc.friedberg_number, lc.grading_company, lc.grade_raw,
+    lc.grade_numeric, lc.ppq_epq, lc.serial_number, lc.signatures, lc.is_star_note,
+    lc.auction_event_id, lc.auction_event_name, lc.thumbnail_url, lc.raw,
+    lc.scraped_at, lc.updated_at, lc.state_code, lc.charter_number, lc.data_quality,
+    lc.series_year, lc.series_letter, lc.classified_by, lc.catalog_number,
+    lc.catalog_system, lc.catalog_source, lc.friedberg_base, lc.series_canonical,
+    lc.needs_review, lc.denomination_canonical, lc.is_mixed_denomination,
+    lc.grade_numeric_est, lc.grade_grade_source, lc.fr_canon, lc.fr_base_canon,
+    lc.review_reason, lc.search_visible, lc.is_multi_fr_lot,
     lc.friedberg_number_normalized,
     COALESCE(lc.grade_numeric, lc.grade_numeric_est) AS grade_numeric_search,
         CASE
             WHEN lc.charter_number IS NOT NULL AND lc.charter_number <> ''::text AND (lc.friedberg_number IS NULL OR lc.friedberg_number = ''::text) THEN lc.friedberg_number
             ELSE COALESCE(cat.fr_number, lc.friedberg_number, lc.catalog_number)
         END AS display_fr,
-        CASE
-            WHEN lc.charter_number IS NOT NULL AND lc.charter_number <> ''::text AND (lc.friedberg_number IS NULL OR lc.friedberg_number = ''::text) THEN lc.series_year::text
-            ELSE COALESCE(NULLIF(cat.series_year, ''::text), lc.series_year::text)
-        END AS display_year,
+    CASE WHEN g.is_national AND d.dy IS NOT NULL AND NOT g.ok THEN NULL::text
+         ELSE d.dy END AS display_year,
     COALESCE(lc.denomination_canonical,
         CASE
             WHEN lc.charter_number IS NOT NULL AND lc.charter_number <> ''::text AND (lc.friedberg_number IS NULL OR lc.friedberg_number = ''::text) THEN lc.denomination
@@ -2705,9 +2675,45 @@ create or replace view public.lots_currency_resolved as
             ELSE cat.districts_letters
         END AS display_district,
     COALESCE(NULLIF(lc.signatures, ''::text), cat.signatures) AS display_signatures,
-    cat.seal AS display_seal
+    cat.seal AS display_seal,
+    CASE WHEN g.is_national AND d.dy IS NOT NULL AND NOT g.ok
+         THEN 'suppressed_not_a_national_series'::text
+         ELSE d.dsrc END AS display_year_source
    FROM lots_currency lc
-     LEFT JOIN catalog_master cat ON cat.fr_join_key = lc.fr_canon;
+     LEFT JOIN catalog_master cat ON cat.fr_join_key = lc.fr_canon
+     CROSS JOIN LATERAL (
+       SELECT
+         CASE
+           WHEN lc.charter_number IS NOT NULL AND lc.charter_number <> ''::text
+                AND (lc.friedberg_number IS NULL OR lc.friedberg_number = ''::text)
+             THEN lc.series_year::text
+           WHEN cat.series_designation IS NOT NULL
+                AND lc.denomination_canonical IS NOT NULL
+                AND cat.series_denom_check IS NOT NULL
+                AND lc.denomination_canonical <> cat.series_denom_check
+             THEN NULL::text
+           WHEN cat.series_designation IS NOT NULL THEN cat.series_designation
+           ELSE COALESCE(NULLIF(cat.series_year, ''::text), lc.series_year::text)
+         END AS dy,
+         CASE
+           WHEN lc.charter_number IS NOT NULL AND lc.charter_number <> ''::text
+                AND (lc.friedberg_number IS NULL OR lc.friedberg_number = ''::text) THEN 'national'::text
+           WHEN cat.series_designation IS NOT NULL
+                AND lc.denomination_canonical IS NOT NULL
+                AND cat.series_denom_check IS NOT NULL
+                AND lc.denomination_canonical <> cat.series_denom_check THEN 'suppressed_denom_conflict'::text
+           WHEN cat.series_designation IS NOT NULL THEN cat.series_source
+           ELSE 'legacy'::text
+         END AS dsrc
+     ) d
+     CROSS JOIN LATERAL (
+       SELECT
+         (COALESCE(lc.series_canonical,'') = 'National Bank Note'
+          AND COALESCE(lc.charter_number,'') <> '') AS is_national,
+         CASE WHEN d.dy ~ '^[0-9]{4}$'
+              THEN (d.dy::int BETWEEN 1863 AND 1875 OR d.dy::int IN (1882,1902,1929))
+              ELSE false END AS ok
+     ) g;
 
 create materialized view public.title_word_freq as
  SELECT word,
