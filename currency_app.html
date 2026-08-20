@@ -1011,7 +1011,7 @@ function renderCoinTable() {
     const cac = r.has_cac ? "CAC" : "";
     const plus = r.has_plus ? "+" : "";
     const cat = r.category || "—";
-    const srcLabel = r.source === "heritage_auctions" ? "HA" : r.source === "stacks_bowers" ? "SB" : (r.source || "—");
+    const srcLabel = ({heritage_auctions:"HA", stacks_bowers:"SB", greatcollections:"GC", ebay:"eBay"})[r.source] || (r.source || "—");
     const t = r.title || "—";
     const url = r.lot_url || "#";
     const tShort = t.length > 80 ? t.substring(0, 77) + "…" : t;
@@ -1050,8 +1050,7 @@ function renderTable() {
     const den = r.denomination_canonical || r.display_denom || r.denomination || "—";
     const sType = r.series_canonical || r.display_type || r.series_type || "—";
     const grade = r.grade_raw || "—";
-    const srcLabel = r.source === "heritage_auctions" ? "HA"
-                   : r.source === "stacks_bowers" ? "SB" : "—";
+    const srcLabel = ({heritage_auctions:"HA", stacks_bowers:"SB", greatcollections:"GC", ebay:"eBay"})[r.source] || "—";
     const t = r.title || "—";
     const url = r.lot_url || "#";
     const tShort = t.length > 80 ? t.substring(0, 77) + "…" : t;
