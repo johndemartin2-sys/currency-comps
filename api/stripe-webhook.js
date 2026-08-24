@@ -106,7 +106,20 @@ async function syncCurrencyProfile({ userId, customerId, products, status }) {
     subscription_status: status,
     updated_at: new Date().toISOString(),
   };
-  if (customerId) update.stripe_customer_id = customerId;
+  // Idempotent write-back of stripe_customer_id: the checkout route may have
+  // already recorded it at checkout-open. Only include it when it is null or
+  // different, so a matching value is never rewritten and never errors.
+  if (customerId && userId) {
+    const { data: current, error: readErr } = await supabase
+      .from("profiles")
+      .select("stripe_customer_id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (readErr) throw readErr;
+    if (!current || current.stripe_customer_id !== customerId) {
+      update.stripe_customer_id = customerId;
+    }
+  }
   const { error } = await supabase
     .from("profiles")
     .update(update)
