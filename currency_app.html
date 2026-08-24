@@ -1425,8 +1425,27 @@ function logSearch(resultCount) {
       } else {
         var r2=await sb.auth.signUp({ email:email, password:pw });
         if(r2.error){ showAuthErr(r2.error.message); return; }
-        showAuthErr('Account created. Check your email to confirm, then sign in.', true);
-        ccMode='signin'; ccRefreshMode();
+        var newSess = r2.data && r2.data.session;
+        if(!newSess || !newSess.user){
+          // Email confirmation required (not the current config) - fall back to sign-in.
+          showAuthErr('Account created. Check your email to confirm, then sign in.', true);
+          ccMode='signin'; ccRefreshMode(); return;
+        }
+        // Create Account -> straight to Stripe Checkout. Plan comes from the
+        // landing page (?plan=annual) else monthly (7-day trial). If checkout
+        // can't be started, drop into the app; the search-gated Subscribe
+        // widget takes it from there.
+        showAuthErr('Account created. Redirecting to secure checkout…', true);
+        var btn=document.getElementById('authPrimary'); if(btn) btn.disabled=true;
+        try{
+          var plan=new URLSearchParams(location.search).get('plan'); if(plan!=='annual') plan='monthly';
+          var res=await fetch('/api/create-checkout-session',{ method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ plan:plan, product:(typeof MODE!=='undefined'?MODE:'currency'), userId:newSess.user.id, email:newSess.user.email }) });
+          var out=await res.json();
+          if(out && out.url){ window.location.href=out.url; return; }
+        }catch(_e){}
+        if(btn) btn.disabled=false;
+        startApp();
       }
     }
     async function ccDoReset(){
