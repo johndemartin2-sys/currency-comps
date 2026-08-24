@@ -9,7 +9,53 @@
 // reconciled by the webhook (by email or stripe_customer_id).
 
 const Stripe = require("stripe");
+const { createClient } = require("@supabase/supabase-js");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Service-role client (server-side only) used to record the Stripe customer id
+// on the profile as soon as checkout is opened. Lazily created so a missing
+// env var can never break checkout itself.
+let _supabase = null;
+function getSupabase() {
+  if (_supabase) return _supabase;
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  _supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return _supabase;
+}
+
+// Write profiles.stripe_customer_id for the logged-in user at checkout-open.
+// - Only writes when the stored value is null or different (no-op if it matches).
+// - Never touches subscription_status: it stays "inactive" until the webhook
+//   confirms payment. (id present + inactive = opened checkout, didn't pay.)
+// - Never throws: a bookkeeping failure must not block a customer from paying.
+async function recordCustomerOnProfile(userId, customerId) {
+  if (!userId || !customerId) return;
+  try {
+    const sb = getSupabase();
+    if (!sb) {
+      console.error("recordCustomerOnProfile: Supabase env not configured; skipping");
+      return;
+    }
+    const { data: profile, error: readErr } = await sb
+      .from("profiles")
+      .select("id, stripe_customer_id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (readErr) throw readErr;
+    if (!profile) {
+      console.warn("recordCustomerOnProfile: no profile for user", userId);
+      return;
+    }
+    if (profile.stripe_customer_id === customerId) return; // already correct
+    const { error: writeErr } = await sb
+      .from("profiles")
+      .update({ stripe_customer_id: customerId, updated_at: new Date().toISOString() })
+      .eq("id", userId);
+    if (writeErr) throw writeErr;
+  } catch (err) {
+    console.error("recordCustomerOnProfile failed (checkout continues):", err.message || err);
+  }
+}
 
 // Map each product+plan to its Stripe Price env var, and to the list of
 // entitlement products that subscription grants.
@@ -64,6 +110,10 @@ module.exports = async (req, res) => {
     });
     customerParam.customer = created.id;
   }
+
+  // Record the Stripe customer on the profile now (before the checkout URL is
+  // returned) so an abandoned checkout is distinguishable from never clicking.
+  await recordCustomerOnProfile(userId, customerParam.customer);
 
   // Guard: if this customer already has an active/trialing subscription for
   // this product, do not create another one - send them to manage billing.
