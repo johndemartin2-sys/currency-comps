@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Currency Comp Harvester — Stack's Bowers v9.5
+// @name         Currency Comp Harvester — Stack's Bowers v9.7.2
 // @namespace    jdmstrategy.comp.tool
-// @version      9.7.1
+// @version      9.7.2
 // @description  Family-engine harvester for Stack's Bowers Archive -> ingest_stacks_bowers_lot via ingest-proxy. API-direct + DOM modes. Shares its series/Friedberg parser byte-for-byte with the Heritage harvester.
 // @match        https://archive.stacksbowers.com/*
 // @grant        GM_xmlhttpRequest
@@ -10,6 +10,14 @@
 // @connect      auctions.stacksbowers.com
 // @run-at       document-start
 // ==/UserScript==
+// v9.7.2 (2026-08-26): GRADE_RAW TRUNCATION FIX. parseGradeRaw's TPG branch
+//   used a lazy '[^.]*?' followed by OPTIONAL digits '\d{0,2}', so it matched
+//   the shortest possible string - "PMG Choice", "PCGS Gem" - and dropped the
+//   rest ("Extremely Fine 45 EPQ"). 7,381 live rows carried a one-word
+//   grade_raw (grade_numeric was unaffected - it has its own parser). Now
+//   uses the GC harvester's pattern: digits REQUIRED, then optional PPQ/EPQ,
+//   Details and PMG star. DB rows backfilled from titles 2026-08-26
+//   (raw.grade_raw_backfill). Raw-grade fallback branch unchanged.
 // v9.7.1 (2026-08-20): ENRICH FIXES from the first live run (192 lots).
 //   * THUMBNAILS: images[] elements are {row_id, thumbnail_url, detail_url,
 //     caption} - the v9.7.0 key-guess chain missed thumbnail_url, so 0 of 190
@@ -172,11 +180,11 @@
   // v9.6.0: PRIVATE harvest key (hk_...). This is NOT the publishable
   // sb_publishable_ key - that key can no longer write. Paste the key you
   // were given ONCE, here, and nowhere else.
-  const HARVEST_KEY   = 'PASTE_HARVEST_KEY_HERE';
+  const HARVEST_KEY   = 'hk_16ecc5ab02ab362d4c4ed7d42d993ff27ed9ea719ddf479e';
   const RPC_ENDPOINT  = SUPABASE_URL + '/functions/v1/ingest-proxy/ingest_stacks_bowers_lot';
   const SOURCE        = 'stacks_bowers';
   const EXTRACTOR_VERSION = 'v8';    // RPC contract: must stay 'v8'
-  const VERSION       = '9.7.1';
+  const VERSION       = '9.7.2';
   const LS_KEY        = 'sbh9';
   const CONCURRENCY   = 8;           // parallel upsert workers
   const RETRY_ONCE    = true;        // single retry per lot on transient failure
@@ -465,7 +473,8 @@
   }
   function parseGradeRaw(title) {
     const t = title || '';
-    const m = t.match(new RegExp('\\b(?:PCGS|PMG|NGC)\\b[^.]*?(?:' + GRADE_ADJ + ')[^.]*?\\d{0,2}', 'i'));
+    // v9.7.2: digits required (was '\d{0,2}' after a lazy '[^.]*?' -> "PMG Choice").
+    const m = t.match(/\b(?:PMG|PCGS(?:\s+(?:Banknote|Currency))?|NGCX?|CACG|ANACS|Legacy)\b[^,]*?\d{1,2}(?:\s*(?:PPQ|EPQ))?(?:\s*Details)?(?:\s*[★*])?/i);
     if (m) return m[0].trim().slice(0, 80);
     const a = t.match(new RegExp('\\b' + GRADE_ADJ + '\\b[^.]{0,12}\\d{0,2}', 'i'));
     return a ? a[0].trim().slice(0, 80) : null;
