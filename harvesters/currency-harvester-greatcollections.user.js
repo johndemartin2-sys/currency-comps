@@ -1,12 +1,38 @@
 // ==UserScript==
-// @name         Currency Comp Harvester — GreatCollections v1.0
+// @name         Currency Comp Harvester — GreatCollections v1.0.8
 // @namespace    jdmstrategy.currency-comps
-// @version      1.0.6
+// @version      1.0.8
 // @description  Family-engine harvester for the GreatCollections Auction Archive -> ingest_greatcollections_lot via ingest-proxy. Leaf-category sweep + recent-sales top-up. Shares its series/Friedberg parser byte-for-byte with the Heritage and Stack's harvesters.
 // @match        https://www.greatcollections.com/Auction-Archive/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
+// v1.0.8 (2026-08-25): LEAF LEDGER - never re-harvest a finished leaf by
+//   accident. Every leaf that completes cleanly (no price rejects, not
+//   paused for login) is stamped with its completion time in a SEPARATE
+//   localStorage key (gch1_leaves) that Full Sweep / Reset do NOT clear.
+//   Full Sweep gets a "skip leaves done within N days" field (default 30,
+//   0 = off): when the queue reaches a leaf stamped inside that window the
+//   sweep skips it WITHOUT loading the page (no delay, no navigation) and
+//   counts it under "lskip". Why: the Large Size re-sweep visited 744 leaves
+//   to find 8 new lots because the crashed run had no record of what it had
+//   finished. Now a crash, an accidental Full Sweep, or a partial re-run only
+//   costs the leaves that were not recently completed. Top Up is unaffected
+//   (its capped recent-sales grids are the point). The ledger is browser-
+//   local: a Chrome profile wipe just means one normal sweep to rebuild it.
+//   Panel: "clear ledger" button (confirm) for a deliberate full re-harvest.
+// v1.0.7 (2026-08-20): SELF-HEALING DETAILS + breadcrumb fix.
+//   * The v1/v2 RPC's blanket update clobbered detail data (exact dates,
+//     certs) whenever a listing sweep re-touched an already-detailed row -
+//     the Large Size re-sweep downgraded 2,904 rows back to month precision.
+//     RPC v3 (2026-08-20) now preserves day-precision sold_on and carries
+//     cert_number/pedigree/date_precision forward, and returns 'updn:' for
+//     updated rows that still lack detail. This script detail-fetches on
+//     BOTH 'ins:' and 'updn:', so damaged or never-detailed rows heal
+//     organically during any sweep or top-up.
+//   * breadcrumbCategory: on leaf pages, exclude the final crumb (the leaf's
+//     own Fr title) from the category walk - "Fr. CC-21 ... Continental
+//     Currency" was matching itself and polluting raw.gc_category.
 // v1.0.6 (2026-08-20): LOGIN GUARD FALSE-POSITIVE FIX. v1.0.5 tested only
 //   innerText for "Welcome," - innerText excludes HIDDEN elements, so a
 //   collapsed header paused a run even while prices were plainly rendering.
@@ -103,14 +129,16 @@
 //   A 401 stops the run like a breaker.
 (function () {
 'use strict';
-const VERSION = '1.0.6';
+const VERSION = '1.0.8';
 // ===================== CONFIG =====================
 const SUPABASE_REF = 'wqizwluccqqfkedpgvve';
 // PRIVATE harvest key (hk_...). NOT the publishable key. Paste once, here.
-const HARVEST_KEY = 'PASTE_HARVEST_KEY_HERE';
+const HARVEST_KEY = 'hk_153e0d498ddd187851e6ab1fe9921a7990f9a89de2eb676e';
 const RPC_URL = 'https://' + SUPABASE_REF + '.supabase.co/functions/v1/ingest-proxy/ingest_greatcollections_lot';
 const EXTRACTOR_VERSION = 'v8';
 const LS_KEY = 'gch1';
+const LEDGER_KEY = 'gch1_leaves';   // v1.0.8: leaf completion ledger (survives Reset / Full Sweep)
+const SKIP_DAYS_DEFAULT = 30;
 const SOURCE = 'greatcollections';
 const POST_WORKERS = 4;        // pooled upserts per page
 const DETAIL_DELAY_MS = 1500;  // throttle between detail-page fetches
@@ -394,8 +422,11 @@ function breadcrumbCategory() {
   // walk right-to-left and return the first crumb that maps to a type class.
   const bc = document.querySelector('.bc-outer');
   const parts = bc ? bc.innerText.split('›').map(s=>s.trim()).filter(Boolean) : [];
-  for (let i = parts.length - 1; i >= 0; i--) {
-    if (categoryTypeClass(parts[i])) return parts[i];
+  // v1.0.7: on a leaf page the final crumb is the leaf's own title - exclude
+  // it from the walk so "Fr. CC-21 ... Continental Currency" can't match itself.
+  const start = pageHasSeriesList() ? parts.length - 1 : parts.length - 2;
+  for (let i = start; i >= 0; i--) {
+    if (parts[i] && categoryTypeClass(parts[i])) return parts[i];
   }
   return parts.length ? parts[parts.length-1] : null;
 }
@@ -623,11 +654,21 @@ const el = id => document.getElementById(id);
  *  STATE MACHINE (Heritage pattern: survives navigation via localStorage)
  * ===================================================================== */
 function FRESH(){ return { mode:'idle', running:false, queue:[], i:0, seen:{},
-  cutoff:'', detail:true, delay:PAGE_DELAY_S, msg:'', errs:[],
-  stats:{pages:0,seen:0,new:0,upd:0,rej:0,skip:0,err:0,details:0} }; }
+  cutoff:'', detail:true, delay:PAGE_DELAY_S, skipDays:SKIP_DAYS_DEFAULT, msg:'', errs:[],
+  stats:{pages:0,seen:0,new:0,upd:0,rej:0,skip:0,err:0,details:0,lskip:0} }; }
+// v1.0.8: leaf ledger { '/Auction-Archive/...leaf': ISO completion time }
+function ledgerLoad(){ try { return JSON.parse(localStorage.getItem(LEDGER_KEY)) || {}; } catch(e){ return {}; } }
+function ledgerStamp(path){ try { const L = ledgerLoad(); L[path] = new Date().toISOString(); localStorage.setItem(LEDGER_KEY, JSON.stringify(L)); } catch(e){} }
+function ledgerFresh(path){
+  const days = parseFloat(st.skipDays); if (!(days > 0)) return false;
+  const when = ledgerLoad()[path]; if (!when) return false;
+  return (Date.now() - Date.parse(when)) < days * 86400000;
+}
+function ledgerSize(){ return Object.keys(ledgerLoad()).length; }
 let st = load();
 function load(){ try { const o = Object.assign(FRESH(), JSON.parse(localStorage.getItem(LS_KEY)));
-    if (!o.errs) o.errs = []; if (!o.seen) o.seen = {}; if (!o.queue) o.queue = []; return o; }
+    if (!o.errs) o.errs = []; if (!o.seen) o.seen = {}; if (!o.queue) o.queue = [];
+    if (!o.stats) o.stats = FRESH().stats; if (o.stats.lskip == null) o.stats.lskip = 0; return o; }
   catch(e){ return FRESH(); } }
 function save(){ try { localStorage.setItem(LS_KEY, JSON.stringify(st)); } catch(e){} }
 function logErr(m){ st.errs.unshift(String(m).slice(0,180)); if (st.errs.length > 5) st.errs.length = 5; }
@@ -683,7 +724,8 @@ async function harvestGrid(dry){
       const lot = queue[i];
       try {
         const out = await post(buildPayload(lot, catClass, null));
-        if (/^upd/.test(out)) r.upd++;
+        if (/^updn/.test(out)) { r.upd++; r.newLots.push(lot); }   // v1.0.7: known row, detail missing -> heal
+        else if (/^upd/.test(out)) r.upd++;
         else { r.ins++; r.newLots.push(lot); }
       } catch(e){
         const msg = String(e.message || e);
@@ -736,6 +778,8 @@ async function processCurrentPage(){
     const r = await harvestGrid(false);
     tally(r); save(); paint();
     if (r.breaker) return finish('STOPPED - circuit breaker or key rejection. See error panel.');
+    // v1.0.8: a leaf that finished with no price rejects is DONE - stamp it.
+    if (r.rej === 0 && r.err === 0) ledgerStamp(here);
   }
   save(); paint();
   advance();
@@ -743,6 +787,11 @@ async function processCurrentPage(){
 function advance(){
   if (!st.running) return;
   if (st.stats.pages >= MAX_PAGES) return finish('MAX_PAGES backstop hit');
+  // v1.0.8: skip leaves the ledger says were completed within skipDays -
+  // no page load, no delay. Category pages are never in the ledger.
+  while (st.mode === 'sweep' && st.i < st.queue.length && ledgerFresh(st.queue[st.i])){
+    st.i++; st.stats.lskip++;
+  }
   if (st.i < st.queue.length){
     const next = st.queue[st.i++];
     save();
@@ -773,6 +822,7 @@ function startSweep(){
     detail: el('gch1-detail').checked,
     delay: parseFloat(el('gch1-delay').value) || PAGE_DELAY_S,
     cutoff: (el('gch1-cut').value.trim() || ''),
+    skipDays: (function(){ const v = parseFloat(el('gch1-skipdays').value); return isNaN(v) ? SKIP_DAYS_DEFAULT : v; })(),
     msg: 'sweep started from ' + (breadcrumbCategory() || 'here') });
   save(); paint(); processCurrentPage();
 }
@@ -821,7 +871,7 @@ function paint(){
   el('gch1-msg').textContent = st.msg || '';
   el('gch1-stats').textContent = 'pages ' + s.pages + ' - sold ' + s.seen + ' - new ' + s.new +
     ' - upd ' + s.upd + ' - rej ' + s.rej + ' - skip ' + s.skip + ' - err ' + s.err +
-    ' - details ' + s.details;
+    ' - details ' + s.details + ' - lskip ' + s.lskip + ' - ledger ' + ledgerSize();
   el('gch1-errs').textContent = (st.errs && st.errs.length) ? st.errs.join('\n') : '';
 }
 function buildPanel(){
@@ -852,10 +902,12 @@ function buildPanel(){
     '<button id="gch1-topup" title="One level: harvest this page + each direct child category page (capped, recent-sales-sorted grids). Weekly refresh from the US Paper Money root.">Top Up</button></div>' +
     '<div class="row">skip sold before <input type="text" id="gch1-cut" size="8" placeholder="YYYY-MM"> ' +
     '<label title="For each NEW lot, fetch its detail page for exact sold date + cert number (throttled)"><input type="checkbox" id="gch1-detail" checked>details</label></div>' +
-    '<div class="row">delay s <input type="text" id="gch1-delay" size="3" value="' + PAGE_DELAY_S + '" title="Pause between page loads (+/-25% jitter). Raise to 10-15 if GC warns about opening pages too quickly."></div>' +
+    '<div class="row">delay s <input type="text" id="gch1-delay" size="3" value="' + PAGE_DELAY_S + '" title="Pause between page loads (+/-25% jitter). Raise to 10-15 if GC warns about opening pages too quickly."> ' +
+    ' skip leaves done within <input type="text" id="gch1-skipdays" size="3" value="' + SKIP_DAYS_DEFAULT + '" title="Full Sweep: skip leaves the ledger shows completed within this many days (0 = off)"> days</div>' +
     '<div class="row"><button id="gch1-dry">Dry Run</button><button id="gch1-page">Page</button>' +
     '<button id="gch1-resume">Resume</button><button id="gch1-stop">Stop</button>' +
-    '<button id="gch1-reset">Reset</button></div>' +
+    '<button id="gch1-reset">Reset</button>' +
+    '<button id="gch1-ledger" title="Forget every leaf completion stamp (forces a true full re-harvest next sweep)">clear ledger</button></div>' +
     '<div id="gch1-stats"></div>' +
     '<div id="gch1-errs"></div>';
   document.body.appendChild(p);
@@ -866,7 +918,10 @@ function buildPanel(){
   el('gch1-resume').onclick = function(){ st.running = true; st.msg = 'resumed'; save(); paint(); processCurrentPage(); };
   el('gch1-stop').onclick   = function(){ st.running = false; st.msg = 'stopped by user'; save(); paint(); };
   el('gch1-reset').onclick  = function(){ localStorage.removeItem(LS_KEY); st = FRESH();
-    st.msg = 'state cleared'; paint(); };
+    st.msg = 'state cleared (leaf ledger kept)'; paint(); };
+  el('gch1-ledger').onclick = function(){ if (!confirm('Clear the leaf ledger (' + ledgerSize() + ' leaves)? Next Full Sweep re-harvests everything.')) return;
+    localStorage.removeItem(LEDGER_KEY); st.msg = 'leaf ledger cleared'; paint(); };
+  if (st.skipDays != null) el('gch1-skipdays').value = st.skipDays;
   if (st.cutoff) el('gch1-cut').value = st.cutoff;
   el('gch1-detail').checked = st.detail !== false;
   if (st.delay) el('gch1-delay').value = st.delay;
