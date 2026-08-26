@@ -1,0 +1,21 @@
+Currency Comps — Harvester Private Keys (updated 2026-08-25; supersedes harvestkeys20260819)
+Store in your password manager, then delete this file.
+These are the ONLY plaintext copies; the database stores SHA-256 hashes only.
+
+Stack's Bowers harvester (SB v9.6.0+):
+hk_16ecc5ab02ab362d4c4ed7d42d993ff27ed9ea719ddf479e
+
+Heritage harvester (v9.6.0+):
+hk_a7794e616c48e7e4adea4f7e8f0eea3ff8714bc8c50f9b5e
+
+GreatCollections harvester (GC v1.0.3+):
+hk_153e0d498ddd187851e6ab1fe9921a7990f9a89de2eb676e
+
+Lyn Knight harvester (LK v1.0.0, minted 2026-08-25; label "LK Harvester - John desktop - 2026-08-25", hash prefix b5aebf0e):
+hk_d3105ee9d6215f8b2807bc89fa97011605a4e6cc9f4d19ed
+
+Each goes in the HARVEST_KEY line of its script's CONFIG block.
+Never commit a real key to the public repo — leave 'PASTE_HARVEST_KEY_HERE' there.
+
+Revoke any single key with:
+UPDATE harvest_api_keys SET revoked_at = now() WHERE label LIKE '<SB|Heritage|GC|LK>%';
