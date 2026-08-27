@@ -680,7 +680,7 @@ async function runQuery() {
     '<tr class="loading-row"><td colspan="11">Searching…</td></tr>';
 
   try {
-    let _u=null; try{const {data:{session:_s}}=await sb.auth.getSession(); _u=_s?_s.user:null;}catch(_e){_u=null;} if(_u){let _ok=false,_ee=false; async function _chk(){try{if(MODE==="coins"){const {data:_ent,error:_er}=await sb.rpc("has_entitlement",{p_product:"coins"});if(_er)throw _er;_ok=(_ent===true);}else{const {data:_prof,error:_er}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single();if(_er)throw _er;_ok=!!(_prof&&_prof.subscription_status==="active");}return true;}catch(_e){_ee=true;return false;}} let _ck1=await _chk(); if(!_ck1){await new Promise(function(r){setTimeout(r,600);}); _ee=false; await _chk();} window.ccHasAccess=_ok;if(!_ok&&!_ee){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: ((!!activeSeries||document.getElementById("fStar").checked||["fSource","fTitle","fFr","fYear","fDenom","fService","fQual","fGradeMin","fGradeMax","fDateFrom","fDateTo","fState","fCharter"].some(function(id){var el=document.getElementById(id);return el&&el.value&&String(el.value).trim()!=="";}))?"exact":"planned") });
+    let _u=null; try{const {data:{session:_s}}=await sb.auth.getSession(); _u=_s?_s.user:null;}catch(_e){_u=null;} if(_u){let _ok=false,_ee=false; async function _chk(){try{if(MODE==="coins"){const {data:_ent,error:_er}=await sb.rpc("has_entitlement",{p_product:"coins"});if(_er)throw _er;_ok=(_ent===true);}else{const {data:_prof,error:_er}=await sb.from("profiles").select("subscription_status").eq("id",_u.id).single();if(_er)throw _er;_ok=!!(_prof&&_prof.subscription_status==="active");}return true;}catch(_e){_ee=true;return false;}} let _ck1=await _chk(); if(!_ck1){await new Promise(function(r){setTimeout(r,600);}); _ee=false; await _chk();} window.ccHasAccess=_ok;if(!_ok&&!_ee){if(window.ccUpdatePaywall)window.ccUpdatePaywall(0); document.getElementById("tbody").innerHTML='<tr class="empty-row"><td colspan="11">Subscribe to view results.</td></tr>'; return;}} let q = sb.from(TABLE).select("*", { count: "estimated" });
     q = (await applyFilters(q)).q;
     q = q.order(sortCol, { ascending: sortAsc, nullsFirst: false });
     q = q.range(page * PER, (page + 1) * PER - 1);
@@ -691,7 +691,7 @@ async function runQuery() {
     rows = data || [];
     totalMatching = count || 0;
       try { if (window.ccUpdatePaywall) window.ccUpdatePaywall(rows.length); } catch(e){}
-    document.getElementById("matchCount").textContent = fmt(totalMatching);
+    document.getElementById("matchCount").textContent = (totalMatching > 1000 ? "~" : "") + fmt(totalMatching);
     if (totalMatching === 0 && window.__frWarn && window.__frWarn.frB) {
       try {
         const _w = window.__frWarn;
@@ -1076,7 +1076,7 @@ function renderTable() {
 function renderPager() {
   const maxP = Math.max(0, Math.ceil(totalMatching / PER) - 1);
   document.getElementById("pgInfo").textContent = totalMatching > 0
-    ? `Page ${page + 1} of ${maxP + 1} (${fmt(totalMatching)} results)`
+    ? `Page ${page + 1} of ${maxP + 1} (${totalMatching > 1000 ? "~" : ""}${fmt(totalMatching)} results)`
     : "—";
   document.getElementById("pgPrev").disabled = page <= 0;
   document.getElementById("pgNext").disabled = page >= maxP;
