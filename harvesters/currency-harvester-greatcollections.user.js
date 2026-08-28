@@ -1,12 +1,102 @@
 // ==UserScript==
-// @name         Currency Comp Harvester — GreatCollections v1.0.8
+// @name         Currency Comp Harvester — GreatCollections v1.0.13
 // @namespace    jdmstrategy.currency-comps
-// @version      1.0.8
+// @version      1.0.13
 // @description  Family-engine harvester for the GreatCollections Auction Archive -> ingest_greatcollections_lot via ingest-proxy. Leaf-category sweep + recent-sales top-up. Shares its series/Friedberg parser byte-for-byte with the Heritage and Stack's harvesters.
 // @match        https://www.greatcollections.com/Auction-Archive/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
+// v1.0.13 (2026-08-28): AUDIT MODE - read-only coverage check. NO writes,
+//   no key required. Answers "how many sold lots does GC list for each
+//   leaf vs. how many we've saved" precisely, by LOT ID rather than a
+//   fuzzy count/classifier match.
+//   HOW: click Audit from a category root (e.g. National Banknotes). It
+//   walks the same leaf tree a Full Sweep would (collectChildLinks), but on
+//   each leaf it WAITS for the async history grid, then records into a
+//   separate localStorage key (gch1_audit): GC's printed "has sold N"
+//   count, the count of sold rows the grid actually rendered, and EVERY
+//   sold /Coin/<id> on the leaf. It never posts to the ingest proxy. The
+//   ledger is ignored (every leaf is visited). A per-leaf mismatch between
+//   GC's printed N and the rendered grid count is flagged in the error
+//   panel (usually means the grid was still loading - raise delay).
+//   EXPORT: "Export audit" copies the collected JSON (leaves + per-leaf
+//   sold ids) to the clipboard; paste it back and the DB diff reports
+//   exactly which GC lot ids are NOT yet in source_lot_id, grouped by leaf
+//   - i.e. the real coverage gap and a re-harvest worklist. "clear audit"
+//   drops the recorded data only (harvested rows + leaf ledger untouched).
+//   Nothing in the harvest/sweep/top-up path changed; audit is a sibling
+//   mode gated on st.mode==='audit'.
+// v1.0.12 (2026-08-28): NATIONALS SWEEP GAP - main-pane leaves + parent
+//   grids. Two fixes, both additive (upserts dedupe, so worst case is a
+//   re-touch that returns 'upd', never a wrong write or a double count).
+//   * MAIN-PANE LEAVES. The National tree renders its leaves in TWO places:
+//     a sidebar navigation tree AND the main content list (National Gold
+//     Bank, First Charter, Red Seals - each with a (N) count). The old
+//     collectChildLinks() EXCLUDED the sidebar and returned the rest, but
+//     when sidebarEl() mis-scoped the container it excluded the main-pane
+//     leaves too - so a Full Sweep queued only the already-swept sidebar
+//     tree (Third Charter, 1,036 rows) and silently dropped Gold Bank (7
+//     rows in DB), First Charter (~117), Red Seals (4): the ~1,470-lot
+//     National gap between our 2,096 and GC's 3,568. Now it collects EVERY
+//     counted archive link once (deduped by path), PREFERS the main-pane
+//     (non-sidebar) set, and falls back to the full set only if the main
+//     pane is empty - so other categories that relied on the old behavior
+//     are unaffected.
+//   * PARENT GRIDS. A series-list page can ALSO carry a capped sold grid -
+//     the National root Dry Run showed 138 sold lots on a page the sweep
+//     treated as navigation-only and skipped. The sweep now enqueues
+//     children AND harvests the grid whenever gridHasSold() is true (any
+//     page). Parent grids are capped (~150) so they are NOT ledger-stamped
+//     (only leaf pages are) - the per-leaf sweep still owns full history.
+//   No harvest-logic, parser, or write-path change beyond the above; the
+//   138-row parent grid and the missing main-pane leaves both flow through
+//   the existing RPC. Install and re-run Full Sweep from the National root.
+// v1.0.11 (2026-08-28): PANEL LEGIBILITY + STALE-ERROR CLEARING + CUTOFF
+//   PERSISTENCE. Three small UI fixes, no harvest-logic change.
+//   * LABEL COLOR. The plain-text labels in the panel rows ("delay s",
+//     "skip leaves done within ... days", "skip sold before", "details")
+//     had no explicit color, so GC's page CSS bled through and rendered
+//     them nearly invisible against the dark panel. .row and label now
+//     carry an explicit light-blue (#9db8ff, the mode-line color).
+//   * STALE ERRORS. The error panel kept showing the last run's rejects /
+//     403s indefinitely - five old Cloudflare 403s looked like current
+//     problems long after the run moved on. Errors now CLEAR at the start
+//     of each new page/leaf (processCurrentPage) and at the start of every
+//     Sweep / Top Up / Page / Dry run, so the panel only ever shows the
+//     current page's issues. (finish() leaves them up so a stop reason
+//     stays visible.)
+//   * CUTOFF FIELD PERSISTS. "skip sold before" (YYYY-MM) now saves to run
+//     state on edit and is repainted on reload, same as delay / skip-days
+//     got in v1.0.10 - so a reload mid-run no longer blanks it.
+// v1.0.10 (2026-08-26): RESUME HONORS THE PANEL + RUN LOCK.
+//   * "delay s" and "skip leaves done within" were only read by Full Sweep /
+//     Top Up / Page. Resume used the value saved at sweep start and the
+//     reload repainted the field from it - so editing the delay to 12 and
+//     pressing Resume silently ran at 6. Both fields now persist to run
+//     state on every edit; the mode line shows the EFFECTIVE delay.
+//   * RUN LOCK. After a reload with running:true the script auto-resumes;
+//     pressing Resume on top started a SECOND loop on the same leaf: detail
+//     counters hopped, every lot detail-fetched twice (doubling request
+//     rate under a Cloudflare challenge), and advance() ran twice per page,
+//     skipping a leaf each time. Resume / auto-resume now refuse to start
+//     while a loop is active ("already running"). Leaves skipped by a
+//     double-run were never ledger-stamped, so the next Full Sweep with
+//     skip-days on revisits exactly those.
+// v1.0.9 (2026-08-26): BOT-CHECK TOLERANCE. GC fronts the site with a
+//   Cloudflare "verifying website traffic" interstitial when it sees too
+//   much traffic from one IP. Behind it, detail fetches return HTTP 403 and
+//   the page has no Sign Out / prices, which the login guard read as
+//   "logged out" while the loop kept firing 403s (five in a row on the
+//   Small Size sweep) - and continuing is what escalates the block.
+//   Now: a 403 (or the interstitial HTML) on a detail fetch backs off
+//   DETAIL_403_BACKOFF_MS before the next attempt; DETAIL_403_LIMIT
+//   CONSECUTIVE failures PAUSE the run in place with a "GC BOT CHECK"
+//   message (pass the verification in this tab, then Resume - same leaf,
+//   nothing lost, the failed lots are updn: rows that heal next pass). A
+//   successful fetch resets the counter, so a single blip never stops a
+//   run. DETAIL_DELAY_MS raised 1500 -> 3000 (+/-25% jitter). Page delay is
+//   still the panel field - raise it to 10-15 if GC keeps challenging.
 // v1.0.8 (2026-08-25): LEAF LEDGER - never re-harvest a finished leaf by
 //   accident. Every leaf that completes cleanly (no price rejects, not
 //   paused for login) is stamped with its completion time in a SEPARATE
@@ -129,11 +219,11 @@
 //   A 401 stops the run like a breaker.
 (function () {
 'use strict';
-const VERSION = '1.0.8';
+const VERSION = '1.0.13';
 // ===================== CONFIG =====================
 const SUPABASE_REF = 'wqizwluccqqfkedpgvve';
 // PRIVATE harvest key (hk_...). NOT the publishable key. Paste once, here.
-const HARVEST_KEY = 'hk_153e0d498ddd187851e6ab1fe9921a7990f9a89de2eb676e';
+const HARVEST_KEY = 'PASTE_HARVEST_KEY_HERE';
 const RPC_URL = 'https://' + SUPABASE_REF + '.supabase.co/functions/v1/ingest-proxy/ingest_greatcollections_lot';
 const EXTRACTOR_VERSION = 'v8';
 const LS_KEY = 'gch1';
@@ -141,7 +231,9 @@ const LEDGER_KEY = 'gch1_leaves';   // v1.0.8: leaf completion ledger (survives 
 const SKIP_DAYS_DEFAULT = 30;
 const SOURCE = 'greatcollections';
 const POST_WORKERS = 4;        // pooled upserts per page
-const DETAIL_DELAY_MS = 1500;  // throttle between detail-page fetches
+const DETAIL_DELAY_MS = 3000;  // base throttle between detail-page fetches (+/-25% jitter) - v1.0.9: was 1500
+const DETAIL_403_LIMIT = 3;    // v1.0.9: consecutive 403/bot-check detail failures before pausing
+const DETAIL_403_BACKOFF_MS = 20000; // v1.0.9: wait after each 403 before the next detail attempt
 const PAGE_DELAY_S = 6;        // default pause between page navigations (panel-adjustable)
 const BUYERS_FEE_PCT = 0.10;   // GC buyer's fee
 const BUYERS_FEE_MIN = 5;      // ...with a $5 minimum per lot
@@ -441,25 +533,55 @@ function sidebarEl() {
   cands.sort((a,b)=>(a.innerText||'').length-(b.innerText||'').length);
   return cands[0] || null;
 }
-// Child series links on the MAIN pane: archive links with a "(N)" count,
-// excluding the sidebar tree, breadcrumbs and self.
+// v1.0.12: cheap gate - does this page have a sold grid worth harvesting?
+// True when a .histTableGrid exists AND at least one cell reads as a
+// "Mon YYYY" sold date (upcoming-only grids have none). Lets the sweep
+// harvest category pages that carry a capped recent-sales grid while
+// skipping pure navigation pages (no grid, or a grid with no sold rows) so
+// they don't burn a harvest pass or a ledger stamp.
+function gridHasSold() {
+  const grid = document.querySelector('.histTableGrid');
+  if (!grid) return false;
+  for (const cell of grid.children) {
+    const tx = (cell.innerText || '').replace(/\s+/g, ' ').trim();
+    if (monthToISO(tx)) return true;
+  }
+  return false;
+}
+// Child series links: archive links with a "(N)" count, excluding
+// breadcrumbs and self.
+// v1.0.12: the National tree splits its leaves across TWO panes - a
+// sidebar navigation tree AND the main content list (National Gold Bank,
+// First Charter, ... each with a (N) count). The old logic EXCLUDED the
+// sidebar and returned the rest; when sidebarEl() mis-scoped the container
+// it swallowed the main-pane leaves too, so only the already-swept sidebar
+// tree got queued and the Gold Bank / First Charter / Red Seal leaves were
+// silently dropped (the ~1,470-lot National gap). New approach: collect
+// EVERY counted archive link once (deduped by path), tag each as in-sidebar
+// or not, and PREFER the main-pane (non-sidebar) set. Fall back to the full
+// set only if the main pane yielded nothing, so pages whose layout differs
+// keep working. Dedup by path means a leaf that appears in both panes is
+// queued once. Nothing is written here - queued paths get harvested per
+// leaf, and upserts dedupe, so an over-broad queue can only add coverage.
 function collectChildLinks() {
   const side = sidebarEl();
   const here = location.pathname.replace(/\/$/, '');
-  const out = [], seenHref = new Set();
+  const seen = new Set();
+  const main = [], all = [];
   for (const a of document.querySelectorAll('a[href*="/Auction-Archive/"]')) {
-    if (side && side.contains(a)) continue;
-    if (a.closest('.bc-outer')) continue;
+    if (a.closest('.bc-outer')) continue;                 // never the breadcrumb
     const txt = (a.textContent || '').trim();
-    if (!/\(\d[\d,]*\)\s*$/.test(txt)) continue;
+    if (!/\(\d[\d,]*\)\s*$/.test(txt)) continue;          // must carry a (N) count
     let u; try { u = new URL(a.getAttribute('href'), location.origin); } catch(e){ continue; }
     if (u.origin !== location.origin) continue;
     const path = u.pathname.replace(/\/$/, '');
-    if (path === here || seenHref.has(path)) continue;
-    seenHref.add(path);
-    out.push(path);
+    if (path === here || seen.has(path)) continue;         // dedupe by path, skip self
+    seen.add(path);
+    all.push(path);
+    if (!(side && side.contains(a))) main.push(path);      // main pane = not inside the sidebar
   }
-  return out;
+  // prefer the main-pane leaves; fall back to the full set if empty
+  return main.length ? main : all;
 }
 /* --- SVG price decoder (v1.0.1) ------------------------------------
  * GC draws prices as a single SVG <path>: absolute M per glyph subpath,
@@ -498,7 +620,7 @@ function decodeSvgPrice(d) {
 function cleanText(s) {
   return (s || '')
     .replace(/[‐‑‒–—―−]/g, '-')
-    .replace(/ /g, ' ');
+    .replace(/ /g, ' ');
 }
 function monthToISO(txt) {
   const m = (txt || '').match(/^([A-Z][a-z]{2})[a-z]*\.?\s+(\d{4})$/);
@@ -609,8 +731,12 @@ function buildPayload(lot, catClass, extra) {
  * ===================================================================== */
 async function fetchDetail(url) {
   const r = await fetch(url, { credentials: 'include' });
+  if (r.status === 403 || r.status === 429 || r.status === 503) { const e = new Error('detail HTTP ' + r.status); e.botCheck = true; throw e; }
   if (!r.ok) throw new Error('detail HTTP ' + r.status);
   const html = await r.text();
+  if (/Verifying Website Traffic|unusual activity from users of your Internet provider|Just a moment/i.test(html)) {
+    const e = new Error('detail BOT CHECK page'); e.botCheck = true; throw e;   // v1.0.9
+  }
   const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   const out = {};
   let m = text.match(/Ended\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,?\s+([A-Z][a-z]+)\s+(\d{1,2}),\s+(\d{4})/);
@@ -655,7 +781,7 @@ const el = id => document.getElementById(id);
  * ===================================================================== */
 function FRESH(){ return { mode:'idle', running:false, queue:[], i:0, seen:{},
   cutoff:'', detail:true, delay:PAGE_DELAY_S, skipDays:SKIP_DAYS_DEFAULT, msg:'', errs:[],
-  stats:{pages:0,seen:0,new:0,upd:0,rej:0,skip:0,err:0,details:0,lskip:0} }; }
+  stats:{pages:0,seen:0,new:0,upd:0,rej:0,skip:0,err:0,details:0,lskip:0,audited:0,gc_total:0,ids_total:0,mismatch:0} }; }
 // v1.0.8: leaf ledger { '/Auction-Archive/...leaf': ISO completion time }
 function ledgerLoad(){ try { return JSON.parse(localStorage.getItem(LEDGER_KEY)) || {}; } catch(e){ return {}; } }
 function ledgerStamp(path){ try { const L = ledgerLoad(); L[path] = new Date().toISOString(); localStorage.setItem(LEDGER_KEY, JSON.stringify(L)); } catch(e){} }
@@ -672,6 +798,7 @@ function load(){ try { const o = Object.assign(FRESH(), JSON.parse(localStorage.
   catch(e){ return FRESH(); } }
 function save(){ try { localStorage.setItem(LS_KEY, JSON.stringify(st)); } catch(e){} }
 function logErr(m){ st.errs.unshift(String(m).slice(0,180)); if (st.errs.length > 5) st.errs.length = 5; }
+function clearErrs(){ st.errs = []; }   // v1.0.11: drop the previous page's rejects/403s
 function keyMissing(){ return HARVEST_KEY.indexOf('hk_') !== 0; }
 // v1.0.5/1.0.6: logged out = GC renders no price SVGs at all. Never harvest
 // blind - but never false-pause either: any ONE of these proves logged-in.
@@ -691,7 +818,101 @@ function navUrl(path){
   for (const k in NAV_PARAMS) u.searchParams.set(k, NAV_PARAMS[k]);
   return u.toString();
 }
-function finish(msg){ st.running = false; st.msg = 'RUN COMPLETE (' + msg + ')'; save(); paint(); }
+let loopActive = false;   // v1.0.10: run lock - one processCurrentPage chain per tab
+function finish(msg){ st.running = false; loopActive = false; st.msg = 'RUN COMPLETE (' + msg + ')'; save(); paint(); }
+/* =====================================================================
+ *  AUDIT MODE (v1.0.13)  --  read-only coverage check, NO writes
+ *  Per leaf, record: GC's printed "has sold N" count + every sold /Coin/
+ *  id in the grid + our leaf url. Exported as JSON for an off-browser diff
+ *  against source_lot_id in the DB. Never posts to the ingest proxy.
+ * ===================================================================== */
+const AUDIT_KEY = 'gch1_audit';   // { '<leafPath>': {fr, charter, gc_sold, grid_sold, ids:[...], ts} }
+function auditLoad(){ try { return JSON.parse(localStorage.getItem(AUDIT_KEY)) || {}; } catch(e){ return {}; } }
+function auditSave(o){ try { localStorage.setItem(AUDIT_KEY, JSON.stringify(o)); } catch(e){} }
+function auditSize(){ return Object.keys(auditLoad()).length; }
+// Wait for the async "history results" grid to populate before reading it.
+// The leaf page shows "Please stand-by while your history results are
+// processed..." then injects .histTableGrid rows. Poll up to ~timeoutMs.
+async function waitForGrid(timeoutMs){
+  const deadline = Date.now() + (timeoutMs || 12000);
+  while (Date.now() < deadline){
+    const grid = document.querySelector('.histTableGrid');
+    if (grid && grid.querySelector('a[href*="/Coin/"]')) return true;   // rows present
+    // if GC says explicitly there are no sales, that's a valid "done" state
+    if (/no (?:sales|results|items)|has not been sold/i.test(document.body.innerText || '')) return true;
+    if (!/stand-?by|processed|processing/i.test(document.body.innerText || '') && grid) return true;
+    await sleep(400);
+  }
+  return !!document.querySelector('.histTableGrid');
+}
+// GC's own printed sold count for this leaf: "GreatCollections has sold N ..."
+function gcSoldCount(){
+  const bt = document.body ? document.body.innerText : '';
+  const m = bt.match(/GreatCollections has sold\s+([\d,]+)\b/i);
+  return m ? parseInt(m[1].replace(/,/g,''), 10) : null;
+}
+// Every SOLD lot's /Coin/<id>/ in the grid (date-cell discriminator, same as
+// parseGrid). Returns { ids:[...], gridSold:int }.
+function gridSoldIds(){
+  const grid = document.querySelector('.histTableGrid');
+  const ids = [];
+  if (!grid) return { ids, gridSold: 0 };
+  let cur = null;
+  for (const cell of grid.children){
+    const link = cell.querySelector && cell.querySelector('a[href*="/Coin/"]');
+    const isTitle = link && (link.textContent || '').trim().length > 12;
+    if (isTitle){
+      let u; try { u = new URL(link.getAttribute('href'), location.origin); } catch(e){ u = null; }
+      const idm = u ? u.pathname.match(/\/Coin\/(\d+)\//) : null;
+      cur = { id: idm ? idm[1] : null, sold: false };
+      continue;
+    }
+    if (!cur) continue;
+    if ((cell.className||'').indexOf('hist_grade') !== -1){ if (cur.id && cur.sold) ids.push(cur.id); cur = null; continue; }
+    const tx = (cell.innerText || '').replace(/\s+/g,' ').trim();
+    if (monthToISO(tx)){ cur.sold = true; if (cur.id) ids.push(cur.id); cur = null; }
+  }
+  if (cur && cur.id && cur.sold) ids.push(cur.id);
+  return { ids: [...new Set(ids)], gridSold: new Set(ids).size };
+}
+// Record one leaf into the audit log. Pure read - never posts.
+function auditLeaf(){
+  const here = location.pathname.replace(/\/$/, '');
+  const title = (document.querySelector('h1') || {}).innerText || here;
+  const fr = parseFriedberg(title);
+  const charter = parseCharter(title);
+  const gcSold = gcSoldCount();
+  const g = gridSoldIds();
+  const A = auditLoad();
+  A[here] = { fr: fr, charter: charter, gc_sold: gcSold, grid_sold: g.gridSold,
+              ids: g.ids, title: (title||'').slice(0,120), ts: new Date().toISOString() };
+  auditSave(A);
+  return A[here];
+}
+// Build the export blob the user pastes back for the DB diff.
+function auditExport(){
+  const A = auditLoad();
+  const rows = Object.keys(A).map(function(path){
+    const r = A[path]; return { path: path, fr: r.fr, charter: r.charter,
+      gc_sold: r.gc_sold, grid_sold: r.grid_sold, ids: r.ids };
+  });
+  return JSON.stringify({ source:'greatcollections', audit_version:1,
+    exported_at: new Date().toISOString(), leaves: rows.length,
+    total_grid_ids: rows.reduce((s,r)=>s+(r.ids?r.ids.length:0),0), data: rows }, null, 0);
+}
+// Clipboard fallback: drop the blob into a textarea and select it so the
+// user can Ctrl-C (used when navigator.clipboard is unavailable/denied).
+function auditFallbackCopy(blob, n){
+  try {
+    let ta = document.getElementById('gch1-audit-ta');
+    if (!ta){ ta = document.createElement('textarea'); ta.id = 'gch1-audit-ta';
+      ta.style.cssText = 'position:fixed;left:8px;bottom:8px;width:360px;height:90px;z-index:2147483647;font:11px monospace';
+      document.body.appendChild(ta); }
+    ta.value = blob; ta.style.display = 'block'; ta.focus(); ta.select();
+    st.msg = 'audit JSON in the box (bottom-left) - Ctrl-C to copy (' + n + ' leaves)';
+  } catch(e){ st.msg = 'export failed: ' + (e.message || e); }
+  paint();
+}
 /* =====================================================================
  *  PAGE PROCESSOR
  * ===================================================================== */
@@ -742,16 +963,30 @@ async function harvestGrid(dry){
   await Promise.all(ws);
   // hybrid detail pass: NEW lots only, throttled, sequential
   if (st.detail && r.newLots.length && !r.breaker){
+    let consecutive403 = 0;                                    // v1.0.9
     for (const lot of r.newLots){
       if (!st.running && st.mode !== 'page') break;
       try {
         const extra = await fetchDetail(lot.url);
         await post(buildPayload(lot, catClass, extra));
         st.stats.details++;
-      } catch(e){ logErr('DETAIL ' + String(e.message || e).slice(0,100) + ' :: ' + lot.id); }
+        consecutive403 = 0;
+      } catch(e){
+        logErr('DETAIL ' + String(e.message || e).slice(0,100) + ' :: ' + lot.id);
+        if (e.botCheck){
+          consecutive403++;
+          if (consecutive403 >= DETAIL_403_LIMIT){
+            r.botCheck = true;                                   // caller pauses the run in place
+            logErr('GC BOT CHECK - ' + consecutive403 + ' consecutive detail 403s. Run paused.');
+            break;
+          }
+          st.msg = 'detail 403 (' + consecutive403 + '/' + DETAIL_403_LIMIT + ') - backing off ' + Math.round(DETAIL_403_BACKOFF_MS/1000) + 's ...'; paint();
+          await sleep(DETAIL_403_BACKOFF_MS);
+        }
+      }
       st.msg = 'detail fetch ' + (r.newLots.indexOf(lot)+1) + '/' + r.newLots.length + ' ...';
       paint();
-      await sleep(DETAIL_DELAY_MS);
+      await sleep(Math.round(DETAIL_DELAY_MS * (0.75 + Math.random() * 0.5)));
     }
   }
   return r;
@@ -760,32 +995,82 @@ function tally(r){ const s = st.stats;
   s.pages++; s.seen += r.seen; s.new += r.ins; s.upd += r.upd;
   s.rej += r.rej; s.skip += r.skip; s.err += r.err; }
 async function processCurrentPage(){
+  if (loopActive){ st.msg = 'already running - one loop per tab (Resume ignored)'; paint(); return; }   // v1.0.10
+  loopActive = true;
   // v1.0.5: pause (not finish) on login loss - Resume continues the queue here.
   if (loggedOut()){
     st.running = false; st.i = Math.max(0, st.i - 1);   // requeue this page
     st.msg = 'GC LOGIN EXPIRED - sign in to GreatCollections in this tab, then press Resume.';
-    save(); paint(); return;
+    loopActive = false; save(); paint(); return;
   }
   const here = location.pathname.replace(/\/$/, '');
   st.seen[here] = 1;
-  // sweep: pages with a series list only enqueue; leaves harvest
+  clearErrs();   // v1.0.11: only show THIS page's errors
+  // v1.0.13: AUDIT MODE - walk the tree like a sweep, but on leaves RECORD
+  // GC's sold count + sold lot ids instead of harvesting. Never writes.
+  if (st.mode === 'audit'){
+    if (pageHasSeriesList()){
+      const kids = collectChildLinks().filter(p => !st.seen[p]);
+      for (const k of kids){ st.queue.push(k); st.seen[k] = 1; }
+      st.msg = 'audit: queued ' + kids.length + ' child series (' + st.queue.length + ' total)';
+      save(); paint();
+    } else {
+      st.msg = 'audit: waiting for grid ...'; paint();
+      await waitForGrid(12000);
+      const rec = auditLeaf();
+      st.stats.audited = (st.stats.audited || 0) + 1;
+      if (rec.gc_sold != null) st.stats.gc_total = (st.stats.gc_total || 0) + rec.gc_sold;
+      st.stats.ids_total = (st.stats.ids_total || 0) + (rec.ids ? rec.ids.length : 0);
+      // flag a mismatch between GC's printed count and what the grid rendered
+      if (rec.gc_sold != null && rec.grid_sold !== rec.gc_sold){
+        st.stats.mismatch = (st.stats.mismatch || 0) + 1;
+        logErr('AUDIT count mismatch :: GC says ' + rec.gc_sold + ' grid shows ' + rec.grid_sold + ' :: ' + (rec.fr || here.split('/').pop()));
+      }
+      st.msg = 'audit: ' + (rec.fr || 'leaf') + ' - GC ' + (rec.gc_sold==null?'?':rec.gc_sold) + ' / grid ' + rec.grid_sold + ' ids';
+      save(); paint();
+    }
+    save(); paint();
+    advance();
+    return;
+  }
+  // v1.0.12: a series-list page ENQUEUES children. It may ALSO carry a
+  // (capped) sold grid - the National root Dry Run showed 138 sold lots on
+  // a page pageHasSeriesList() reports true for. Old code took an exclusive
+  // either/or branch and threw that grid away. Now: on a sweep, always
+  // enqueue children when there's a series list, and SEPARATELY harvest the
+  // grid whenever one with sold rows is present (any page, list or leaf).
+  // Grid upserts dedupe, so harvesting a capped parent grid on top of the
+  // per-leaf sweep only adds coverage - never double-writes.
   if (st.mode === 'sweep' && pageHasSeriesList()){
     const kids = collectChildLinks().filter(p => !st.seen[p]);
     for (const k of kids){ st.queue.push(k); st.seen[k] = 1; }
     st.msg = 'category page: queued ' + kids.length + ' child series (' + st.queue.length + ' total)';
-  } else {
-    st.msg = 'harvesting ' + (breadcrumbCategory() || here) + ' ...'; paint();
+    save(); paint();
+  }
+  // harvest the grid on ANY page that has sold rows (leaf, or a category
+  // page that also renders a capped recent-sales grid). gridHasSold() gates
+  // this so pure navigation pages skip the (empty) harvest and its ledger
+  // stamp entirely.
+  if (gridHasSold()){
+    if (!pageHasSeriesList()){ st.msg = 'harvesting ' + (breadcrumbCategory() || here) + ' ...'; paint(); }
     const r = await harvestGrid(false);
     tally(r); save(); paint();
     if (r.breaker) return finish('STOPPED - circuit breaker or key rejection. See error panel.');
+    if (r.botCheck){                                             // v1.0.9: pause, don't finish; requeue this leaf
+      st.running = false; st.i = Math.max(0, st.i - 1);
+      st.msg = 'GC BOT CHECK - pass the verification page in this tab (reload it), then press Resume.';
+      loopActive = false; save(); paint(); return;
+    }
     // v1.0.8: a leaf that finished with no price rejects is DONE - stamp it.
-    if (r.rej === 0 && r.err === 0) ledgerStamp(here);
+    // v1.0.12: only stamp LEAF pages - a category page's grid is capped, so
+    // stamping it would wrongly let the ledger skip the parent on re-sweep.
+    if (!pageHasSeriesList() && r.rej === 0 && r.err === 0) ledgerStamp(here);
   }
   save(); paint();
   advance();
 }
 function advance(){
-  if (!st.running) return;
+  if (!st.running){ loopActive = false; return; }
   if (st.stats.pages >= MAX_PAGES) return finish('MAX_PAGES backstop hit');
   // v1.0.8: skip leaves the ledger says were completed within skipDays -
   // no page load, no delay. Category pages are never in the ledger.
@@ -801,12 +1086,12 @@ function advance(){
     let left = Math.round(waitMs / 1000);
     st.msg = 'next page in ~' + left + 's (' + st.i + '/' + st.queue.length + ') ...'; paint();
     const tick = setInterval(function(){
-      if (!st.running){ clearInterval(tick); st.msg = 'stopped during pause'; save(); paint(); return; }
+      if (!st.running){ clearInterval(tick); loopActive = false; st.msg = 'stopped during pause'; save(); paint(); return; }
       left--; st.msg = 'next page in ~' + Math.max(0,left) + 's (' + st.i + '/' + st.queue.length + ') ...'; paint();
     }, 1000);
     setTimeout(function(){
       clearInterval(tick);
-      if (!st.running) return;
+      if (!st.running){ loopActive = false; return; }
       location.href = navUrl(next);
     }, waitMs);
     return;
@@ -818,6 +1103,7 @@ function advance(){
  * ===================================================================== */
 function startSweep(){
   if (keyMissing()){ st.msg = 'HARVEST KEY NOT SET - edit the CONFIG block. Do not harvest.'; return paint(); }
+  clearErrs();   // v1.0.11
   st = Object.assign(FRESH(), { mode:'sweep', running:true,
     detail: el('gch1-detail').checked,
     delay: parseFloat(el('gch1-delay').value) || PAGE_DELAY_S,
@@ -831,6 +1117,7 @@ function startTopUp(){
   const cut = el('gch1-cut').value.trim();
   if (cut && !/^\d{4}-\d{2}$/.test(cut)){ st.msg = 'cutoff must be YYYY-MM'; return paint(); }
   if (loggedOut()){ st.msg = 'GC LOGIN EXPIRED - sign in to GreatCollections first.'; return paint(); }
+  clearErrs();   // v1.0.11
   st = Object.assign(FRESH(), { mode:'topup', running:true, cutoff: cut,
     detail: el('gch1-detail').checked,
     delay: parseFloat(el('gch1-delay').value) || PAGE_DELAY_S,
@@ -845,14 +1132,30 @@ function startTopUp(){
     advance();
   })();
 }
+// v1.0.13: AUDIT - read-only coverage pass. No key needed (never writes).
+// Walks the leaf tree from HERE (run it from the category root, same as a
+// Full Sweep), records GC's sold count + sold lot ids per leaf, ignores the
+// ledger (visits every leaf). Export the JSON when it finishes for the DB
+// diff. If a leaf is already recorded this pass it is simply overwritten.
+function startAudit(){
+  if (loggedOut()){ st.msg = 'GC LOGIN EXPIRED - sign in to GreatCollections first (prices/counts need it).'; return paint(); }
+  clearErrs();
+  st = Object.assign(FRESH(), { mode:'audit', running:true,
+    delay: parseFloat(el('gch1-delay').value) || PAGE_DELAY_S,
+    skipDays: 0,   // audit never skips
+    msg: 'audit started from ' + (breadcrumbCategory() || 'here') + ' (read-only, no writes)' });
+  save(); paint(); processCurrentPage();
+}
 async function onePage(dry){
   if (!dry && keyMissing()){ st.msg = 'HARVEST KEY NOT SET - edit the CONFIG block. Do not harvest.'; return paint(); }
   if (loggedOut()){ st.msg = 'GC LOGIN EXPIRED - sign in to GreatCollections first.'; return paint(); }
+  clearErrs();   // v1.0.11
   st.mode = dry ? 'dry' : 'page'; st.cutoff = el('gch1-cut').value.trim();
   st.detail = el('gch1-detail').checked;
   st.msg = dry ? 'dry run ...' : 'single page ...'; paint();
   const r = await harvestGrid(dry);
   tally(r);
+  if (r.botCheck){ st.msg = 'GC BOT CHECK during detail fetches - reload this tab, pass the verification, then Page again.'; save(); return paint(); }
   st.msg = (dry ? 'DRY RUN' : 'PAGE') + ' - sold seen ' + r.seen + ' - new ' + r.ins + ' - upd ' + r.upd +
     ' - rej ' + r.rej + ' - skip ' + r.skip + ' - err ' + r.err;
   save(); paint();
@@ -867,8 +1170,14 @@ function paint(){
     '  queue ' + st.i + '/' + st.queue.length +
     '  key:' + (keyMissing() ? 'MISSING' : 'set') +
     '  login:' + (loggedOut() ? 'OUT!' : 'ok') +
+    '  delay:' + (parseFloat(st.delay) || PAGE_DELAY_S) + 's' +
     (pageHasSeriesList() ? '  [category]' : '  [leaf]');
   el('gch1-msg').textContent = st.msg || '';
+  if (st.mode === 'audit'){
+    el('gch1-stats').textContent = 'AUDIT - leaves ' + (s.audited||0) + ' - GC sold total ' + (s.gc_total||0) +
+      ' - lot ids ' + (s.ids_total||0) + ' - count mismatches ' + (s.mismatch||0) +
+      ' - recorded ' + auditSize();
+  } else
   el('gch1-stats').textContent = 'pages ' + s.pages + ' - sold ' + s.seen + ' - new ' + s.new +
     ' - upd ' + s.upd + ' - rej ' + s.rej + ' - skip ' + s.skip + ' - err ' + s.err +
     ' - details ' + s.details + ' - lskip ' + s.lskip + ' - ledger ' + ledgerSize();
@@ -883,12 +1192,12 @@ function buildPanel(){
     '#gch1-panel .hd{color:#fff;font-weight:700;margin-bottom:4px}' +
     '#gch1-panel .ln{color:#9db8ff}' +
     '#gch1-msg{margin:6px 0;padding:4px 6px;background:#060e24;border-radius:4px;color:#ffd479;min-height:16px;word-break:break-word}' +
-    '#gch1-panel .row{margin:5px 0}' +
+    '#gch1-panel .row{margin:5px 0;color:#9db8ff}' +
     '#gch1-panel input[type=text]{background:#060e24;color:#e6e6e6;border:1px solid #33509e;border-radius:3px;padding:1px 4px}' +
     '#gch1-panel button{background:#16295e;color:#e6e6e6;border:1px solid #40619e;border-radius:4px;' +
     'padding:3px 7px;margin:2px 3px 2px 0;cursor:pointer}' +
     '#gch1-panel button:hover{background:#1e3a80}' +
-    '#gch1-panel label{margin-right:6px;white-space:nowrap}' +
+    '#gch1-panel label{margin-right:6px;white-space:nowrap;color:#9db8ff}' +
     '#gch1-stats{color:#8ee08e;margin-top:6px}' +
     '#gch1-errs{color:#ff8f8f;margin-top:4px;white-space:pre-wrap;word-break:break-word;max-height:96px;overflow:auto}';
   document.head.appendChild(css);
@@ -908,6 +1217,9 @@ function buildPanel(){
     '<button id="gch1-resume">Resume</button><button id="gch1-stop">Stop</button>' +
     '<button id="gch1-reset">Reset</button>' +
     '<button id="gch1-ledger" title="Forget every leaf completion stamp (forces a true full re-harvest next sweep)">clear ledger</button></div>' +
+    '<div class="row"><button id="gch1-audit" title="READ-ONLY coverage pass. Walk every leaf from here (run from a category root), record GC\'s sold count + sold lot ids per leaf. No writes. Export the JSON when done for the DB diff.">Audit</button>' +
+    '<button id="gch1-audit-export" title="Copy the audit JSON to the clipboard (paste it back for the DB coverage diff)">Export audit</button>' +
+    '<button id="gch1-audit-clear" title="Clear the recorded audit data (does NOT touch harvested rows or the leaf ledger)">clear audit</button></div>' +
     '<div id="gch1-stats"></div>' +
     '<div id="gch1-errs"></div>';
   document.body.appendChild(p);
@@ -921,7 +1233,24 @@ function buildPanel(){
     st.msg = 'state cleared (leaf ledger kept)'; paint(); };
   el('gch1-ledger').onclick = function(){ if (!confirm('Clear the leaf ledger (' + ledgerSize() + ' leaves)? Next Full Sweep re-harvests everything.')) return;
     localStorage.removeItem(LEDGER_KEY); st.msg = 'leaf ledger cleared'; paint(); };
+  // v1.0.13: audit controls
+  el('gch1-audit').onclick = startAudit;
+  el('gch1-audit-export').onclick = function(){
+    const blob = auditExport();
+    const n = auditSize();
+    if (!n){ st.msg = 'audit is empty - run Audit from a category root first'; return paint(); }
+    (navigator.clipboard && navigator.clipboard.writeText
+      ? navigator.clipboard.writeText(blob).then(function(){ st.msg = 'audit JSON copied (' + n + ' leaves) - paste it back for the diff'; paint(); },
+          function(){ auditFallbackCopy(blob, n); })
+      : Promise.resolve(auditFallbackCopy(blob, n)));
+  };
+  el('gch1-audit-clear').onclick = function(){ if (!confirm('Clear recorded audit data (' + auditSize() + ' leaves)? Harvested rows and the leaf ledger are NOT affected.')) return;
+    localStorage.removeItem(AUDIT_KEY); st.msg = 'audit data cleared'; paint(); };
   if (st.skipDays != null) el('gch1-skipdays').value = st.skipDays;
+  // v1.0.10: persist edits immediately so Resume / auto-resume honor them
+  el('gch1-delay').addEventListener('input', function(){ const v = parseFloat(this.value); if (v >= 1){ st.delay = v; save(); paint(); } });
+  el('gch1-skipdays').addEventListener('input', function(){ const v = parseFloat(this.value); if (!isNaN(v) && v >= 0){ st.skipDays = v; save(); paint(); } });
+  el('gch1-cut').addEventListener('input', function(){ st.cutoff = this.value.trim(); save(); });   // v1.0.11: persist cutoff
   if (st.cutoff) el('gch1-cut').value = st.cutoff;
   el('gch1-detail').checked = st.detail !== false;
   if (st.delay) el('gch1-delay').value = st.delay;
