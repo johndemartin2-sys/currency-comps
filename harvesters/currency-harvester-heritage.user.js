@@ -1,12 +1,127 @@
 // ==UserScript==
-// @name         Currency Comp Harvester Heritage v9.5
+// @name         Currency Comp Harvester Heritage v9.8.3
 // @namespace    jdmstrategy.currency-comps
-// @version      9.6.0
+// @version      9.8.3
 // @description  Coin-harvester engine (sweep + top up + self-pagination) with v8 currency extraction -> ingest_heritage_lot via ingest-proxy
 // @match        https://currency.ha.com/c/search/results.zx*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
+// v9.8.3 (2026-08-27): COLONIAL TYPING FROM THE URL ROOT + category crumbs.
+//   Lot URLs are /itm/<root>/<seg2>/<slug>/a/<auction>-<lot>.s. For type
+//   notes <root> is the size bucket and <seg2> the type; for Colonial lots
+//   <root> is "colonial-notes" and <seg2> is the COLONY ("connecticut",
+//   "continental-currency", ...). parseRow typed from <seg2>, so colonies
+//   read as state obsoletes (17K rows from the first Colonial sweep) and
+//   Continental issues fell into the "...-issue" fractional rule (3K rows).
+//   Now: when <root> is a type root (colonial-notes, confederate-notes,
+//   obsolete-banknotes) it wins over <seg2>. Every row also carries
+//   raw.ha_path_root and, in a sweep, raw.ha_category (the swept id), so
+//   category provenance is auditable from here on. Rows already written are
+//   fixed by SQL backfill (2026-08-27).
+// v9.8.2 (2026-08-26): RUN LOCK (one loop per tab) + TAB CLAIM (one tab per
+//   run). The script runs on every Heritage tab in the profile, and a tab
+//   loaded while run state says running:true auto-resumes - a second HA tab
+//   (a recon tab, a restored tab) silently ran the same sweep in parallel,
+//   both advancing pages and slices. Now: (a) tick()/planLoop() refuse to
+//   start while a loop is active in this tab ("already running"); (b) the
+//   run state carries an OWNER tab token - the tab that started or resumed
+//   the run - and any other tab that finds running:true shows "run owned by
+//   another tab" and stays idle. Press Resume in a tab to claim the run
+//   (e.g. after the owner tab was closed). Same pattern as GC v1.0.10.
+// v9.8.1 (2026-08-26): PLANNER READS THE FACET JSON. The sidebar counts are
+//   not in the results HTML (9.8.0's probes saw "no facets rendered"); they
+//   come from /c/webservices/search/guided-navigation-archive.zx, a JSON
+//   endpoint that returns every facet for the given filters. ONE call per
+//   category returns the whole auction_year facet (all years at once), and
+//   one call per over-cap year (with auction_year set) returns the
+//   auction_type facet. Planning Colonial is now 1 probe instead of 25.
+// v9.8.0 (2026-08-26): AUTO-SLICER. Heritage caps any query at 100 pages x
+//   50 = 5,000 lots (verified: page 101+ repeats). A category like Obsoletes
+//   (152K sold) or Colonial (47.6K) can never be swept as one query; the old
+//   probe/gap design just reported the shortfall. Now the sweep PLANS itself:
+//   PLAN PHASE (mode 'plan'): for each category id entered, probe each
+//   auction_year 2002..now by fetching page 1 with &auction_year=Y and
+//   reading the category's own facet count (the sidebar counts follow the
+//   active filters). One probe per delay tick (same pacing as page loads -
+//   an unpaced burst of probes tripped Cloudflare during recon). Probe
+//   results persist in run state, so a reload resumes the plan.
+//   SLICE RULES per (cat, year): 0 -> skip; <=5,000 -> one newest-first
+//   slice; <=10,000 -> newest-first + oldest-first (the two ends of the same
+//   list, overlap comes back as upd:); >10,000 -> split by auction_type
+//   (Signature 5273 / Showcase 5272 / Select 5271), re-probe, apply the same
+//   rules; a sub-slice still over 10,000 is harvested both ways and flagged
+//   in the GAP list. Year slices need no probe page - the floor is Jan 1.
+//   CAP GUARD: a slice ends at page 100 (or when the pager has no next and
+//   the page is short). A newest-first year slice that hits the cap without
+//   reaching its floor is flagged as a GAP with the date it reached.
+//   Panel: "auto-slice by year" checkbox (default ON) on Build + Start
+//   Sweep; leaving it off gives the legacy probe/harvest slices. Mode line
+//   shows "slice i/n cat 3212 2019 Select desc". Resume works in plan and
+//   sweep phases alike.
+// v9.7.4 (2026-08-26): PACING + CHALLENGE PAUSE. Heritage served a bot check
+//   during the first paced-less 9.7.3 top-up. (1) "delay s" panel field
+//   (default 8, +/-25% jitter) - a pause before EVERY page navigation in
+//   top-up and sweep; persisted to run state on edit so Resume honors it;
+//   mode line shows the effective delay. (2) A page whose rows never render
+//   (what a challenge/interstitial looks like to findRows) now PAUSES the
+//   run in place - pass the check in this tab, press Resume, same page -
+//   instead of finishing. Sweep mode keeps advancing the slice as before.
+// v9.7.3 (2026-08-26): ALL-SKIPPED PAGE IS NOT THE END OF THE LIST.
+//   The newest-first archive interleaves sales, and a whole page can belong
+//   to a World Currency sale (event 282634, 2026-08-25) whose lot URLs have
+//   a non-US path shape - every row is (correctly) skipped, r.seen is 0, and
+//   tick() read that as "no rows on page N" and FINISHED with 800+ US lots
+//   from the Aug 4 / Aug 11 weekly sales still behind it. Now: a page where
+//   rows rendered but all were skipped is walked past whenever the pager
+//   links to page N+1; "no rows" ends the run only on a truly empty page
+//   with no next link. In sweep mode the same page just advances the slice
+//   as before.
+// v9.7.2 (2026-08-26): TOP UP "STOP AT" DATE NOW WINS OVER KNOWN PAGES.
+//   Top Up stopped on the first fully-known page BEFORE checking the stop-at
+//   date, so with page 1 already harvested a dated top-up ended instantly
+//   ("whole page already harvested") and never reached the gap a partial
+//   run left behind. Now, when a stop-at date is set, Top Up walks THROUGH
+//   known pages (one cheap upd: RPC per lot) and stops only when the page's
+//   newest sale is on/before the date. No date = unchanged (stop on first
+//   fully-known page = the weekly refresh). Same rule as Stack's v9.7.3.
+// v9.7.1 (2026-08-26): FALSE 'last page' STOP + thumbnail retry/diagnostics.
+//   (1) FALSE LAST PAGE. tick() ended a top-up with 'last page' whenever
+//   r.seen < pageSize(). r.seen EXCLUDES rows skipped as promo/upcoming, so a
+//   full page carrying a few skip rows (seen 45 + skip 5) read as the end of
+//   the archive. Live 2026-08-26: a top-up stopped on page 9 after ONE auction
+//   (142634) with 992K sold lots behind it. Now: if the page links to
+//   page N+1 (a[href*="page=<ps>~<N+1>"]) the run continues regardless of
+//   seen; 'last page' fires only when there is no next link AND the page is
+//   short. The existing 'page did not advance' guard still catches a full
+//   page with no link.
+//   (2) THUMBNAILS. The v9.7.0 run landed thumbs in whole-page blocks: 2 of 9
+//   pages captured 100%, the other 7 captured 0%, so the miss is per page
+//   render, not per row. processPage now (a) records WHY a row had no image
+//   (raw.thumb_miss: 'noimg' | 'placeholder:<attrs>' | 'other:<classes>') so
+//   the next run tells us the cause, and (b) if any parsed row lacks a thumb,
+//   waits THUMB_RETRY_MS then re-reads images from the CURRENT DOM (re-found
+//   by lot link, in case the framework re-rendered the list) before posting.
+//   Never blocks a row: a still-missing thumb posts as null exactly as before.
+//   SHARED CORE v1 untouched.
+// v9.7.0 (2026-08-26): THUMBNAIL LAZY-LOAD FIX + ppq_epq crumb.
+//   THE BUG. Heritage lazy-loads result thumbnails: only the first ~4 rows on
+//   a page carry a real src; every later <img class="thumbnail lazyload"> is
+//   served with src="data:image/svg+xml,..." (a 1x1 placeholder) and the real
+//   URL in data-src (plus a larger variant in data-image2). parseRow read
+//   img.src, so ~80% of rows shipped the placeholder or null.
+//   MEASURED 2026-08-26: 96,001 Heritage rows held the SVG placeholder as
+//   thumbnail_url, only 8,471 had a real URL (1.5% real coverage, not 18%).
+//   A one-time SQL NULL-out of the placeholders is a separate approved step.
+//   THE FIX. thumbFromImg(): data-src -> data-image2 -> src, and anything
+//   that is not http(s) (data:, blank) becomes null. raw.image_large carries
+//   data-image2 when it differs from the thumbnail (RPC has no column for it
+//   yet; kept for a later backfill). raw.ppq_epq = PPQ|EPQ from title+grade
+//   (Heritage writes "30PPQ" with no space, so no leading word boundary).
+//   Payload params p_type_class/p_ppq_epq/p_serial_text/p_cert_number are
+//   NOT sent yet: PostgREST rejects unknown RPC params, so they wait for the
+//   ingest_heritage_lot migration and land in v9.7.1.
+//   SHARED CORE v1 untouched, still byte-identical with Stack's / GC / LK.
 // v9.6.0 (2026-08-19): PRIVATE-KEY WRITE PATH. Writes now go through the
 //   ingest-proxy edge function with a private x-harvest-key header. The
 //   publishable (anon) key is GONE from this script: EXECUTE on the ingest
@@ -174,7 +289,7 @@
 //   Runs side-by-side with v8.7.0: separate localStorage key, separate panel.
 (function () {
 'use strict';
-const VERSION = '9.6.0';
+const VERSION = '9.8.3';
 // ===================== CONFIG =====================
 const SUPABASE_REF = 'wqizwluccqqfkedpgvve';
 // v9.6.0: PRIVATE harvest key (hk_...). This is NOT the publishable
@@ -192,6 +307,12 @@ const SORT_DESC = '5';
 const SORT_ASC_DEFAULT = '4';
 // ROW_PAUSE must stay 0: Chrome clamps setTimeout to 1000ms in hidden tabs.
 const PER_PAGE_DEFAULT = 50, ROW_PAUSE = 0, ROW_WAIT = 20000, POLL_MS = 250;
+const THUMB_RETRY_MS = 1500;   // v9.7.1: one deferred re-read of lazy images per page
+const PAGE_DELAY_S = 8;        // v9.7.4: default pause before each page navigation (+/-25% jitter)
+const HA_PAGE_CAP = 100;       // v9.8.0: Heritage serves at most 100 pages per query
+const HA_RESULT_CAP = 5000;    // v9.8.0: = HA_PAGE_CAP * 50
+const PLAN_YEAR_FROM = 2002;   // v9.8.0: first archive year with meaningful volume
+const AUCTION_TYPES = { '5273':'Signature', '5272':'Showcase', '5271':'Select' };   // v9.8.0
 function pageSize(){ return (st && st.ps) || PER_PAGE_DEFAULT; }
 // ==================================================
 /* ================================================================== *
@@ -480,6 +601,39 @@ function dateToISO(monAbbr, day, year) {
   if (!mm) return null;
   return year + '-' + String(mm).padStart(2,'0') + '-' + String(day).padStart(2,'0');
 }
+// v9.7.0: lazy-load aware thumbnail. Returns {thumb, large} with http(s) URLs
+// or nulls. NEVER returns a data: URI.
+function httpOrNull(u) {
+  u = (u || '').trim();
+  return /^https?:\/\//i.test(u) ? u : null;
+}
+function thumbFromImg(im) {
+  if (!im) return {thumb: null, large: null, miss: 'noimg'};
+  const ds  = httpOrNull(im.getAttribute('data-src'));
+  const d2  = httpOrNull(im.getAttribute('data-image2'));
+  const src = httpOrNull(im.getAttribute('src')) || httpOrNull(im.src);
+  const thumb = ds || src || d2;
+  const large = (d2 && d2 !== thumb) ? d2 : null;
+  let miss = null;
+  if (!thumb) {
+    // v9.7.1 diagnostic: what did we find instead of a usable URL?
+    const attrs = [...im.attributes].map(function(a){ return a.name; }).join(',');
+    miss = (/^data:/.test(im.getAttribute('src') || '') ? 'placeholder:' : 'other:') +
+           (im.className || '-') + '|' + attrs.slice(0, 80);
+  }
+  return {thumb, large, miss};
+}
+// v9.7.1: locate a row's thumbnail <img> in the CURRENT document by lot link,
+// so a re-render between parse and post cannot leave us holding a stale node.
+function thumbForLot(source_lot_id, li) {
+  const a = document.querySelector('a[href*="/a/' + source_lot_id + '.s"]');
+  const cur = (a && (a.closest('li') || a.parentElement)) || li;
+  return thumbFromImg(cur && (cur.querySelector('img.thumbnail') || cur.querySelector('img')));
+}
+function parsePpqEpq(text) {
+  const m = (text || '').match(/(PPQ|EPQ)\b/i);
+  return m ? m[1].toUpperCase() : null;
+}
 function parseRow(li) {
   const reasons = [];
   let typeFromPage = false;
@@ -505,6 +659,11 @@ function parseRow(li) {
   const sp = seg2.match(SIZE_PREFIX_RE);
   if (sp) { size_prefix = sp[1].replace(/-$/,''); seg2 = seg2.slice(sp[1].length); }
   let series_type = seg2 || null;
+  // v9.8.3: a type root beats the second segment (colony / sub-type)
+  const ROOT_TYPES = { 'colonial-notes':'colonial', 'colonial-currency':'colonial', 'continental-currency':'continental-currency',
+                       'confederate-notes':'confederate', 'confederate-currency':'confederate',
+                       'obsolete-banknotes':'obsolete', 'obsolete-currency':'obsolete', 'obsolete-notes':'obsolete' };
+  if (ROOT_TYPES[path_root]) series_type = ROOT_TYPES[path_root];
   if (!series_type) { series_type = pageCategorySlug(); if (series_type) typeFromPage = true; }
   let state_code = null, state_slug = null;
   if (currentCurrencyCategory() === '3101') {
@@ -627,6 +786,14 @@ function parseRow(li) {
   if (raw_series_type && raw_series_type !== canonical_series_type) raw.series_type_raw = raw_series_type;
   if (!raw_series_type) raw.series_type_fallback = 'title_or_other';
   raw.type_class = type_class;
+  raw.ha_path_root = path_root;                                   // v9.8.3
+  const swept = currentCurrencyCategory(); if (swept) raw.ha_category = swept;
+  // v9.7.0 crumbs (columns/params arrive with the RPC migration + v9.7.1)
+  const imgInfo = thumbFromImg(li.querySelector('img.thumbnail') || li.querySelector('img'));
+  if (imgInfo.large) raw.image_large = imgInfo.large;
+  if (imgInfo.miss) raw.thumb_miss = imgInfo.miss;
+  const ppq_epq = parsePpqEpq((title || '') + ' ' + (grade_raw || ''));
+  if (ppq_epq) raw.ppq_epq = ppq_epq;
   // v9.4.0 audit crumb: lets you find, in SQL, any lot whose series year still
   // equals its Friedberg base number after this release -- the residual ~506 case.
   if (series_year && friedberg_number &&
@@ -658,8 +825,7 @@ function parseRow(li) {
       p_state_code: state_code,
       p_friedberg_number: friedberg_number,
       p_charter_number: charter_number,
-      p_thumbnail_url: (function(){ const im = li.querySelector('img.thumbnail') || li.querySelector('img');
-                                    return im && im.src ? im.src : null; })(),
+      p_thumbnail_url: imgInfo.thumb,   // v9.7.0: data-src aware, never a data: URI
       p_raw: raw
     }
   };
@@ -685,8 +851,14 @@ function findRows() {
       setTimeout(r, ms);
     });
     const el = id => document.getElementById(id);
-    function FRESH(){ return { mode:'idle', running:false, i:0, slices:[], cutoff:'', expect:0,
-      ps:PER_PAGE_DEFAULT, sliceOldest:null, gaps:[], msg:'', errs:[],
+    // v9.8.2: this tab's identity, kept in sessionStorage so it survives the
+    // script's own page navigations but is unique per tab.
+    const TAB_ID = (function(){ try { let t = sessionStorage.getItem('cch9_tab'); if (!t){ t = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem('cch9_tab', t); } return t; } catch(e){ return 'x' + Date.now(); } })();
+    let loopActive = false;
+    function ownsRun(){ return !st.owner || st.owner === TAB_ID; }
+    function claimRun(){ st.owner = TAB_ID; }
+    function FRESH(){ return { mode:'idle', running:false, i:0, slices:[], cutoff:'', expect:0, owner:null,
+      ps:PER_PAGE_DEFAULT, delay:PAGE_DELAY_S, sliceOldest:null, sliceHitCap:false, gaps:[], msg:'', errs:[], plan:null,
       stats:{pages:0,seen:0,new:0,upd:0,rej:0,skip:0,err:0} }; }
     let st = load();
     function load(){ try { const o = Object.assign(FRESH(), JSON.parse(localStorage.getItem(LS_KEY)));
@@ -703,19 +875,24 @@ function findRows() {
     function P(n){ return new URL(location.href).searchParams.get(n) || ''; }
     function curPage(){ const m = /^(\d+)~(\d+)$/.exec(P('page')); return m ? parseInt(m[2],10) : 1; }
     function withPage(n){ const u = new URL(location.href); u.searchParams.set('page', pageSize()+'~'+n); return u.toString(); }
-    function sliceUrl(cat, sb, page){
+    function sliceUrl(cat, sb, page, year, atype){
       const u = new URL(location.href);
+      u.searchParams.set('dept', '2021'); u.searchParams.set('mode', 'archive');
       u.searchParams.set('currency_category', cat);
       u.searchParams.set('sb', sb);
       u.searchParams.set('layout','list');
       u.searchParams.set('page', pageSize()+'~'+page);
+      if (year) u.searchParams.set('auction_year', String(year)); else u.searchParams.delete('auction_year');   // v9.8.0
+      if (atype) u.searchParams.set('auction_type', String(atype)); else u.searchParams.delete('auction_type');
+      u.searchParams.delete('ic4');
       return u.toString();
     }
     function curSlice(){ return (st.mode === 'sweep' && st.slices[st.i]) ? st.slices[st.i] : null; }
     function sliceLabel(){
       const s = curSlice();
-      if (s) return 'cat ' + s.cat + ' ' + s.phase +
-        (s.endDate ? ' (end ' + s.endDate + ')' : '');
+      if (s) return 'cat ' + s.cat + (s.year ? ' ' + s.year : '') + (s.atype ? ' ' + (AUCTION_TYPES[s.atype] || s.atype) : '') +
+        ' ' + (s.year ? (s.sb === SORT_DESC ? 'desc' : 'asc') : s.phase) +
+        (s.endDate && !s.year ? ' (end ' + s.endDate + ')' : '');
       return 'cat ' + (currentCurrencyCategory() || '?') + ' sb ' + (P('sb') || '?');
     }
     /* ---------- RPC (v9.6.0: through ingest-proxy, private key header) ---------- */
@@ -777,9 +954,31 @@ function findRows() {
           if (!r.oldest || p.sold_on < r.oldest) r.oldest = p.sold_on;
         }
         if (dry){ r.skip++; continue; }
+        p.payload._li = rows[i];          // v9.7.1: for the thumbnail retry; stripped before post
         queue.push(p.payload);
       }
       if (dry || !queue.length) return r;
+      // v9.7.1: deferred re-read for rows that parsed without a usable image.
+      const missing = queue.filter(function(q){ return !q.p_thumbnail_url; });
+      if (missing.length){
+        await sleep(THUMB_RETRY_MS);
+        let healed = 0;
+        for (const q of missing){
+          const t = thumbForLot(q.p_source_lot_id, q._li);
+          if (t.thumb){
+            q.p_thumbnail_url = t.thumb;
+            if (t.large) q.p_raw.image_large = t.large;
+            q.p_raw.thumb_retry = 'healed';
+            delete q.p_raw.thumb_miss;
+            healed++;
+          } else {
+            q.p_raw.thumb_retry = 'still_missing';
+            if (t.miss) q.p_raw.thumb_miss = t.miss;
+          }
+        }
+        r.thumbMissing = missing.length; r.thumbHealed = healed;
+      }
+      for (const q of queue) delete q._li;
       // phase 2: pooled posts. ingest_heritage_lot returns 'ins:'/'upd:'
       // (verified live 2026-08-12), so the top-up whole-page stop is exact.
       let cursor = 0;
@@ -834,10 +1033,33 @@ function findRows() {
       // leaving a HARVEST slice: compare how far back we got vs the probed end date
       const s = curSlice();
       if (s && s.phase === 'harvest' && s.endDate && st.sliceOldest && st.sliceOldest > s.endDate){
-        const g = 'GAP cat ' + s.cat + ': harvested to ' + st.sliceOldest + ', oldest lot ' + s.endDate;
-        if (st.gaps.indexOf(g) === -1) st.gaps.push(g);
+        // v9.8.0: a year slice only counts as a gap when it actually hit the result cap,
+        // and not when an oldest-first twin slice follows to cover the other end.
+        const nx = st.slices[st.i + 1];
+        const twin = !!(nx && s.year && nx.year === s.year && nx.cat === s.cat && nx.atype === s.atype && nx.sb !== s.sb && (s.expected || 0) <= 2 * HA_RESULT_CAP);
+        if (!s.year || (st.sliceHitCap && !twin)){
+          const g = 'GAP ' + sliceLabel() + ': harvested to ' + st.sliceOldest + ', floor ' + s.endDate;
+          if (st.gaps.indexOf(g) === -1) st.gaps.push(g);
+        }
       }
-      st.sliceOldest = null;
+      st.sliceOldest = null; st.sliceHitCap = false;
+    }
+    // v9.7.4: paced navigation - every page load goes through here.
+    function goTo(url, label){
+      loopActive = true; navScheduled = true;            // v9.8.2: hold the lock across the pause; the navigation ends it
+      const base = Math.max(1, parseFloat(st.delay) || PAGE_DELAY_S);
+      const waitMs = Math.round(base * 1000 * (0.75 + Math.random() * 0.5));
+      let left = Math.round(waitMs / 1000);
+      st.msg = (label || 'next page') + ' in ~' + left + 's ...'; save(); paint();
+      const tick2 = setInterval(function(){
+        if (!st.running){ clearInterval(tick2); loopActive = false; st.msg = 'stopped during pause'; save(); paint(); return; }
+        left--; st.msg = (label || 'next page') + ' in ~' + Math.max(0, left) + 's ...'; paint();
+      }, 1000);
+      setTimeout(function(){
+        clearInterval(tick2);
+        if (!st.running){ loopActive = false; return; }
+        location.href = url;
+      }, waitMs);
     }
     function nextSlice(reason){
       closeSlice();
@@ -849,10 +1071,17 @@ function findRows() {
       st.msg = 'slice ' + (st.i+1) + '/' + st.slices.length + ' -> cat ' + s.cat + ' ' + s.phase +
                '  (' + reason + ')';
       save();
-      location.href = sliceUrl(s.cat, s.sb, 1);
+      goTo(sliceUrl(s.cat, s.sb, 1, s.year, s.atype), 'slice ' + (st.i+1));
     }
     async function tick(){
       if (!st.running) return;
+      if (!ownsRun()){ st.msg = 'run owned by another tab - press Resume here to claim it'; paint(); return; }   // v9.8.2
+      if (loopActive){ st.msg = 'already running in this tab (Resume ignored)'; paint(); return; }
+      loopActive = true; navScheduled = false;
+      try { await tickInner(); } finally { if (!navScheduled) loopActive = false; }
+    }
+    let navScheduled = false;
+    async function tickInner(){
       const got = await waitForRows();
       const page = curPage();
       if (st.expect && page < st.expect){
@@ -876,9 +1105,21 @@ function findRows() {
       if (r.seen && r.noPrice === r.seen)
         return finish('prices hidden - sign in to Heritage again');
       if (!r.seen){
-        if (!got) return st.mode === 'sweep'
-          ? nextSlice('rows never rendered on page ' + page)
-          : finish('rows never rendered on page ' + page);
+        if (!got){
+          if (st.mode === 'sweep') return nextSlice('rows never rendered on page ' + page);
+          // v9.7.4: a challenge/interstitial renders no rows - pause, don't finish
+          st.running = false;
+          st.msg = 'HERITAGE CHECK? rows never rendered on page ' + page + ' - pass any verification in this tab, then press Resume.';
+          save(); paint(); return;
+        }
+        // v9.7.3: rows rendered but every one was skipped (e.g. a World Currency
+        // sale's page) - keep walking while the pager offers a next page.
+        const nextLink = !!document.querySelector('a[href*="page=' + pageSize() + '~' + (page + 1) + '"]');
+        if (st.mode === 'topup' && r.skip > 0 && nextLink){
+          st.msg = 'page ' + page + ': all ' + r.skip + ' rows non-US/promo - skipping ahead'; paint();
+          st.expect = page + 1; save();
+          return goTo(withPage(page + 1), 'skipping to page ' + (page + 1));
+        }
         return st.mode === 'sweep'
           ? nextSlice('empty slice ' + sliceLabel())
           : finish('no rows on page ' + page);
@@ -896,20 +1137,124 @@ function findRows() {
         }
       }
       if (st.mode === 'topup'){
-        if (r.upd === r.seen && r.upd > 0) return finish('whole page already harvested');
+        // v9.7.2: a stop-at date overrides the known-page stop, so gaps get crossed.
+        if (!st.cutoff && r.upd === r.seen && r.upd > 0) return finish('whole page already harvested');
         if (st.cutoff && r.newest && r.newest <= st.cutoff) return finish('reached cutoff ' + st.cutoff);
       }
-      if (r.seen < pageSize())
+      // v9.7.1: trust the pager, not r.seen (which excludes skipped promo rows)
+      const hasNext = !!document.querySelector('a[href*="page=' + pageSize() + '~' + (page + 1) + '"]');
+      if (st.mode === 'sweep' && page >= HA_PAGE_CAP){                     // v9.8.0: result cap
+        st.sliceHitCap = true; save();
+        return nextSlice('result cap at page ' + page);
+      }
+      if (!hasNext && r.seen < pageSize())
         return st.mode === 'sweep' ? nextSlice('slice complete') : finish('last page');
       st.expect = page + 1; save();
-      location.href = withPage(page + 1);
+      goTo(withPage(page + 1), 'page ' + (page + 1));
     }
     /* ---------- start modes ---------- */
+    /* ---------- v9.8.0 AUTO-SLICER ---------- */
+    function planYears(){ const y = []; for (let k = new Date().getFullYear(); k >= PLAN_YEAR_FROM; k--) y.push(k); return y; }
+    // v9.8.1: facet JSON for a filter set. Returns { years:{Y:n}, types:{id:n}, total:n }.
+    async function probeFacets(cat, year){
+      const q = new URLSearchParams({ dept:'2021', mode:'archive', layout:'list', currency_category:String(cat) });
+      if (year) q.set('auction_year', String(year));
+      const r = await fetch('/c/webservices/search/guided-navigation-archive.zx?' + q.toString(), { credentials:'include' });
+      if (r.status === 403 || r.status === 429 || r.status === 503) throw Object.assign(new Error('probe HTTP ' + r.status), { botCheck:true });
+      const text = await r.text();
+      if (/Just a moment|Verifying Website Traffic|challenge-platform|<html/i.test(text.slice(0, 300))) throw Object.assign(new Error('probe BOT CHECK'), { botCheck:true });
+      let j; try { j = JSON.parse(text); } catch(e){ throw new Error('probe: facet JSON unparsable'); }
+      const facets = (j && j.facets) || [];
+      const pick = function(field){ const f = facets.find(function(x){ return x.field === field; }); return (f && f.data) || []; };
+      const out = { years:{}, types:{}, total:0 };
+      pick('auction_year').forEach(function(d){ out.years[String(d.value)] = d.count || 0; });
+      pick('auction_type').forEach(function(d){ out.types[String(d.value)] = d.count || 0; });
+      const cc = pick('currency_category').find(function(d){ return String(d.value) === String(cat); });
+      out.total = cc ? (cc.count || 0) : (pick('dept')[0] ? pick('dept')[0].count || 0 : 0);
+      return out;
+    }
+    function startPlan(cats){
+      const pending = cats.map(function(c){ return { cat:c, year:null }; });
+      st = Object.assign(FRESH(), { mode:'plan', running:true, expect:0, owner:TAB_ID,
+            delay: parseFloat(el('cch9-delay').value) || PAGE_DELAY_S,
+            ps: parseInt((el('cch9-ps')||{}).value,10) || PER_PAGE_DEFAULT,
+            plan: { cats:cats, pending:pending, k:0, counts:{}, notes:[] },
+            msg:'planning: ' + cats.length + ' category probes ...' });
+      save(); paint(); planLoop();
+    }
+    let planBusy = false;
+    async function planLoop(){
+      if (!ownsRun()){ st.msg = 'run owned by another tab - press Resume here to claim it'; paint(); return; }   // v9.8.2
+      if (planBusy) return; planBusy = true;
+      try {
+        const P = st.plan;
+        while (st.running && st.mode === 'plan' && P.k < P.pending.length){
+          const pr = P.pending[P.k];
+          st.msg = 'plan probe ' + (P.k+1) + '/' + P.pending.length + ': cat ' + pr.cat + (pr.year ? ' ' + pr.year + ' by auction type' : ' by year') + ' ...'; paint();
+          let f = null;
+          try { f = await probeFacets(pr.cat, pr.year); }
+          catch(e){
+            if (e.botCheck){ st.running = false; st.msg = 'HERITAGE CHECK during planning - reload this tab, pass the verification, then press Resume (plan continues at probe ' + (P.k+1) + ').'; save(); paint(); return; }
+            logErr('PROBE cat ' + pr.cat + (pr.year ? ' ' + pr.year : '') + ' ' + String(e.message || e).slice(0,100)); st.stats.err++;
+          }
+          if (f && !pr.year){
+            planYears().forEach(function(y){
+              const n = f.years[String(y)] || 0;
+              P.counts[pr.cat + '|' + y + '|'] = n;
+              if (n > 2 * HA_RESULT_CAP) P.pending.push({ cat:pr.cat, year:y });     // needs the auction_type split
+            });
+            P.counts[pr.cat + '|total'] = f.total;
+          } else if (f && pr.year){
+            Object.keys(AUCTION_TYPES).forEach(function(at){ P.counts[pr.cat + '|' + pr.year + '|' + at] = f.types[at] || 0; });
+          } else if (!pr.year){
+            planYears().forEach(function(y){ P.counts[pr.cat + '|' + y + '|'] = null; });
+          }
+          P.k++; save(); paint();
+          if (P.k < P.pending.length){
+            const base = Math.max(1, parseFloat(st.delay) || PAGE_DELAY_S);
+            await sleep(Math.round(base * 1000 * (0.75 + Math.random() * 0.5)));
+          }
+        }
+        if (st.running && st.mode === 'plan' && P.k >= P.pending.length) finalizePlan();
+      } finally { planBusy = false; }
+    }
+    function finalizePlan(){
+      const P = st.plan, slices = [];
+      let lots = 0;
+      P.cats.forEach(function(c){
+        planYears().forEach(function(y){
+          const n = P.counts[c + '|' + y + '|'];
+          if (n == null) { P.notes.push('cat ' + c + ' ' + y + ': probe failed - not planned'); return; }
+          if (n === 0) return;
+          const add = function(atype, m){
+            lots += m;
+            const floor = y + '-01-01';
+            slices.push({ cat:c, sb:SORT_DESC, phase:'harvest', year:y, atype:atype, endDate:floor, expected:m });
+            if (m > HA_RESULT_CAP) slices.push({ cat:c, sb:SORT_ASC_DEFAULT, phase:'harvest', year:y, atype:atype, endDate:null, expected:m });
+            if (m > 2 * HA_RESULT_CAP) P.notes.push('cat ' + c + ' ' + y + (atype ? ' ' + AUCTION_TYPES[atype] : '') + ': ' + m + ' lots exceeds 2x cap - middle unreachable');
+          };
+          if (n <= 2 * HA_RESULT_CAP) add(null, n);
+          else Object.keys(AUCTION_TYPES).forEach(function(at){
+            const m = P.counts[c + '|' + y + '|' + at];
+            if (m == null) { P.notes.push('cat ' + c + ' ' + y + ' ' + AUCTION_TYPES[at] + ': probe failed - not planned'); return; }
+            if (m > 0) add(at, m);
+          });
+        });
+      });
+      P.notes.forEach(function(n){ if (st.gaps.indexOf('PLAN ' + n) === -1) st.gaps.push('PLAN ' + n); });
+      if (!slices.length){ return finish('plan found no lots for ' + P.cats.join(',')); }
+      st.mode = 'sweep'; st.slices = slices; st.i = 0; st.expect = 1; st.sliceOldest = null; st.sliceHitCap = false;
+      st.msg = 'plan done: ' + slices.length + ' slices, ~' + lots.toLocaleString() + ' lots - starting';
+      save(); paint();
+      const s0 = slices[0];
+      goTo(sliceUrl(s0.cat, s0.sb, 1, s0.year, s0.atype), 'slice 1/' + slices.length);
+    }
     function buildSweep(){
       if (keyMissing()){ st.msg = 'HARVEST KEY NOT SET - edit the CONFIG block. Do not sweep.'; return paint(); }
       const catsRaw = el('cch9-cats').value.trim();
       const cats = catsRaw.split(/[\s,]+/).filter(function(c){ return /^\d+$/.test(c); });
       if (!cats.length){ st.msg = 'enter at least one numeric currency_category id'; return paint(); }
+      if (el('cch9-auto').checked) return startPlan(cats);                 // v9.8.0
       const ascSb = el('cch9-ascsb').value.trim() || SORT_ASC_DEFAULT;
       const probe = el('cch9-probe').checked;
       const slices = [];
@@ -920,7 +1265,7 @@ function findRows() {
       });
       // harvest slices inherit the probe's end date at runtime via prior slice
       const ps = parseInt((el('cch9-ps')||{}).value,10) || PER_PAGE_DEFAULT;
-      st = Object.assign(FRESH(), { mode:'sweep', running:true, i:0, slices:slices, expect:1, ps:ps,
+      st = Object.assign(FRESH(), { mode:'sweep', running:true, i:0, slices:slices, expect:1, ps:ps, owner:TAB_ID,
             msg:'sweep armed: ' + cats.length + ' categories' + (probe ? ' (probe+harvest)' : '') +
             (ps !== 50 ? ' - page size ' + ps + ' (will auto-correct if ignored)' : '') });
       save(); paint();
@@ -933,12 +1278,12 @@ function findRows() {
       const u = new URL(location.href);
       if (u.searchParams.get('sb') !== SORT_DESC){
         u.searchParams.set('sb', SORT_DESC); u.searchParams.set('page','50~1');
-        st = Object.assign(FRESH(), { mode:'topup', running:true, cutoff:cut, expect:1,
+        st = Object.assign(FRESH(), { mode:'topup', running:true, cutoff:cut, expect:1, owner:TAB_ID,
               ps: parseInt((el('cch9-ps')||{}).value,10) || PER_PAGE_DEFAULT,
               msg:'top up: forcing newest-first' });
         save(); return (location.href = u.toString());
       }
-      st = Object.assign(FRESH(), { mode:'topup', running:true, cutoff:cut, expect:curPage(),
+      st = Object.assign(FRESH(), { mode:'topup', running:true, cutoff:cut, expect:curPage(), owner:TAB_ID,
             ps: parseInt((el('cch9-ps')||{}).value,10) || PER_PAGE_DEFAULT,
             msg:'top up started' + (cut ? ' - stop at ' + cut : '') });
       save(); paint(); tick();
@@ -951,6 +1296,7 @@ function findRows() {
       tally(r); st.msg = (dry ? 'DRY RUN' : 'PAGE') + ' page ' + curPage() +
         ' - seen ' + r.seen + ' - new ' + r.ins + ' - upd ' + r.upd + ' - rej ' + r.rej +
         ' - skip ' + r.skip + ' - err ' + r.err +
+        (r.thumbMissing ? ' - thumbs missing ' + r.thumbMissing + ' healed ' + (r.thumbHealed || 0) : '') +
         (r.newest ? ' - newest ' + r.newest + ' oldest ' + r.oldest : '');
       save(); paint();
     }
@@ -964,7 +1310,10 @@ function findRows() {
         '  page ' + curPage() +
         '  rows ' + findRows().length +
         '  key:' + (keyMissing() ? 'MISSING' : 'set') +
-        (st.mode === 'sweep' && st.slices.length ? '  slice ' + (st.i+1) + '/' + st.slices.length : '');
+        '  delay:' + (parseFloat(st.delay) || PAGE_DELAY_S) + 's' +
+        (st.running && !ownsRun() ? '  [OTHER TAB]' : '') +
+        (st.mode === 'sweep' && st.slices.length ? '  slice ' + (st.i+1) + '/' + st.slices.length : '') +
+        (st.mode === 'plan' && st.plan ? '  probe ' + st.plan.k + '/' + st.plan.pending.length : '');
       el('cch9-msg').textContent = st.msg || '';
       el('cch9-stats').textContent = 'pages ' + s.pages + ' - seen ' + s.seen + ' - new ' + s.new +
         ' - upd ' + s.upd + ' - rej ' + s.rej + ' - skip ' + s.skip + ' - err ' + s.err;
@@ -1002,8 +1351,10 @@ function findRows() {
         '<input type="checkbox" id="cch9-probe" checked>probe end date</label>' +
         ' old sb <input id="cch9-ascsb" size="2" value="' + SORT_ASC_DEFAULT + '" ' +
         'title="Heritage sort code for oldest-first. Verify: pick End Date - Oldest in Heritage&#39;s sort dropdown and read sb= from the URL"></div>' +
-        '<div class="row"><button id="cch9-build">Build + Start Sweep</button></div>' +
-        '<div class="row">TOP UP stop at <input id="cch9-cut" size="10" placeholder="YYYY-MM-DD"></div>' +
+        '<div class="row"><button id="cch9-build">Build + Start Sweep</button> ' +
+        '<label title="v9.8.0: probe each category by auction year and build slices that fit under Heritage\'s 5,000-result cap; off = legacy probe/harvest slices"><input type="checkbox" id="cch9-auto" checked>auto-slice by year</label></div>' +
+        '<div class="row">TOP UP stop at <input id="cch9-cut" size="10" placeholder="YYYY-MM-DD"> ' +
+        ' delay s <input id="cch9-delay" size="3" value="' + PAGE_DELAY_S + '" title="Pause before each page load (+/-25% jitter). Raise if Heritage challenges."></div>' +
         '<div class="row"><button id="cch9-topup">Start Top Up</button></div>' +
         '<div class="row"><button id="cch9-dry">Dry Run</button><button id="cch9-page">Page</button>' +
         '<button id="cch9-resume">Resume</button><button id="cch9-stop">Stop</button>' +
@@ -1017,8 +1368,12 @@ function findRows() {
       el('cch9-topup').onclick  = startTopUp;
       el('cch9-dry').onclick    = function(){ onePage(true); };
       el('cch9-page').onclick   = function(){ onePage(false); };
-      el('cch9-resume').onclick = function(){ st.running = true; st.msg = 'resumed'; save(); paint(); tick(); };
+      el('cch9-resume').onclick = function(){ claimRun(); st.running = true; st.msg = 'resumed'; save(); paint();
+        if (st.mode === 'plan') planLoop(); else tick(); };
       el('cch9-stop').onclick   = function(){ st.running = false; st.msg = 'stopped by user'; save(); paint(); };
+      // v9.7.4: persist the delay on edit so Resume / auto-resume honor it
+      if (st.delay) el('cch9-delay').value = st.delay;
+      el('cch9-delay').addEventListener('input', function(){ const v = parseFloat(this.value); if (v >= 1){ st.delay = v; save(); paint(); } });
       el('cch9-reset').onclick  = function(){ localStorage.removeItem(LS_KEY); st = FRESH();
                                               st.msg = 'state cleared'; paint(); };
     }
@@ -1028,7 +1383,8 @@ function findRows() {
       const tf = seriesSelfTest('cch9.6');
       if (tf){ st.msg = 'SERIES SELF-TEST FAILED (' + tf + ') - see console. Do not sweep.'; paint(); }
       else if (keyMissing()){ st.msg = 'HARVEST KEY NOT SET - edit the CONFIG block. Do not sweep.'; paint(); }
-      if (st.running){ waitForRows().then(function(){ paint(); tick(); }); }
+      if (st.running && st.mode === 'plan'){ paint(); planLoop(); }                     // v9.8.0
+      else if (st.running){ waitForRows().then(function(){ paint(); tick(); }); }
       else { waitForRows().then(paint); setTimeout(paint, 1200); setTimeout(paint, 3000); }
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

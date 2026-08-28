@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Currency Comp Harvester — Stack's Bowers v9.7.2
+// @name         Currency Comp Harvester — Stack's Bowers v9.7.3
 // @namespace    jdmstrategy.comp.tool
-// @version      9.7.2
+// @version      9.7.3
 // @description  Family-engine harvester for Stack's Bowers Archive -> ingest_stacks_bowers_lot via ingest-proxy. API-direct + DOM modes. Shares its series/Friedberg parser byte-for-byte with the Heritage harvester.
 // @match        https://archive.stacksbowers.com/*
 // @grant        GM_xmlhttpRequest
@@ -10,6 +10,16 @@
 // @connect      auctions.stacksbowers.com
 // @run-at       document-start
 // ==/UserScript==
+// v9.7.3 (2026-08-26): TOP UP "STOP AT" DATE NOW WINS OVER KNOWN PAGES.
+//   Top Up stopped on the first fully-known page BEFORE checking the stop-at
+//   date, so a gap left by a partial run (known pages on both sides, a
+//   never-harvested stretch in between) could never be crossed - the run
+//   ended at page 1-4 with "whole page already harvested". Now, when a
+//   stop-at date is set, Top Up walks THROUGH known pages (one cheap upd:
+//   RPC per lot, no detail work) and stops only when the page's newest sale
+//   is on/before the date. With NO date the old behaviour is unchanged
+//   (stop on first fully-known page = the weekly refresh). Applies to both
+//   the DOM and API top-up loops.
 // v9.7.2 (2026-08-26): GRADE_RAW TRUNCATION FIX. parseGradeRaw's TPG branch
 //   used a lazy '[^.]*?' followed by OPTIONAL digits '\d{0,2}', so it matched
 //   the shortest possible string - "PMG Choice", "PCGS Gem" - and dropped the
@@ -180,11 +190,11 @@
   // v9.6.0: PRIVATE harvest key (hk_...). This is NOT the publishable
   // sb_publishable_ key - that key can no longer write. Paste the key you
   // were given ONCE, here, and nowhere else.
-  const HARVEST_KEY   = 'hk_16ecc5ab02ab362d4c4ed7d42d993ff27ed9ea719ddf479e';
+  const HARVEST_KEY   = 'PASTE_HARVEST_KEY_HERE';
   const RPC_ENDPOINT  = SUPABASE_URL + '/functions/v1/ingest-proxy/ingest_stacks_bowers_lot';
   const SOURCE        = 'stacks_bowers';
   const EXTRACTOR_VERSION = 'v8';    // RPC contract: must stay 'v8'
-  const VERSION       = '9.7.2';
+  const VERSION       = '9.7.3';
   const LS_KEY        = 'sbh9';
   const CONCURRENCY   = 8;           // parallel upsert workers
   const RETRY_ONCE    = true;        // single retry per lot on transient failure
@@ -906,7 +916,8 @@
         return finish('STOPPED - circuit breaker or key rejection. See error panel before resuming.');
       if (!r.seen) return finish('no lot rows on this page');
       if (st.mode === 'topup'){
-        if (r.upd + r.skip === r.seen && r.upd > 0) return finish('whole page already harvested');
+        // v9.7.3: a stop-at date overrides the known-page stop, so gaps get crossed.
+        if (!st.cutoff && r.upd + r.skip === r.seen && r.upd > 0) return finish('whole page already harvested');
         if (st.cutoff && r.newest && r.newest <= st.cutoff) return finish('reached cutoff ' + st.cutoff);
       }
       const fp = fingerprint();
@@ -1039,7 +1050,7 @@
       if (r.breaker)
         return finish('STOPPED - circuit breaker or key rejection. See error panel before resuming.');
       if (st.mode === 'apitopup'){
-        if (r.upd + r.skip === r.seen && r.upd > 0) return finish('whole batch already harvested');
+        if (!st.cutoff && r.upd + r.skip === r.seen && r.upd > 0) return finish('whole batch already harvested');   // v9.7.3
         if (st.cutoff && r.newest && r.newest <= st.cutoff) return finish('reached cutoff ' + st.cutoff);
       }
       start += size;
