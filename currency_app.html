@@ -829,12 +829,14 @@ async function applyFilters(q) {
   if (svc === "PMG" || svc === "PCGS" || svc === "NGC")
     q = q.eq("grading_company", svc);
   else if (svc === "raw")
-    q = q.is("grading_company", null);
+    q = q.or("grading_company.is.null,grading_company.eq.raw");
+  else if (svc === "unknown")
+    q = q.eq("grading_company", "unknown");
 
   const qual = v("fQual");
   if (qual === "PPQ") q = q.eq("ppq_epq", "PPQ");
   else if (qual === "EPQ") q = q.eq("ppq_epq", "EPQ");
-  else if (qual === "none") q = q.is("ppq_epq", null);
+  else if (qual === "none") q = q.or("ppq_epq.is.null,ppq_epq.eq.none");
 
   const gMin = v("fGradeMin"), gMax = v("fGradeMax");
   if (gMin) q = q.gte("grade_numeric_search", parseInt(gMin));
