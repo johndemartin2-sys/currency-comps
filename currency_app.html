@@ -1749,56 +1749,130 @@ function setView(view){
   document.getElementById('liveResults').style.display = sold ? 'none' : 'block';
   if (sold) { doSearch(); } else { runLiveSearch(); }
 }
-function buildEbayQuery(){
-  const val = id => (document.getElementById(id)?.value || '').trim();
-  const parts = [];
-  if (MODE === 'coins'){
-    const t = val('fTitle'); if (t) parts.push(t);
-    const d = val('fCoinDenom'); if (d) parts.push(d);
-    const y = val('fYear'); if (y) parts.push(y);
-    const cat = (document.querySelector('#catChips .active')?.textContent || '').trim(); if (cat) parts.push(cat);
-    const svc = val('fService'); if (svc) parts.push(svc);
-    if (document.getElementById('fCac')?.checked) parts.push('CAC');
-    return parts.join(' ').trim();
-  }
-  const title = val('fTitle'); if (title) parts.push(title);
-  const fr = val('fFr'); if (fr) parts.push('Fr ' + fr);
-  const year = val('fYear'); if (year) parts.push(year);
-  const denom = (document.getElementById('fDenom')?.value || '').trim();
-  if (denom) parts.push(denom.replace(/[$]/,'').replace('¢','').trim() + (denom.indexOf('¢')>=0 ? ' cent' : ' dollar'));
-  const type = (document.querySelector('#catChips .active')?.textContent || '').trim();
-  if (type) parts.push(type);
-  const letter = ''; if (letter) parts.push(letter);
-  const svc = (document.getElementById('fService')?.value || '').trim(); if (svc) parts.push(svc);
-  const qual = (document.getElementById('fQual')?.value || '').trim();
-  if (qual === 'PPQ' || qual === 'EPQ') parts.push(qual);
-  const st = (document.getElementById('fState')?.value || '').trim();
-  if (st && st !== 'any') parts.push(st);
-  const ch = val('fCharter'); if (ch) parts.push('charter ' + ch);
-  if (document.getElementById('fStar')?.checked) parts.push('star');
-  return parts.join(' ').trim();
+
+// Live Listings is a keyword search against eBay's Browse API. eBay treats an
+// unquoted word as optional once the strict match set is small, so a bare
+// "Fr 1180" query silently widens to every 1905 $20 Gold Certificate and the
+// Friedberg number is lost. Design (John, 2026-10-07):
+//   Tier 1  listings whose title STATES the requested FR, verified in the title
+//   Tier 2  no FR in the title, but year + denomination + type identify it
+//           (single-FR types, or signatures named in the title)
+//   Tier 3  same year / denomination / type, variety not stated
+//   Tier 4  sibling FRs — same year, denomination and type, different number
+// Year and denomination come from friedberg_catalog, are sent quoted (mandatory),
+// type is sent unquoted as reinforcement, and the FR is sent in its own query so
+// FR-titled listings are found even when the title omits the year.
+
+function liveVal(id){ return (document.getElementById(id)?.value || '').trim(); }
+function liveChecked(id){ return !!document.getElementById(id)?.checked; }
+function liveEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Catalog "type" text is inconsistent (Gold Cert. / Gold Certificates / FRN), so
+// types are keyed by keyword. terms = eBay search terms (OR-grouped), label = display.
+const LIVE_TYPES = [
+  { key:'gold',     re:/gold cert/i,                           terms:['Gold Certificate'],                     label:'Gold Certificate' },
+  { key:'ngbn',     re:/national gold/i,                       terms:['National Gold Bank Note'],              label:'National Gold Bank Note' },
+  { key:'silver',   re:/silver cert/i,                         terms:['Silver Certificate'],                   label:'Silver Certificate' },
+  { key:'lt',       re:/legal tender|united states note/i,     terms:['Legal Tender','United States Note'],    label:'Legal Tender Note' },
+  { key:'treasury', re:/treasury|coin note/i,                  terms:['Treasury Note','Coin Note'],            label:'Treasury Note' },
+  { key:'frbn',     re:/federal reserve bank/i,                terms:['Federal Reserve Bank Note'],            label:'Federal Reserve Bank Note' },
+  { key:'frn',      re:/fed(?:eral)?\s*res(?:erve)?\b|^frn/i,  terms:['Federal Reserve Note'],                 label:'Federal Reserve Note' },
+  { key:'nbn',      re:/national bank/i,                       terms:['National Bank Note','National Currency'], label:'National Bank Note' },
+  { key:'demand',   re:/demand/i,                              terms:['Demand Note'],                          label:'Demand Note' },
+  { key:'compound', re:/compound/i,                            terms:['Compound Interest'],                    label:'Compound Interest Treasury Note' },
+  { key:'ibn',      re:/interest bearing/i,                    terms:['Interest Bearing'],                     label:'Interest Bearing Note' },
+  { key:'refund',   re:/refunding/i,                           terms:['Refunding Certificate'],                label:'Refunding Certificate' },
+  { key:'frac',     re:/fractional/i,                          terms:['Fractional Currency','Fractional'],     label:'Fractional Currency' },
+];
+function liveTypeInfo(typeText){
+  const t = String(typeText || '');
+  for (const x of LIVE_TYPES) if (x.re.test(t)) return x;
+  const plain = t.replace(/\s+/g,' ').replace(/s$/,'').trim();
+  return plain ? { key: plain.toLowerCase(), terms:[plain], label: plain } : null;
+}
+// Chip labels on the filter bar → catalog type keyword
+function liveTypeFromChip(chipText){
+  const m = { 'MPCs':'Military Payment Certificate', 'Confederate':'Confederate Currency', 'Obsolete':'Obsolete Currency', 'Fractional':'Fractional Currency' };
+  return m[chipText] || chipText;
 }
 
-// --- Grade parsing from eBay titles --------------------------------------
-// eBay has no structured grade field, so the numeric grade has to be read out
-// of the listing title. The old regex made the grading service optional, which
-// meant it matched the FIRST 1-2 digit number in the title -- almost always the
-// denomination ($1) or the Friedberg number (Fr. 40), never the grade. Any band
-// above ~40 therefore returned zero results. We now strip the known sources of
-// false positives first, then require a grading service or a grade adjective
-// immediately before the number.
+// Look the FR up in friedberg_catalog: the note's year / denomination / type and
+// every sibling FR with the same three. Returns null when the catalog has no
+// usable row (caller falls back to FR-only).
+async function liveCatalogLookup(frBase){
+  if (!frBase || typeof sb === 'undefined' || !sb) return null;
+  try{
+    const { data: rows, error } = await sb.from('friedberg_catalog')
+      .select('fr_key,fr_number,series_year,denomination,type,signatures')
+      .eq('catalog_system','friedberg').or('fr_key.eq.' + frBase + ',fr_number.eq.' + frBase).limit(10);
+    if (error || !rows || !rows.length) return null;
+    const row = rows.find(r => r.series_year && r.denomination && r.type) || null;
+    if (!row) return null;
+    const type = liveTypeInfo(row.type); if (!type) return null;
+    const { data: sibRows } = await sb.from('friedberg_catalog')
+      .select('fr_key,fr_number,type,signatures')
+      .eq('catalog_system','friedberg').eq('series_year', row.series_year).eq('denomination', row.denomination).limit(400);
+    const sibs = {};
+    (sibRows || []).forEach(r => {
+      const ti = liveTypeInfo(r.type); if (!ti || ti.key !== type.key) return;
+      const baseM = String(r.fr_key || r.fr_number || '').match(/^(\d{1,4})/); if (!baseM) return;
+      const b = baseM[1];
+      if (!sibs[b]) sibs[b] = { fr: b, sigs: [] };
+      if (r.signatures) String(r.signatures).split(/\s*[,\/]\s*/).filter(Boolean).forEach(n => { if (!sibs[b].sigs.includes(n)) sibs[b].sigs.push(n); });
+    });
+    if (!sibs[frBase]) sibs[frBase] = { fr: frBase, sigs: [] };
+    return { fr: frBase, year: String(row.series_year), denom: String(row.denomination), type: type, siblings: Object.values(sibs), signatures: sibs[frBase].sigs };
+  }catch(e){ return null; }
+}
 
-// Tokens that are numbers but are never grades.
+// ---- Title parsing -------------------------------------------------------
+const LIVE_FR_RE = /\b(?:fr|friedberg)\.?\s*[#\-]?\s*(\d{1,4})\s*([a-z]|\*)?(?![0-9])/ig;
+function liveFrsInTitle(title){
+  const out = []; let m; LIVE_FR_RE.lastIndex = 0;
+  while ((m = LIVE_FR_RE.exec(String(title || '')))) out.push({ base: m[1], suffix: (m[2] || '').toLowerCase() });
+  return out;
+}
+const LIVE_DENOM_WORDS = { '1':'one', '2':'two', '5':'five', '10':'ten', '20':'twenty', '50':'fifty', '100':'(?:one\\s+)?hundred', '500':'five\\s+hundred', '1000':'(?:one\\s+)?thousand' };
+function liveDenomInTitle(title, denom){
+  const d = String(denom || '').trim(); if (!d) return true;
+  if (/[¢]|cent/i.test(d)){ const n = d.replace(/[^0-9]/g,''); return new RegExp('(?<![0-9])' + n + '\\s*(?:¢|cents?)\\b','i').test(title); }
+  const n = d.replace(/[^0-9]/g,''); if (!n) return true;
+  const words = LIVE_DENOM_WORDS[n];
+  const re = new RegExp('(?:\\$\\s*' + n + '(?![0-9.])' + (words ? '|\\b' + words + '[\\s\\-]*dollars?\\b' : '') + ')','i');
+  return re.test(title);
+}
+function liveYearInTitle(title, year){
+  const y = String(year || '').match(/\d{4}/); if (!y) return true;
+  return new RegExp('\\b' + y[0] + '\\b').test(title);
+}
+function liveSigMatch(title, sigs){
+  if (!sigs || sigs.length < 2) return false;
+  return sigs.every(n => new RegExp('\\b' + n.replace(/[^A-Za-z]/g,'') + '\\b','i').test(title));
+}
+const LIVE_JUNK_RE = /\b(reproduction|repro|replica|copy|copies|fake|fantasy|novelty|souvenir card|bep proof|proof print|commemorative|coin set|poster|postcard|sticker|magnet|gold foil|24k|silver foil|clad|tribute|play money)\b/i;
+const LIVE_DETAILS_RE = /\b(details?|apparent|net\b|problem[s]?|repair(?:ed|s)?|tear[s]?|stain(?:ed|s|ing)?|tape[d]?|ink|rust|pinhole[s]?|writing|annotation|trimmed|washed|pressed|restor(?:ed|ation)|discolor\w*|split)\b/i;
+const LIVE_SLAB_RE = /\b(PMG|PCGS|NGC|CGA|CGC|SEGS|ANACS|LEGACY)\b/i;
+
+// ---- Grade parsing from eBay titles -------------------------------------
+// eBay has no structured grade field, so the numeric grade has to be read out
+// of the listing title. Known false positives (denomination, Friedberg number,
+// serial numbers, lot counts, years) are scrubbed first, then a grading service
+// or a grade word must sit immediately before the number.
 function scrubTitleForGrade(raw){
   return String(raw || '')
     .replace(/\bFr\.?\s*[#\-]?\s*\d{1,4}[A-Za-z]?\b/gi, ' ')      // Fr. 40, FR-40, Fr#40, Fr 1302
+    .replace(/\bfriedberg\s*#?\s*\d{1,4}[A-Za-z]?\b/gi, ' ')
     .replace(/\bcharter\s*#?\s*\d+/gi, ' ')                        // charter 1234
+    .replace(/\bch\.?\s*#\s*\d+/gi, ' ')                           // Ch #2344
     .replace(/\$\s*\d+(?:[.,]\d+)?/g, ' ')                         // $1, $ 1, $20.00
-    .replace(/\b\d+(?:\.\d+)?\s*(?:cents?|dollars?|shillings?|pence|mm|pcs?)\b/gi, ' ')
+    .replace(/\b\d+(?:\.\d+)?\s*(?:cents?|dollars?|shillings?|pence|mm|pcs?|pieces?|cons(?:ec(?:utive)?)?\.?)\b/gi, ' ')
+    .replace(/\b(?:lot|set|pair|group|run)\s+of\s+\d+\b/gi, ' ')   // lot of 3
     .replace(/\b\d+\.\d{2}\b/g, ' ')                               // 1.00, 119.99
     .replace(/\b(?:1[6-9]\d{2}|20\d{2})\b/g, ' ')                  // years
-    .replace(/\b[A-Z]{0,2}\d{6,}[A-Z]?\b/gi, ' ')                  // serial numbers
+    .replace(/\b[A-Z]{0,2}\d{6,}[A-Z]?(?:-\d{1,2})?\b/gi, ' ')     // serial numbers, cert numbers 950995-1
     .replace(/#\s*\d+/g, ' ')                                      // lot / stock numbers
+    .replace(/\bpop\s*\d+(?:\s*\/\s*\d+)?/gi, ' ')                 // pop 3/0
+    .replace(/\b\d+\s*of\s*\d+\b/gi, ' ')                          // 1 of 2
     .replace(/\bseries\s+of\s+\d+/gi, ' ')
     .replace(/\s+/g, ' ');
 }
@@ -1806,15 +1880,17 @@ function scrubTitleForGrade(raw){
 const GRADE_CO = '(?:PMG|PCGS|NGC|CGA|CGC|SEGS|ANACS|LEGACY)';
 // "PMG 64", "PCGS Gem 65PPQ", "PMG Choice CU-64", "PMG AU53EPQ", "PMG 30vf"
 const GRADE_AFTER_CO_RE = new RegExp('\\b' + GRADE_CO + '\\b[^0-9]{0,30}?(\\d{1,2})(?:\\.\\d)?(?!\\d)', 'i');
-// "45 PPQ PCGS", "Very Fine 25 PCGS", "66 EPQ PMG"
-const GRADE_BEFORE_CO_RE = new RegExp('(?:^|[^0-9])(\\d{1,2})(?:\\.\\d)?\\s*(?:PPQ|EPQ|NET)?\\s*' + GRADE_CO + '\\b', 'i');
+// "45 PPQ PCGS", "Very Fine 25 PCGS", "66 EPQ PMG", "64 by PMG"
+const GRADE_BEFORE_CO_RE = new RegExp('(?:^|[^0-9])(\\d{1,2})(?:\\.\\d)?\\s*(?:PPQ|EPQ|NET)?\\s*(?:by\\s+|graded\\s+(?:by\\s+)?)?' + GRADE_CO + '\\b', 'i');
 // Ungraded but explicit: "XF-40", "Gem CU 65", "AU 55"
 const GRADE_ADJ_RE = /\b(?:GEM|CHOICE|SUPERB|CH)?\s*(?:UNC|CU|MS|AU|XF|EF|VF|VG|PR|PF)\s*-?\s*(\d{1,2})(?!\d)/i;
+// Written out, as raw-note sellers do it: "Very Fine 25", "Extremely Fine 40", "Choice Uncirculated 64", "Fine 15", "New 62", "Grade 20"
+const GRADE_WORD_RE = /\b(?:very\s+fine|extremely\s+fine|about\s+unc(?:irculated)?|choice\s+unc(?:irculated)?|gem\s+unc(?:irculated)?|crisp\s+unc(?:irculated)?|uncirculated|choice\s+new|gem\s+new|superb\s+gem|very\s+good|fine|good|new|grade)[\s:\-]*(\d{1,2})(?!\d)/i;
 
 // Returns an integer 1-70, or null when no grade can be read from the title.
 function parseTitleGrade(raw){
   const t = scrubTitleForGrade(raw);
-  for (const re of [GRADE_AFTER_CO_RE, GRADE_BEFORE_CO_RE, GRADE_ADJ_RE]){
+  for (const re of [GRADE_AFTER_CO_RE, GRADE_BEFORE_CO_RE, GRADE_ADJ_RE, GRADE_WORD_RE]){
     const m = t.match(re);
     if (m){
       const g = parseInt(m[1], 10);
@@ -1824,112 +1900,280 @@ function parseTitleGrade(raw){
   return null;
 }
 
+// ---- eBay fetch ----------------------------------------------------------
 async function ebayFetch(q, opts){
   const p = new URLSearchParams({ q: q, limit: String(opts.limit || 200) });
   if (opts.offset) p.set('offset', String(opts.offset));
   if (opts.priceMin) p.set('priceMin', opts.priceMin);
   if (opts.priceMax) p.set('priceMax', opts.priceMax);
   if (MODE === 'coins') p.set('mode', 'coins');
-  const res = await fetch('/api/ebay-search?' + p.toString());
+  const res = await fetch((window.LIVE_API_BASE || '') + '/api/ebay-search?' + p.toString());
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Search failed');
-  return data.items || [];
+  return { items: data.items || [], total: (data.total != null ? Number(data.total) : (data.items || []).length) };
+}
+// One query, plus the second page when eBay reports more than one page.
+async function ebayFetchDeep(q, opts, maxPages){
+  const first = await ebayFetch(q, opts);
+  const out = first.items.slice();
+  if ((maxPages || 1) > 1 && first.total > first.items.length && first.items.length >= 200){
+    try { const second = await ebayFetch(q, Object.assign({}, opts, { offset: 200 })); out.push.apply(out, second.items); } catch (_) {}
+  }
+  return { items: out, total: first.total };
+}
+function liveItemId(it){ const m = String(it.url || '').match(/\/itm\/(\d+)/); return m ? m[1] : (it.url || it.title); }
+
+// ---- Query plan ----------------------------------------------------------
+// Returns { tiers:[{id, queries:[...]}], ctx } for the currency mode.
+function buildLiveQueryPlan(cat){
+  const fr = liveVal('fFr');
+  const frBase = fr ? frBaseCanon(fr) : null;
+  const frSuffixM = fr ? String(fr).replace(/^(?:fr|f)\.?\s*/i,'').replace(/\s+/g,'').match(/^\d{1,4}[\-]?([a-z])\b/i) : null;
+  const frSuffix = frSuffixM ? frSuffixM[1].toLowerCase() : '';
+  const title = liveVal('fTitle');
+  const year = liveVal('fYear');
+  const denom = liveVal('fDenom');
+  const chipText = (document.querySelector('#catChips .active')?.textContent || '').trim();
+  const typeInfo = chipText ? liveTypeInfo(liveTypeFromChip(chipText)) : null;
+  const svc = liveVal('fService');
+  const qual = liveVal('fQual');
+  const state = document.getElementById('fState');
+  const stateName = (state && state.value) ? (state.options[state.selectedIndex]?.textContent || '').trim() : '';
+  const charter = liveVal('fCharter');
+  const star = liveChecked('fStar');
+  const gLo = parseInt(liveVal('fGradeMin'), 10), gHi = parseInt(liveVal('fGradeMax'), 10);
+  const hasBand = !isNaN(gLo) || !isNaN(gHi);
+
+  const explicitSvc = (svc === 'PMG' || svc === 'PCGS' || svc === 'NGC') ? svc : '';
+  const services = explicitSvc ? [] : (hasBand ? ['PMG','PCGS','NGC'] : []);
+  const rawOnly = svc === 'raw';
+  const excl = ' -reproduction -replica -copy -proof -commemorative -souvenir';
+  const rawExcl = rawOnly ? ' -PMG -PCGS -NGC -CGA -Legacy' : '';
+  const extras = []; if (title) extras.push(title); if (qual === 'PPQ' || qual === 'EPQ') extras.push(qual); if (explicitSvc) extras.push(explicitSvc);
+  const extraStr = extras.length ? ' ' + extras.join(' ') : '';
+
+  const ctx = { fr: frBase, frSuffix: frSuffix, cat: cat, year: cat ? cat.year : year, denom: cat ? cat.denom : denom, type: cat ? cat.type : typeInfo,
+                hasBand: hasBand, gLo: gLo, gHi: gHi, rawOnly: rawOnly, explicitSvc: explicitSvc, qual: qual, star: star, charter: charter, stateName: stateName, title: title, svc: svc,
+                userYear: year, userDenom: denom };
+  const tiers = [];
+  if (frBase){
+    // Tier 1: the FR, quoted so eBay cannot drop it. eBay's tokenizer matches Fr./FR#/FR-/Fr1173 and suffix variants.
+    const frQ = '"Fr ' + frBase + (frSuffix ? frSuffix : '') + '"';
+    const qs = [frQ + extraStr + rawExcl];
+    services.forEach(s => qs.push(frQ + extraStr + ' ' + s));
+    tiers.push({ id: 'fr', queries: qs, deep: true });
+  }
+  // Tier 2+: year + denomination mandatory, type reinforcing. From the catalog when FR is set, else from the user's filters.
+  const y = ctx.year ? String(ctx.year).match(/\d{4}/) : null;
+  const d = ctx.denom ? String(ctx.denom).trim() : '';
+  if (y && d){
+    const denomTerm = /[¢]|cent/i.test(d) ? '(' + d.replace(/[^0-9]/g,'') + '¢, "' + d.replace(/[^0-9]/g,'') + ' cent", "' + d.replace(/[^0-9]/g,'') + ' cents")' : '"' + d + '"';
+    const typeTerm = ctx.type ? (ctx.type.terms.length > 1 ? ' (' + ctx.type.terms.join(', ') + ')' : ' ' + ctx.type.terms[0]) : '';
+    const base = '"' + y[0] + '" ' + denomTerm + typeTerm + (stateName ? ' ' + stateName : '') + extraStr + excl + rawExcl;
+    const qs = [base]; services.forEach(s => qs.push(base + ' ' + s));
+    tiers.push({ id: 'ydt', queries: qs, deep: true });
+  } else if (!frBase){
+    // Neither FR nor year+denom: best effort, the user's words as typed.
+    const parts = []; if (title) parts.push(title); if (y) parts.push('"' + y[0] + '"'); if (d) parts.push('"' + d + '"');
+    if (ctx.type) parts.push(ctx.type.terms[0]); if (stateName) parts.push(stateName); if (charter) parts.push('charter ' + charter);
+    if (qual === 'PPQ' || qual === 'EPQ') parts.push(qual); if (explicitSvc) parts.push(explicitSvc);
+    if (parts.length){ const base = parts.join(' ') + excl + rawExcl; const qs = [base]; services.forEach(s => qs.push(base + ' ' + s)); tiers.push({ id: 'free', queries: qs, deep: true }); }
+  }
+  return { tiers: tiers, ctx: ctx };
 }
 
-function liveCardHtml(it, grade){
-  return '<a href="' + it.url + '" target="_blank" rel="noopener" style="display:flex;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:center">' +
-    (it.image ? '<img src="' + it.image + '" width="56" height="56" style="object-fit:cover;border-radius:4px">' : '') +
-    '<div style="flex:1"><div style="color:var(--text);font-weight:600">' + it.title + '</div>' +
-    '<div style="color:var(--text2);font-size:13px">' + (it.price || '—') +
+// Coins mode keeps the original single-query behaviour (plus item-id dedup).
+function buildEbayQueryCoins(){
+  const parts = [];
+  const t = liveVal('fTitle'); if (t) parts.push(t);
+  const dd = liveVal('fCoinDenom'); if (dd) parts.push(dd);
+  const y = liveVal('fYear'); if (y) parts.push(y);
+  const cat = (document.querySelector('#catChips .active')?.textContent || '').trim(); if (cat) parts.push(cat);
+  const svc = liveVal('fService'); if (svc && svc !== 'raw' && svc !== 'unknown') parts.push(svc);
+  if (liveChecked('fCac')) parts.push('CAC');
+  return parts.join(' ').trim();
+}
+
+// ---- Classification -------------------------------------------------------
+// Returns { tier, label, flags } for one listing against the search context.
+// tiers: 'fr' | 'inferred' | 'unstated' | 'sibling' | 'drop'
+function classifyLive(it, ctx){
+  const title = String(it.title || '');
+  const flags = [];
+  if (LIVE_JUNK_RE.test(title)) return { tier: 'drop', why: 'junk' };
+  if (LIVE_DETAILS_RE.test(title)) flags.push('details');
+  if (ctx.star && !/\bstar\b|\*/i.test(title)) return { tier: 'drop', why: 'star' };
+  if (ctx.rawOnly && LIVE_SLAB_RE.test(title)) return { tier: 'drop', why: 'slabbed' };
+  if (ctx.explicitSvc && !new RegExp('\\b' + ctx.explicitSvc + '\\b','i').test(title)) return { tier: 'drop', why: 'service' };
+  if (ctx.qual === 'none' && /\b(PPQ|EPQ)\b/i.test(title)) return { tier: 'drop', why: 'qual' };
+  if ((ctx.qual === 'PPQ' || ctx.qual === 'EPQ') && !new RegExp('\\b' + ctx.qual + '\\b','i').test(title)) return { tier: 'drop', why: 'qual' };
+  if (ctx.charter && !new RegExp('(?:charter|ch\\.?)\\s*#?\\s*' + ctx.charter.replace(/[^0-9]/g,'') + '\\b','i').test(title)) return { tier: 'drop', why: 'charter' };
+
+  const frs = liveFrsInTitle(title);
+  const sibs = ctx.cat ? ctx.cat.siblings : [];
+  const sigOwner = sibs.filter(s => liveSigMatch(title, s.sigs));
+  const sigFr = sigOwner.length === 1 ? sigOwner[0].fr : null;
+
+  if (ctx.fr){
+    const hit = frs.find(f => f.base === ctx.fr && (!ctx.frSuffix || f.suffix === ctx.frSuffix));
+    if (hit){
+      if (sigFr && sigFr !== ctx.fr) flags.push('sigconflict:' + sigFr);
+      return { tier: 'fr', label: 'Fr ' + ctx.fr + (hit.suffix ? hit.suffix : ''), flags: flags };
+    }
+    // Same base number, other suffix (only reachable when a suffix was typed): a variant of this number.
+    const varHit = frs.find(f => f.base === ctx.fr);
+    if (varHit) return { tier: 'sibling', label: 'Fr ' + varHit.base + (varHit.suffix || ''), flags: flags };
+    const sibHit = frs.find(f => sibs.some(s => s.fr === f.base) && f.base !== ctx.fr);
+    if (sibHit) return { tier: 'sibling', label: 'Fr ' + sibHit.base + (sibHit.suffix || ''), flags: flags };
+    if (!ctx.cat) return { tier: 'drop', why: frs.length ? 'otherfr' : 'nocatalog' };
+    // Anything else must carry the note's year and denomination to count at all.
+    if (!liveYearInTitle(title, ctx.cat.year) || !liveDenomInTitle(title, ctx.cat.denom)) return { tier: 'drop', why: 'unrelated' };
+    // A different FR stated on the right year / denomination: shown with the other varieties, labeled.
+    if (frs.length) return { tier: 'sibling', label: 'Fr ' + frs[0].base + (frs[0].suffix || ''), flags: flags };
+    // A typed suffix cannot be inferred from a title that names no FR.
+    if (ctx.frSuffix) return { tier: 'unstated', label: 'variety not stated', flags: flags };
+    if (sigFr === ctx.fr) return { tier: 'inferred', label: 'Fr ' + ctx.fr + ' — signatures ' + sigOwner[0].sigs.join('-'), flags: flags };
+    if (sigFr) return { tier: 'sibling', label: 'Fr ' + sigFr + ' — signatures ' + sigOwner[0].sigs.join('-'), flags: flags };
+    if (sibs.length === 1) return { tier: 'inferred', label: 'Fr ' + ctx.fr + ' — only FR for this note', flags: flags };
+    return { tier: 'unstated', label: 'variety not stated', flags: flags };
+  }
+  // No FR searched: anything eBay returned that carries the asked year / denom.
+  if (!liveYearInTitle(title, ctx.userYear) || !liveDenomInTitle(title, ctx.userDenom)) return { tier: 'drop', why: 'unrelated' };
+  return { tier: 'unstated', label: frs.length ? 'Fr ' + frs[0].base + (frs[0].suffix || '') : '', flags: flags };
+}
+
+// ---- Render ---------------------------------------------------------------
+function liveCardHtml(it, grade, info){
+  const badges = [];
+  if (info && info.label) badges.push('<span style="color:var(--gold)">' + liveEsc(info.label) + '</span>');
+  if (grade != null) badges.push('<strong>grade ' + grade + '</strong>');
+  if (info && info.flags && info.flags.includes('details')) badges.push('<span style="color:#c66">details / net</span>');
+  const conflict = info && info.flags ? info.flags.find(f => f.indexOf('sigconflict:') === 0) : null;
+  if (conflict) badges.push('<span style="color:#c66">title signatures say Fr ' + liveEsc(conflict.split(':')[1]) + '</span>');
+  const bo = it.buyingOptions || [];
+  return '<a href="' + liveEsc(it.url) + '" target="_blank" rel="noopener" style="display:flex;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:center">' +
+    (it.image ? '<img src="' + liveEsc(it.image) + '" width="56" height="56" style="object-fit:cover;border-radius:4px">' : '') +
+    '<div style="flex:1"><div style="color:var(--text);font-weight:600">' + liveEsc(it.title) + '</div>' +
+    '<div style="color:var(--text2);font-size:13px">' + liveEsc(it.price || '—') +
     (it.bidCount != null ? ' · ' + it.bidCount + ' bids' : '') +
-    (it.buyingOptions.includes('AUCTION') ? ' · Auction' : '') +
-    (it.buyingOptions.includes('FIXED_PRICE') ? ' · Buy It Now' : '') +
-    (grade != null ? ' · <strong>grade ' + grade + '</strong>' : '') +
+    (bo.includes('AUCTION') ? ' · Auction' : '') +
+    (bo.includes('FIXED_PRICE') ? ' · Buy It Now' : '') +
+    (badges.length ? ' · ' + badges.join(' · ') : '') +
     '</div></div></a>';
+}
+function liveDividerHtml(title, desc){
+  return '<div style="margin:18px 0 10px;padding-top:12px;border-top:2px solid var(--gold-dim, var(--border))">' +
+    '<div style="color:var(--gold);font-weight:700;letter-spacing:.3px">' + liveEsc(title) + '</div>' +
+    (desc ? '<div style="color:var(--muted);font-size:12.5px;margin-top:2px">' + liveEsc(desc) + '</div>' : '') + '</div>';
+}
+function liveTierCopy(tier, ctx){
+  const c = ctx.cat; const note = c ? (c.year + ' ' + c.denom + ' ' + c.type.label) : [ctx.userYear, ctx.userDenom, ctx.type && ctx.type.label].filter(Boolean).join(' ');
+  const sibList = c ? c.siblings.map(s => s.fr).filter(f => f !== ctx.fr).sort((a,b)=>Number(a)-Number(b)) : [];
+  const range = sibList.length ? (sibList.length > 2 ? 'Fr ' + sibList[0] + '–' + sibList[sibList.length-1] : sibList.map(f => 'Fr ' + f).join(' and ')) : '';
+  switch (tier){
+    case 'fr': return ['Fr ' + ctx.fr + (ctx.frSuffix || '') + ' — stated in the listing', 'The seller lists this Friedberg number and the title has been checked against it.'];
+    case 'inferred': return ['Fr ' + ctx.fr + ' — identified from the listing', c && c.siblings.length === 1 ? 'No Friedberg number in the title, but a ' + note + ' can only be Fr ' + ctx.fr + '.' : 'No Friedberg number in the title; the signatures named in it identify the note as Fr ' + ctx.fr + '.'];
+    case 'unstated': return ctx.fr
+      ? [note + ' — variety not stated', 'Same note, but the title names no Friedberg number or signatures, so it could be Fr ' + ctx.fr + (ctx.frSuffix ? ', another variant of it,' : '') + (range ? ' or ' + range : '') + '.']
+      : [note, 'Live listings matching the year, denomination and type you entered.'];
+    case 'sibling': return ctx.frSuffix
+      ? ['Other Fr ' + ctx.fr + ' variants and ' + note + ' varieties', 'Same number with a different suffix, or the same year, denomination and type under another Friedberg number' + (range ? ' (' + range + ')' : '') + '. Priced as separate varieties in Sold Comps.']
+      : ['Other ' + note + ' varieties', 'Same year, denomination and type, different Friedberg number' + (range ? ' (' + range + ')' : '') + '. Priced as separate varieties in Sold Comps.'];
+  }
+  return ['', ''];
 }
 
 const LIVE_RENDER_CAP = 120;
 
 async function runLiveSearch(){
   const box = document.getElementById('liveResults');
-  const q = buildEbayQuery();
-  if (!q){ box.innerHTML = '<p style="color:var(--muted);padding:12px">Add filters (year, denomination, type, grade) to search live listings.</p>'; return; }
+  const priceMin = liveVal('fPriceMin'), priceMax = liveVal('fPriceMax');
+  const opts = { limit: 200, priceMin: priceMin, priceMax: priceMax };
+
+  // Coins: unchanged single-query flow.
+  if (MODE === 'coins'){
+    const q = buildEbayQueryCoins();
+    if (!q){ box.innerHTML = '<p style="color:var(--muted);padding:12px">Add filters (year, denomination, type, grade) to search live listings.</p>'; return; }
+    box.innerHTML = '<p style="color:var(--muted);padding:12px">Searching eBay&hellip;</p>';
+    try{
+      const gLo = parseInt(liveVal('fGradeMin'), 10), gHi = parseInt(liveVal('fGradeMax'), 10); const hasBand = !isNaN(gLo) || !isNaN(gHi);
+      const r = await ebayFetchDeep(q, opts, 2);
+      const seen = new Set(); const all = r.items.filter(it => { const k = liveItemId(it); if (seen.has(k)) return false; seen.add(k); return true; });
+      const graded = [], ungraded = [];
+      all.forEach(it => { const g = parseTitleGrade(it.title); if (g == null) ungraded.push(it); else if (!hasBand || ((isNaN(gLo) || g >= gLo) && (isNaN(gHi) || g <= gHi))) graded.push({ it: it, g: g }); });
+      graded.sort((a, b) => b.g - a.g);
+      let html = '<p style="color:var(--muted);padding:4px 12px 10px;font-size:13px">' + all.length + ' listings · ' + graded.length + (hasBand ? ' in grade band' : ' with a readable grade') + '</p>';
+      html += graded.slice(0, LIVE_RENDER_CAP).map(r => liveCardHtml(r.it, r.g, null)).join('') || '<p style="color:var(--muted);padding:12px">No listings match.</p>';
+      if (ungraded.length) html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--text2);padding:8px 12px;font-size:13px">' + ungraded.length + ' with no grade in the title &mdash; click to show</summary><div style="margin-top:8px">' + ungraded.slice(0, LIVE_RENDER_CAP).map(it => liveCardHtml(it, null, null)).join('') + '</div></details>';
+      box.innerHTML = html;
+    }catch(err){ box.innerHTML = '<p style="color:#c66;padding:12px">eBay search error: ' + liveEsc(err.message) + '</p>'; }
+    return;
+  }
+
+  const fr = liveVal('fFr');
+  const frBase = fr ? frBaseCanon(fr) : null;
+  if (!frBase && !liveVal('fYear') && !liveVal('fDenom') && !liveVal('fTitle') && !(document.querySelector('#catChips .active'))){
+    box.innerHTML = '<p style="color:var(--muted);padding:12px">Add a Friedberg number, or a year and denomination, to search live listings.</p>'; return;
+  }
   box.innerHTML = '<p style="color:var(--muted);padding:12px">Searching eBay&hellip;</p>';
   try{
-    const priceMin = (document.getElementById('fPriceMin')?.value || '').trim();
-    const priceMax = (document.getElementById('fPriceMax')?.value || '').trim();
-    const gLo = parseInt(document.getElementById('fGradeMin')?.value, 10);
-    const gHi = parseInt(document.getElementById('fGradeMax')?.value, 10);
-    const hasBand = !isNaN(gLo) || !isNaN(gHi);
+    const cat = frBase ? await liveCatalogLookup(frBase) : null;
+    const plan = buildLiveQueryPlan(cat);
+    const ctx = plan.ctx;
+    if (!plan.tiers.length){ box.innerHTML = '<p style="color:var(--muted);padding:12px">Nothing to search for with these filters.</p>'; return; }
 
-    // A plain relevance search buries graded material. When a grade band is set
-    // we also run service-scoped variants and merge, which roughly triples the
-    // number of in-band listings that surface.
-    const queries = [q];
-    if (hasBand){
-      const svc = (document.getElementById('fService')?.value || '').trim();
-      const services = (svc && svc !== 'any' && svc !== 'raw' && svc !== 'unknown')
-        ? [svc]
-        : ['PMG', 'PCGS', 'NGC'];
-      services.forEach(s => queries.push(q + ' ' + s));
-      if (!isNaN(gLo) && !isNaN(gHi) && gLo === gHi) queries.push(q + ' ' + gLo);
-    }
+    // Run every query in parallel; a failed variant is dropped, not fatal.
+    const allQueries = []; plan.tiers.forEach(t => t.queries.forEach(q => allQueries.push({ tier: t.id, q: q, deep: t.deep })));
+    const results = await Promise.all(allQueries.map(x => ebayFetchDeep(x.q, opts, x.deep ? 2 : 1).catch(() => ({ items: [], total: 0 }))));
+    const byId = new Map();
+    results.forEach(r => r.items.forEach(it => { const k = liveItemId(it); if (k && !byId.has(k)) byId.set(k, it); }));
+    const all = Array.from(byId.values());
+    if (!all.length){ box.innerHTML = '<p style="color:var(--muted);padding:12px">No current listings found' + (frBase && !cat ? ' (Friedberg catalog has no year/denomination for Fr ' + liveEsc(frBase) + ', so only listings stating the number were searched)' : '') + '.</p>'; return; }
 
-    const opts = { limit: 200, priceMin: priceMin, priceMax: priceMax };
-    const batches = await Promise.all(queries.map(qq => ebayFetch(qq, opts).catch(() => [])));
-
-    const seen = new Set();
-    const all = [];
-    batches.forEach(b => b.forEach(it => {
-      const key = it.url || it.title;
-      if (key && !seen.has(key)){ seen.add(key); all.push(it); }
-    }));
-
-    if (!all.length){ box.innerHTML = '<p style="color:var(--muted);padding:12px">No current listings found.</p>'; return; }
-
-    const graded = [], ungraded = [];
+    // Classify, grade, band.
+    const tiers = { fr: [], inferred: [], unstated: [], sibling: [] }; const dropped = {};
     all.forEach(it => {
+      const info = classifyLive(it, ctx);
+      if (info.tier === 'drop'){ dropped[info.why] = (dropped[info.why] || 0) + 1; return; }
       const g = parseTitleGrade(it.title);
-      if (g == null) ungraded.push(it); else graded.push({ it: it, g: g });
+      tiers[info.tier].push({ it: it, g: g, info: info });
     });
+    const inBand = g => g != null && (isNaN(ctx.gLo) || g >= ctx.gLo) && (isNaN(ctx.gHi) || g <= ctx.gHi);
 
-    let matched = graded;
-    if (hasBand){
-      matched = graded.filter(r => {
-        if (!isNaN(gLo) && r.g < gLo) return false;
-        if (!isNaN(gHi) && r.g > gHi) return false;
-        return true;
-      });
-    }
-    matched.sort((a, b) => b.g - a.g);
+    const order = ['fr', 'inferred', 'unstated', 'sibling'];
+    const kept = order.reduce((n, k) => n + tiers[k].length, 0);
+    let html = '<p style="color:var(--muted);padding:4px 12px 2px;font-size:13px">' + all.length + ' unique listings scanned · ' + kept + ' relevant' +
+      (ctx.fr ? ' · stated Fr ' + liveEsc(ctx.fr + (ctx.frSuffix || '')) + ': ' + tiers.fr.length + ' · identified: ' + tiers.inferred.length + ' · variety not stated: ' + tiers.unstated.length + ' · other varieties: ' + tiers.sibling.length : '') +
+      (ctx.hasBand ? ' · grade band ' + (isNaN(ctx.gLo) ? '…' : ctx.gLo) + '–' + (isNaN(ctx.gHi) ? '…' : ctx.gHi) : '') + '</p>';
+    if (frBase && !cat) html += '<p style="color:var(--muted);padding:2px 12px 8px;font-size:12.5px">Friedberg catalog has no year / denomination for Fr ' + liveEsc(frBase) + ' — only listings that state the number were searched.</p>';
 
-    let html = '';
-    html += '<p style="color:var(--muted);padding:4px 12px 10px;font-size:13px">' +
-      all.length + ' listings scanned · ' + matched.length +
-      (hasBand ? ' in grade band' : ' with a readable grade') +
-      (ungraded.length ? ' · ' + ungraded.length + ' with no grade in the title' : '') +
-      '</p>';
-
-    if (matched.length){
-      html += matched.slice(0, LIVE_RENDER_CAP).map(r => liveCardHtml(r.it, r.g)).join('');
-      if (matched.length > LIVE_RENDER_CAP){
-        html += '<p style="color:var(--muted);padding:8px 12px;font-size:13px">Showing first ' + LIVE_RENDER_CAP + ' of ' + matched.length + '. Narrow the filters to see the rest.</p>';
+    order.forEach(k => {
+      const rows = tiers[k]; if (!rows.length) return;
+      const copy = liveTierCopy(k, ctx);
+      const graded = rows.filter(r => r.g != null && (!ctx.hasBand || inBand(r.g))).sort((a, b) => b.g - a.g);
+      const ungraded = rows.filter(r => r.g == null);
+      const outOfBand = ctx.hasBand ? rows.filter(r => r.g != null && !inBand(r.g)).length : 0;
+      html += liveDividerHtml(copy[0] + ' (' + (ctx.hasBand ? graded.length + ' in band' : graded.length + ' graded') + (ungraded.length ? ', ' + ungraded.length + ' ungraded' : '') + ')', copy[1]);
+      if (graded.length){
+        html += graded.slice(0, LIVE_RENDER_CAP).map(r => liveCardHtml(r.it, r.g, r.info)).join('');
+        if (graded.length > LIVE_RENDER_CAP) html += '<p style="color:var(--muted);padding:8px 12px;font-size:13px">Showing first ' + LIVE_RENDER_CAP + ' of ' + graded.length + '. Narrow the filters to see the rest.</p>';
+      } else if (ctx.hasBand){
+        html += '<p style="color:var(--muted);padding:6px 12px;font-size:13px">None in the grade band' + (outOfBand ? ' (' + outOfBand + ' graded outside it)' : '') + '.</p>';
       }
-    } else {
-      html += '<p style="color:var(--muted);padding:12px">No listings match the grade band.</p>';
+      if (ungraded.length){
+        html += '<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--text2);padding:6px 12px;font-size:13px">' + ungraded.length + ' with no grade in the title (raw or unparsed) &mdash; click to show</summary>' +
+          '<div style="margin-top:8px">' + ungraded.slice(0, LIVE_RENDER_CAP).map(r => liveCardHtml(r.it, null, r.info)).join('') + '</div></details>';
+      }
+    });
+    const dropN = Object.values(dropped).reduce((a, b) => a + b, 0);
+    if (dropN){
+      const parts = []; const names = { junk: 'reproductions / souvenirs', unrelated: 'not this year / denomination', otherfr: 'different FR stated', slabbed: 'slabbed (raw only)', service: 'other grading services', star: 'not star notes', qual: 'PPQ/EPQ filter', charter: 'other charters', nocatalog: 'no catalog match' };
+      Object.keys(dropped).forEach(k => parts.push(dropped[k] + ' ' + (names[k] || k)));
+      html += '<p style="color:var(--muted);padding:12px 12px 4px;font-size:12px">Not shown: ' + liveEsc(parts.join(' · ')) + '.</p>';
     }
-
-    // Never silently drop listings we simply could not read a grade from --
-    // raw notes and oddly-titled slabs live here.
-    if (ungraded.length){
-      html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--text2);padding:8px 12px;font-size:13px">' +
-        ungraded.length + ' listing' + (ungraded.length === 1 ? '' : 's') + ' with no grade detected in the title (raw or unparsed) &mdash; click to show</summary>' +
-        '<div style="margin-top:8px">' + ungraded.slice(0, LIVE_RENDER_CAP).map(it => liveCardHtml(it, null)).join('') + '</div></details>';
-    }
-
     box.innerHTML = html;
   }catch(err){
-    box.innerHTML = '<p style="color:#c66;padding:12px">eBay search error: ' + err.message + '</p>';
+    box.innerHTML = '<p style="color:#c66;padding:12px">eBay search error: ' + liveEsc(err.message) + '</p>';
   }
 }
 
