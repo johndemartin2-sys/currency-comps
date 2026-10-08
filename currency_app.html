@@ -1826,10 +1826,10 @@ async function liveCatalogLookup(frBase){
 }
 
 // ---- Title parsing -------------------------------------------------------
-const LIVE_FR_RE = /\b(?:fr|friedberg)\.?\s*[#\-]?\s*(\d{1,4})\s*([a-z]|\*)?(?![0-9])/ig;
+const LIVE_FR_RE = /\b(?:fr|friedberg)\.?\s*[#\-]?\s*(\d{1,4})(?:-?([a-z])(?![a-z0-9])|(\*))?(?![0-9])/ig;   // suffix only when attached: 1173a, 1173-a, 1173*; never the next word's initial
 function liveFrsInTitle(title){
   const out = []; let m; LIVE_FR_RE.lastIndex = 0;
-  while ((m = LIVE_FR_RE.exec(String(title || '')))) out.push({ base: m[1], suffix: (m[2] || '').toLowerCase() });
+  while ((m = LIVE_FR_RE.exec(String(title || '')))) out.push({ base: m[1], suffix: (m[2] || m[3] || '').toLowerCase() });
   return out;
 }
 const LIVE_DENOM_WORDS = { '1':'one', '2':'two', '5':'five', '10':'ten', '20':'twenty', '50':'fifty', '100':'(?:one\\s+)?hundred', '500':'five\\s+hundred', '1000':'(?:one\\s+)?thousand' };
