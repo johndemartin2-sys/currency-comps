@@ -1860,6 +1860,8 @@ const LIVE_SLAB_RE = /\b(PMG|PCGS|NGC|CGA|CGC|SEGS|ANACS|LEGACY)\b/i;
 // or a grade word must sit immediately before the number.
 function scrubTitleForGrade(raw){
   return String(raw || '')
+    .replace(/\bP\.M\.G\.?/gi, 'PMG').replace(/\bP\.C\.G\.S\.?/gi, 'PCGS')   // dotted company names
+    .replace(/\b(PMG|PCGS|NGC|CGA|LEGACY)\s*#\s*(?=\d{1,2}(?![0-9]))/gi, '$1 ')  // "PMG #30EPQ": keep the grade, drop the #
     .replace(/\bFr\.?\s*[#\-]?\s*\d{1,4}[A-Za-z]?\b/gi, ' ')      // Fr. 40, FR-40, Fr#40, Fr 1302
     .replace(/\bfriedberg\s*#?\s*\d{1,4}[A-Za-z]?\b/gi, ' ')
     .replace(/\bcharter\s*#?\s*\d+/gi, ' ')                        // charter 1234
@@ -2050,6 +2052,7 @@ function liveCardHtml(it, grade, info){
   if (info && info.flags && info.flags.includes('details')) badges.push('<span style="color:#c66">details / net</span>');
   const conflict = info && info.flags ? info.flags.find(f => f.indexOf('sigconflict:') === 0) : null;
   if (conflict) badges.push('<span style="color:#c66">title signatures say Fr ' + liveEsc(conflict.split(':')[1]) + '</span>');
+  if (info && info.extraBadges) info.extraBadges.forEach(b => badges.push(b));
   const bo = it.buyingOptions || [];
   return '<a href="' + liveEsc(it.url) + '" target="_blank" rel="noopener" style="display:flex;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:center">' +
     (it.image ? '<img src="' + liveEsc(it.image) + '" width="56" height="56" style="object-fit:cover;border-radius:4px">' : '') +
@@ -2083,6 +2086,292 @@ function liveTierCopy(tier, ctx){
   return ['', ''];
 }
 
+// ---- Nationals ------------------------------------------------------------
+// National Bank Notes are keyed by bank, not by Friedberg number: in live eBay
+// titles the FR appears 16% of the time, the charter 53%, the bank name 87%.
+// Design (John, 2026-10-07): when a charter, the National Bank Note chip, or a
+// national-range FR is in play, Live runs this branch instead of the FR branch.
+//   Tier 1  Charter stated      the title carries the requested charter number
+//   Tier 2  Bank identified     no charter, but the bank name + city/state match
+//   Tier 3  Same state          other banks, same state (+ series + denomination when given)
+//   Tier 4  Same type           same series + denomination, any state
+// census_summary (census_type = 'national') is the charter directory: 11,329
+// charters with bank name, city, state and known-note counts.
+
+const NAT_FR_RANGES = [[380,707],[1800,1804]];
+const NAT_ABBR = { NB:'NATIONAL BANK', FNB:'FIRST NATIONAL BANK', B:'BANK', N:'NATIONAL', T:'TRUST', TR:'TRUST', S:'SAVINGS', SAV:'SAVINGS', CO:'COMPANY', 'CO.':'COMPANY', ASSOC:'ASSOCIATION', 'ASSOC.':'ASSOCIATION', ASSN:'ASSOCIATION', NAT:'NATIONAL', BK:'BANK', BKG:'BANKING', MTG:'MORTGAGE' };
+const NAT_GENERIC = ['NATIONAL','BANK','THE','OF','IN','AT','AND','&','TRUST','SAVINGS','COMPANY','ASSOCIATION','BANKING','NOTE','CURRENCY'];
+const NAT_WEAK = ['FIRST','SECOND','THIRD','FOURTH','FIFTH','1ST','2ND','3RD','CITIZENS','FARMERS','PEOPLES','MERCHANTS','UNION','AMERICAN','COMMERCIAL','CITY','COUNTY','EXCHANGE','STATE','CENTRAL','COMMERCE','NEW','OLD','SECURITY','UNITED','MECHANICS','TRADERS','PLANTERS','MINERS','MANUFACTURERS','HOME','NORTH','SOUTH','EAST','WEST'];
+const NAT_AMBIG_CODES = ['IN','OR','ME','OH','OK','HI','DE','CO','LA','ID','AL','MO','MS','MT','NE','WA'];
+const NAT_VARIETY = { BB:'Brown Back', DB:'Date Back', VB:'Value Back', RS:'Red Seal', PB:'Plain Back', T1:'Type 1', T2:'Type 2' };
+const NAT_FRBN_RE = /federal reserve bank/i;
+
+function natTitleCase(s){ return String(s || '').toLowerCase().replace(/\b([a-z])/g, c => c.toUpperCase()).replace(/\bOf\b/g,'of').replace(/\bThe\b/g,'the').replace(/\bAnd\b/g,'and').replace(/\bIn\b/g,'in').replace(/\bAt\b/g,'at').replace(/^([a-z])/, c => c.toUpperCase()); }
+// Census bank names are abbreviated ("FIRST NB OF MILWAUKEE", "B ITALY N T & SAVINGS ASSOC.").
+// Returns { display, core (distinctive words), weak (only generic/ordinal words), phrases (eBay OR-group) }.
+function natExpandBank(raw, city){
+  let s = String(raw || '').toUpperCase().replace(/\s+/g, ' ').trim();
+  s = s.replace(/^B\s+(?=[A-Z])/, 'BANK OF ');                             // "B ITALY" → "BANK OF ITALY"
+  s = s.split(' ').map(t => NAT_ABBR[t] || NAT_ABBR[t.replace(/\.$/,'')] || t).join(' ');
+  const cityU = String(city || '').toUpperCase().trim();
+  // strip a trailing location: "... OF THE CITY OF NEW YORK", "... IN NEW YORK", "... NEW YORK CITY", "LA CROSSE NB LA CROSSE"
+  if (cityU){
+    const esc = cityU.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    s = s.replace(new RegExp('\\s+(?:OF|IN|AT)\\s+(?:THE\\s+CITY\\s+OF\\s+)?' + esc + '(?:\\s+CITY)?$'), '').replace(new RegExp('\\s+' + esc + '(?:\\s+CITY)?$'), '');
+  }
+  s = s.replace(/\s+(?:OF|IN|AT)$/, '').trim();
+  const display = natTitleCase(s) + (cityU ? ' of ' + natTitleCase(cityU) : '');
+  const cityToks = cityU.split(' ');
+  const core = s.split(' ').filter(t => t && !NAT_GENERIC.includes(t) && !cityToks.includes(t)).map(t => t.replace(/[^A-Z0-9]/g,'')).filter(Boolean);
+  const strong = core.filter(t => !NAT_WEAK.includes(t));
+  const weak = strong.length === 0;
+  // eBay phrases: ordinal banks need the 1st/First forms; city-only names need "<City> National Bank".
+  let phrases = [];
+  const ord = core.find(t => ['FIRST','SECOND','THIRD','1ST','2ND','3RD'].includes(t));
+  if (core.length === 0){ phrases = ['"' + natTitleCase(cityU) + ' National Bank"', '"' + natTitleCase(cityU) + ' NB"']; }
+  else if (ord && core.length === 1){ const w = ord.replace('1ST','FIRST').replace('2ND','SECOND').replace('3RD','THIRD'); const n = { FIRST:'1st', SECOND:'2nd', THIRD:'3rd' }[w]; phrases = ['"' + natTitleCase(w) + ' National Bank"', '"' + n + ' National Bank"', '"' + natTitleCase(w) + ' NB"', '"' + n + ' NB"']; }
+  else { phrases = [strong.length ? natTitleCase(strong.join(' ')) : natTitleCase(core.join(' '))]; }
+  return { display: display, core: core, strong: strong, weak: weak, phrases: phrases, city: natTitleCase(cityU) };
+}
+
+function natStateNames(){
+  const m = {}; const sel = document.getElementById('fState');
+  if (sel && sel.options) for (const o of sel.options) if (o.value) m[o.value] = (o.textContent || '').trim();
+  return m;
+}
+function natStateInTitle(title, code, name){
+  if (!code) return false;
+  if (name && new RegExp('\\b' + name.replace(/\s+/g,'\\s+') + '\\b','i').test(title)) return true;
+  if (NAT_AMBIG_CODES.includes(code)) return new RegExp('[,(\\-]\\s*' + code + '(?![A-Za-z])').test(title);
+  return new RegExp('(?<![A-Za-z])' + code + '(?![A-Za-z])').test(title);
+}
+function natCityInTitle(title, city){ return !!city && new RegExp('\\b' + city.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+') + '\\b','i').test(title); }
+function natCharterStated(title, ch){ return new RegExp('(?:charter|ch\\.?|ch#|#)\\s*#?\\s*:?\\s*' + ch + '(?![0-9])','i').test(title); }
+function natCharterBare(title, ch){ const n = Number(ch); if (ch.length < 4 || (n >= 1860 && n <= 1935)) return false; return new RegExp('(?<![0-9$#\\-])' + ch + '(?![0-9])').test(title) && /national|currency|\bnb\b/i.test(title); }
+function natOtherCharters(title){ const out = []; const re = /(?:charter|ch\.?|ch#)\s*#?\s*:?\s*(\d{1,5})(?![0-9])/ig; let m; while ((m = re.exec(title))) out.push(m[1]); return out; }
+function natVarietyInTitle(title){
+  const t = String(title || '');
+  if (/brown\s*back|\bBB\b/i.test(t)) return 'BB';
+  if (/value\s*back|\bVB\b/i.test(t)) return 'VB';
+  if (/date\s*back|\bDB\b/i.test(t)) return 'DB';
+  if (/red\s*seal|\bRS\b/i.test(t)) return 'RS';
+  if (/plain\s*back|\bPB\b/i.test(t)) return 'PB';
+  if (/\btype\s*(?:1|one|i)\b|\bT-?1\b|\bty\.?\s*1\b/i.test(t)) return 'T1';
+  if (/\btype\s*(?:2|two|ii)\b|\bT-?2\b|\bty\.?\s*2\b/i.test(t)) return 'T2';
+  return null;
+}
+// "1902PB", "1882 BB", "1929 T1", "1929 type 2" → { year, variety }
+function natParseSeries(v){
+  const m = String(v || '').trim().toUpperCase().match(/^(\d{4})\s*-?\s*(?:(BB|DB|VB|RS|PB|T1|T2)|TYPE\s*([12])|T\s*([12]))?$/);
+  if (!m) return { year: (String(v || '').match(/\d{4}/) || [null])[0], variety: null };
+  return { year: m[1], variety: m[2] || (m[3] || m[4] ? 'T' + (m[3] || m[4]) : null) };
+}
+
+async function natDirectoryByCharter(ch){
+  if (!ch || typeof sb === 'undefined' || !sb) return null;
+  try{
+    const { data, error } = await sb.from('census_summary').select('lookup_key,bank_name,city,state_code,large_note_count,small_note_count,total_population').eq('census_type','national').eq('lookup_key', String(ch)).limit(1);
+    if (error || !data || !data.length) return null;
+    return data[0];
+  }catch(e){ return null; }
+}
+
+// ---- Bank field + picker (injected next to Charter #) ----------------------
+function natInstallBankField(){
+  try{
+    if (document.getElementById('fBank')) return;
+    const ch = document.getElementById('fCharter'); const fg = ch && ch.closest('.fg'); if (!fg) return;
+    fg.insertAdjacentHTML('afterend', '<div class="fg" style="position:relative"><label>Bank</label><input id="fBank" placeholder="name or city" autocomplete="off" style="width:190px">' +
+      '<div id="fBankPick" style="display:none;position:absolute;top:100%;left:0;z-index:50;min-width:340px;max-height:280px;overflow:auto;background:var(--surface2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35)"></div></div>');
+    if (typeof CURRENCY_ONLY_FILTERS !== 'undefined' && CURRENCY_ONLY_FILTERS.indexOf('fBank') < 0) CURRENCY_ONLY_FILTERS.push('fBank');
+    const inp = document.getElementById('fBank'), pick = document.getElementById('fBankPick'); let timer = null;
+    inp.addEventListener('input', () => { clearTimeout(timer); const v = inp.value.trim(); if (v.length < 3){ pick.style.display = 'none'; return; } timer = setTimeout(() => natBankSearch(v), 250); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Escape') pick.style.display = 'none'; if (e.key === 'Enter') e.preventDefault(); });
+    document.addEventListener('click', e => { if (!pick.contains(e.target) && e.target !== inp) pick.style.display = 'none'; });
+  }catch(e){}
+}
+async function natBankSearch(v){
+  const pick = document.getElementById('fBankPick'); if (!pick) return;
+  const client = (typeof ccEnsureSb === 'function') ? ccEnsureSb() : sb; if (!client) return;
+  const names = natStateNames();
+  const stop = ['NATIONAL','BANK','NB','OF','THE','IN','AT','AND','NOTE','CURRENCY','N','B','TRUST','SAVINGS','CO','COMPANY'];
+  const toks = v.toUpperCase().replace(/[^A-Z0-9 ]/g,' ').split(/\s+/).filter(Boolean).map(w => ({ '1ST':'FIRST', '2ND':'SECOND', '3RD':'THIRD' }[w] || w)).filter(w => !stop.includes(w)).slice(0, 4);
+  try{
+    let q = client.from('census_summary').select('lookup_key,bank_name,city,state_code,large_note_count,small_note_count,total_population').eq('census_type','national');
+    if (/^\d{1,5}$/.test(v.trim())) q = q.eq('lookup_key', v.trim());
+    else { if (!toks.length){ pick.style.display = 'none'; return; } toks.forEach(w => { q = q.or('bank_name.ilike.%' + w + '%,city.ilike.%' + w + '%'); }); }
+    const st = liveVal('fState'); if (st) q = q.eq('state_code', st);
+    const { data } = await q.order('total_population', { ascending: false }).limit(15);
+    if (!data || !data.length){ pick.innerHTML = '<div style="padding:10px 12px;color:var(--muted);font-size:12.5px">No bank matches' + (st ? ' in ' + liveEsc(names[st] || st) : '') + '.</div>'; pick.style.display = 'block'; return; }
+    pick.innerHTML = data.map(r => { const x = natExpandBank(r.bank_name, r.city); return '<div class="nat-pick-row" data-ch="' + liveEsc(r.lookup_key) + '" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12.5px">' +
+      '<div style="color:var(--text);font-weight:600">' + liveEsc(x.display) + '</div>' +
+      '<div style="color:var(--muted)">' + liveEsc(r.city + ', ' + r.state_code) + ' · Charter ' + liveEsc(r.lookup_key) + ' · ' + (r.large_note_count || 0) + ' large / ' + (r.small_note_count || 0) + ' small known</div></div>'; }).join('');
+    pick.style.display = 'block';
+    pick.querySelectorAll('.nat-pick-row').forEach(el => { const row = data.find(r => String(r.lookup_key) === el.getAttribute('data-ch')); el.addEventListener('click', () => natPickBank(row)); el.addEventListener('mouseenter', () => el.style.background = 'var(--surface3, rgba(255,255,255,.04))'); el.addEventListener('mouseleave', () => el.style.background = ''); });
+  }catch(e){ pick.style.display = 'none'; }
+}
+function natPickBank(r){
+  if (!r) return;
+  const x = natExpandBank(r.bank_name, r.city);
+  const chEl = document.getElementById('fCharter'); if (chEl) chEl.value = String(r.lookup_key);
+  const bEl = document.getElementById('fBank'); if (bEl) bEl.value = x.display + ' (Ch ' + r.lookup_key + ')';
+  const stEl = document.getElementById('fState'); if (stEl && !stEl.value && r.state_code) stEl.value = r.state_code;
+  const pick = document.getElementById('fBankPick'); if (pick) pick.style.display = 'none';
+  window.__natPick = r;
+}
+
+// ---- Detection and plan ----------------------------------------------------
+function natDetect(){
+  const charter = liveVal('fCharter').replace(/[^0-9]/g,'');
+  const chip = (document.querySelector('#catChips .active')?.textContent || '').trim();
+  const fr = liveVal('fFr'); const frBase = fr ? Number(frBaseCanon(fr)) : NaN;
+  const frNat = !isNaN(frBase) && NAT_FR_RANGES.some(r => frBase >= r[0] && frBase <= r[1]);
+  if (!charter && chip !== 'National Bank Note' && !frNat) return null;
+  return { charter: charter, frNat: frNat, chip: chip === 'National Bank Note' };
+}
+function natBuildPlan(det, dir, cat){
+  const names = natStateNames();
+  const series = natParseSeries(liveVal('fYear'));
+  const year = series.year || (cat ? cat.year : null);
+  const denom = liveVal('fDenom') || (cat ? cat.denom : '');
+  const stCode = (dir && dir.state_code) || liveVal('fState') || '';
+  const stName = names[stCode] || '';
+  const bank = dir ? natExpandBank(dir.bank_name, dir.city) : null;
+  const svc = liveVal('fService'); const explicitSvc = (svc === 'PMG' || svc === 'PCGS' || svc === 'NGC') ? svc : '';
+  const gLo = parseInt(liveVal('fGradeMin'), 10), gHi = parseInt(liveVal('fGradeMax'), 10); const hasBand = !isNaN(gLo) || !isNaN(gHi);
+  const services = explicitSvc ? [] : (hasBand ? ['PMG','PCGS','NGC'] : []);
+  const rawOnly = svc === 'raw'; const qual = liveVal('fQual'); const title = liveVal('fTitle');
+  const extras = []; if (title) extras.push(title); if (qual === 'PPQ' || qual === 'EPQ') extras.push(qual); if (explicitSvc) extras.push(explicitSvc);
+  const extraStr = extras.length ? ' ' + extras.join(' ') : '';
+  const excl = ' -"Federal Reserve Bank" -reproduction -replica -copy -proof -commemorative -souvenir' + (rawOnly ? ' -PMG -PCGS -NGC -CGA -Legacy' : '');
+  const typeGroup = '(National Bank Note, National Currency, NB)';
+  const ydt = (year ? '"' + year + '" ' : '') + (denom ? '"' + denom + '" ' : '');
+  const queries = [];
+  if (det.charter){
+    const ch = det.charter;
+    const anchored = '("charter ' + ch + '", "ch ' + ch + '", "ch# ' + ch + '", "ch. ' + ch + '") national' + extraStr + excl;
+    queries.push({ tier: 'charter', q: anchored, deep: true });
+    services.forEach(s => queries.push({ tier: 'charter', q: anchored + ' ' + s, deep: false }));
+    const n = Number(ch);
+    if (ch.length >= 4 && !(n >= 1860 && n <= 1935)){
+      const bare = ch + ' ' + typeGroup + extraStr + excl;
+      queries.push({ tier: 'charter', q: bare, deep: true });
+      services.forEach(s => queries.push({ tier: 'charter', q: bare + ' ' + s, deep: false }));
+    }
+    if (bank){
+      const bq = (bank.phrases.length > 1 ? '(' + bank.phrases.join(', ') + ')' : bank.phrases[0]) + ' "' + bank.city + '" (national, NB, currency)' + extraStr + excl;
+      queries.push({ tier: 'bank', q: bq, deep: true });
+    }
+  }
+  if (stName && (year || denom)){ queries.push({ tier: 'state', q: ydt + typeGroup + ' ' + stName + extraStr + excl, deep: true }); }
+  if (year && denom){ queries.push({ tier: 'type', q: ydt + typeGroup + extraStr + excl, deep: true }); }
+  const ctx = { nat: true, charter: det.charter || '', dir: dir, bank: bank, year: year, variety: series.variety, denom: denom, stCode: stCode, stName: stName,
+                hasBand: hasBand, gLo: gLo, gHi: gHi, rawOnly: rawOnly, explicitSvc: explicitSvc, qual: qual, title: title, names: names,
+                frBase: liveVal('fFr') ? frBaseCanon(liveVal('fFr')) : null };
+  return { queries: queries, ctx: ctx };
+}
+
+// tiers: 'charter' | 'bank' | 'state' | 'type' | 'drop'
+function natClassify(it, ctx){
+  const title = String(it.title || '');
+  const flags = [];
+  if (LIVE_JUNK_RE.test(title)) return { tier: 'drop', why: 'junk' };
+  if (NAT_FRBN_RE.test(title)) return { tier: 'drop', why: 'frbn' };
+  if (LIVE_DETAILS_RE.test(title)) flags.push('details');
+  if (ctx.rawOnly && LIVE_SLAB_RE.test(title)) return { tier: 'drop', why: 'slabbed' };
+  if (ctx.explicitSvc && !new RegExp('\\b' + ctx.explicitSvc + '\\b','i').test(title)) return { tier: 'drop', why: 'service' };
+  if (ctx.qual === 'none' && /\b(PPQ|EPQ)\b/i.test(title)) return { tier: 'drop', why: 'qual' };
+  if ((ctx.qual === 'PPQ' || ctx.qual === 'EPQ') && !new RegExp('\\b' + ctx.qual + '\\b','i').test(title)) return { tier: 'drop', why: 'qual' };
+  const variety = natVarietyInTitle(title);
+  if (variety) flags.push('variety:' + variety); else if (ctx.variety) flags.push('varunstated');
+  if (ctx.variety && variety && variety !== ctx.variety) return { tier: 'drop', why: 'variety' };
+  const yearOk = !ctx.year || liveYearInTitle(title, ctx.year);
+  const denomOk = !ctx.denom || liveDenomInTitle(title, ctx.denom);
+  const frs = liveFrsInTitle(title); if (frs.length) flags.push('fr:' + frs[0].base + (frs[0].suffix || ''));
+
+  const hasSD = !!(ctx.year || ctx.denom);
+  if (ctx.charter){
+    if (natCharterStated(title, ctx.charter) || natCharterBare(title, ctx.charter)) return (yearOk && denomOk) ? { tier: 'charter', label: 'Charter ' + ctx.charter, flags: flags } : { tier: 'drop', why: 'bankother' };
+    const others = natOtherCharters(title).filter(c => c !== ctx.charter);
+    if (!others.length && ctx.bank){
+      const coreOk = ctx.bank.core.length ? ctx.bank.core.every(w => new RegExp('\\b' + w.replace('1ST','(?:1st|first)').replace('FIRST','(?:1st|first)') + '\\b','i').test(title)) : natCityInTitle(title, ctx.bank.city);
+      const cityOk = natCityInTitle(title, ctx.bank.city), stOk = natStateInTitle(title, ctx.stCode, ctx.stName);
+      if (coreOk && (cityOk || (!ctx.bank.weak && stOk))) return (yearOk && denomOk) ? { tier: 'bank', label: ctx.bank.display, flags: flags } : { tier: 'drop', why: 'bankother' };
+    }
+    // Another bank: same state → tier 3; same series + denomination → tier 4. Both need a series or denomination to mean anything.
+    if (!hasSD) return { tier: 'drop', why: 'context' };
+    if (natStateInTitle(title, ctx.stCode, ctx.stName) && yearOk && denomOk) return { tier: 'state', label: others.length ? 'Charter ' + others[0] : '', flags: flags };
+    if (ctx.year && ctx.denom && yearOk && denomOk) return { tier: 'type', label: others.length ? 'Charter ' + others[0] : '', flags: flags };
+    return { tier: 'drop', why: 'unrelated' };
+  }
+  // No charter: state tier when the state matches, else type tier on series + denomination.
+  const others = natOtherCharters(title);
+  if (ctx.stName && natStateInTitle(title, ctx.stCode, ctx.stName) && yearOk && denomOk) return { tier: 'state', label: others.length ? 'Charter ' + others[0] : '', flags: flags };
+  if (ctx.year && ctx.denom && yearOk && denomOk) return { tier: 'type', label: others.length ? 'Charter ' + others[0] : '', flags: flags };
+  return { tier: 'drop', why: 'unrelated' };
+}
+
+function natTierCopy(tier, ctx){
+  const d = ctx.dir; const b = ctx.bank;
+  const sd = [ctx.year, ctx.variety ? NAT_VARIETY[ctx.variety] : null, ctx.denom].filter(Boolean).join(' ');
+  const where = d ? d.city + ', ' + d.state_code : '';
+  switch (tier){
+    case 'charter': return ['Charter ' + ctx.charter + (b ? ' — ' + b.display : '') + (where ? ', ' + where : '') + ' — stated in the listing', 'The title carries this charter number.'];
+    case 'bank': return [(b ? b.display : 'This bank') + ' — identified by name', 'No charter number in the title; the bank name and ' + (b && b.weak ? 'city' : 'city or state') + ' match charter ' + ctx.charter + '.'];
+    case 'state': return [(ctx.stName || 'Same state') + ' — other banks' + (sd ? ' — ' + sd : ''), 'Same state' + (ctx.year || ctx.denom ? ', same series and denomination' : '') + ', different bank. Bank-level rarity drives price, so these are context, not direct comps.'];
+    case 'type': return [sd + ' National Bank Notes — other states', 'Same series and denomination, any state. Type-level market context.'];
+  }
+  return ['', ''];
+}
+function natCardBadges(info){
+  const out = [];
+  const v = (info.flags || []).find(f => f.indexOf('variety:') === 0); if (v) out.push('<span style="color:var(--text2)">' + liveEsc(NAT_VARIETY[v.split(':')[1]] || v.split(':')[1]) + '</span>');
+  if ((info.flags || []).includes('varunstated')) out.push('<span style="color:var(--muted)">variety not stated</span>');
+  const fr = (info.flags || []).find(f => f.indexOf('fr:') === 0); if (fr) out.push('<span style="color:var(--muted)">Fr ' + liveEsc(fr.split(':')[1]) + '</span>');
+  return out;
+}
+
+async function runNationalsSearch(box, opts, det){
+  box.innerHTML = '<p style="color:var(--muted);padding:12px">Searching eBay&hellip;</p>';
+  try{
+    const dir = det.charter ? await natDirectoryByCharter(det.charter) : null;
+    const cat = (!det.charter && det.frNat) ? await liveCatalogLookup(frBaseCanon(liveVal('fFr'))) : null;
+    const plan = natBuildPlan(det, dir, cat); const ctx = plan.ctx;
+    if (!plan.queries.length){ box.innerHTML = '<p style="color:var(--muted);padding:12px">For National Bank Notes, add a charter number (or pick a bank), or a state, or a series year plus denomination.</p>'; return; }
+    const results = await Promise.all(plan.queries.map(x => ebayFetchDeep(x.q, opts, x.deep ? 2 : 1).catch(() => ({ items: [], total: 0 }))));
+    const byId = new Map(); results.forEach(r => r.items.forEach(it => { const k = liveItemId(it); if (k && !byId.has(k)) byId.set(k, it); }));
+    const all = Array.from(byId.values());
+    let head = '';
+    if (det.charter){
+      head += '<p style="color:var(--text2);padding:4px 12px 2px;font-size:13px">Charter ' + liveEsc(det.charter) + (dir ? ' · <b style="color:var(--text)">' + liveEsc(ctx.bank.display) + '</b> · ' + liveEsc(dir.city + ', ' + dir.state_code) + ' · Census: ' + (dir.large_note_count || 0) + ' large / ' + (dir.small_note_count || 0) + ' small notes known' : ' · <span style="color:var(--muted)">not in the charter directory — searched by number only</span>') + '</p>';
+    }
+    if (!all.length){ box.innerHTML = head + '<p style="color:var(--muted);padding:12px">No current listings found.</p>'; return; }
+    const tiers = { charter: [], bank: [], state: [], type: [] }; const dropped = {};
+    all.forEach(it => { const info = natClassify(it, ctx); if (info.tier === 'drop'){ dropped[info.why] = (dropped[info.why] || 0) + 1; return; } tiers[info.tier].push({ it: it, g: parseTitleGrade(it.title), info: info }); });
+    const inBand = g => g != null && (isNaN(ctx.gLo) || g >= ctx.gLo) && (isNaN(ctx.gHi) || g <= ctx.gHi);
+    const order = ['charter','bank','state','type']; const kept = order.reduce((n, k) => n + tiers[k].length, 0);
+    let html = head + '<p style="color:var(--muted);padding:2px 12px 2px;font-size:13px">' + all.length + ' unique listings scanned · ' + kept + ' relevant' +
+      (det.charter ? ' · charter stated: ' + tiers.charter.length + ' · bank identified: ' + tiers.bank.length : '') + ' · same state: ' + tiers.state.length + ' · same type: ' + tiers.type.length +
+      (ctx.hasBand ? ' · grade band ' + (isNaN(ctx.gLo) ? '…' : ctx.gLo) + '–' + (isNaN(ctx.gHi) ? '…' : ctx.gHi) : '') + '</p>';
+    order.forEach(k => {
+      const rows = tiers[k]; if (!rows.length) return;
+      const copy = natTierCopy(k, ctx);
+      const graded = rows.filter(r => r.g != null && (!ctx.hasBand || inBand(r.g))).sort((a, b) => b.g - a.g);
+      const ungraded = rows.filter(r => r.g == null);
+      const outOfBand = ctx.hasBand ? rows.filter(r => r.g != null && !inBand(r.g)).length : 0;
+      html += liveDividerHtml(copy[0] + ' (' + (ctx.hasBand ? graded.length + ' in band' : graded.length + ' graded') + (ungraded.length ? ', ' + ungraded.length + ' ungraded' : '') + ')', copy[1]);
+      const card = r => liveCardHtml(r.it, r.g, { label: r.info.label, flags: r.info.flags, extraBadges: natCardBadges(r.info) });
+      if (graded.length){ html += graded.slice(0, LIVE_RENDER_CAP).map(card).join(''); if (graded.length > LIVE_RENDER_CAP) html += '<p style="color:var(--muted);padding:8px 12px;font-size:13px">Showing first ' + LIVE_RENDER_CAP + ' of ' + graded.length + '.</p>'; }
+      else if (ctx.hasBand){ html += '<p style="color:var(--muted);padding:6px 12px;font-size:13px">None in the grade band' + (outOfBand ? ' (' + outOfBand + ' graded outside it)' : '') + '.</p>'; }
+      if (ungraded.length){ html += '<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--text2);padding:6px 12px;font-size:13px">' + ungraded.length + ' with no grade in the title (raw or unparsed) &mdash; click to show</summary><div style="margin-top:8px">' + ungraded.slice(0, LIVE_RENDER_CAP).map(r => liveCardHtml(r.it, null, { label: r.info.label, flags: r.info.flags, extraBadges: natCardBadges(r.info) })).join('') + '</div></details>'; }
+    });
+    const dropN = Object.values(dropped).reduce((a, b) => a + b, 0);
+    if (det.charter && !(ctx.year || ctx.denom)) html += '<p style="color:var(--muted);padding:10px 12px 2px;font-size:12.5px">Add a series year or denomination to see same-state and same-type context below the bank\'s own listings.</p>';
+    if (dropN){ const names = { junk: 'reproductions / souvenirs', frbn: 'Federal Reserve Bank Notes', unrelated: 'other states / series / denominations', bankother: 'this bank, other series / denominations', context: 'other banks (no series or denomination given)', variety: 'other varieties stated', slabbed: 'slabbed (raw only)', service: 'other grading services', qual: 'PPQ/EPQ filter' }; html += '<p style="color:var(--muted);padding:12px 12px 4px;font-size:12px">Not shown: ' + liveEsc(Object.keys(dropped).map(k => dropped[k] + ' ' + (names[k] || k)).join(' · ')) + '.</p>'; }
+    box.innerHTML = html;
+  }catch(err){ box.innerHTML = '<p style="color:#c66;padding:12px">eBay search error: ' + liveEsc(err.message) + '</p>'; }
+}
+
 const LIVE_RENDER_CAP = 120;
 
 async function runLiveSearch(){
@@ -2109,6 +2398,9 @@ async function runLiveSearch(){
     }catch(err){ box.innerHTML = '<p style="color:#c66;padding:12px">eBay search error: ' + liveEsc(err.message) + '</p>'; }
     return;
   }
+
+  const det = natDetect();
+  if (det){ await runNationalsSearch(box, opts, det); return; }
 
   const fr = liveVal('fFr');
   const frBase = fr ? frBaseCanon(fr) : null;
@@ -2176,6 +2468,8 @@ async function runLiveSearch(){
     box.innerHTML = '<p style="color:#c66;padding:12px">eBay search error: ' + liveEsc(err.message) + '</p>';
   }
 }
+
+natInstallBankField();
 
 // Mode buttons use inline onclick=setView(...) in .btn-row
 </script>
