@@ -2190,19 +2190,30 @@ function natInstallBankField(){
     document.addEventListener('click', e => { if (!pick.contains(e.target) && e.target !== inp) pick.style.display = 'none'; });
   }catch(e){}
 }
+// Directory search shared by the dropdown picker and the inline bank list. A state name
+// (or code) typed into Bank filters by state; everything else must appear in the bank name or city.
+async function natBankQuery(v, limit){
+  const client = (typeof ccEnsureSb === 'function') ? ccEnsureSb() : sb; if (!client) return { data: [], state: '' };
+  const names = natStateNames(); const byName = {}; Object.keys(names).forEach(c => { byName[names[c].toUpperCase()] = c; });
+  let text = v.toUpperCase().replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+  let stateFilter = liveVal('fState') || '';
+  // two-word state names first ("NEW YORK", "SOUTH DAKOTA"), then single tokens
+  Object.keys(byName).sort((a, b) => b.length - a.length).forEach(n => { const re = new RegExp('(?:^| )' + n + '(?: |$)'); if (!stateFilter && re.test(text)){ stateFilter = byName[n]; text = text.replace(re, ' ').trim(); } });
+  const stop = ['NATIONAL','BANK','NB','OF','THE','IN','AT','AND','NOTE','CURRENCY','N','B','TRUST','SAVINGS','CO','COMPANY'];
+  const toks = text.split(/\s+/).filter(Boolean).map(w => ({ '1ST':'FIRST', '2ND':'SECOND', '3RD':'THIRD' }[w] || w)).filter(w => { if (!stateFilter && names[w]){ stateFilter = w; return false; } return !stop.includes(w); }).slice(0, 4);
+  if (!toks.length && !stateFilter && !/^\d{1,5}$/.test(v.trim())) return { data: [], state: '' };
+  let q = client.from('census_summary').select('lookup_key,bank_name,city,state_code,large_note_count,small_note_count,total_population').eq('census_type','national');
+  if (/^\d{1,5}$/.test(v.trim())) q = q.eq('lookup_key', v.trim());
+  else toks.forEach(w => { q = q.or('bank_name.ilike.%' + w + '%,city.ilike.%' + w + '%'); });
+  if (stateFilter) q = q.eq('state_code', stateFilter);
+  const { data } = await q.order('total_population', { ascending: false }).limit(limit || 15);
+  return { data: data || [], state: stateFilter, stateName: names[stateFilter] || stateFilter };
+}
 async function natBankSearch(v){
   const pick = document.getElementById('fBankPick'); if (!pick) return;
-  const client = (typeof ccEnsureSb === 'function') ? ccEnsureSb() : sb; if (!client) return;
-  const names = natStateNames();
-  const stop = ['NATIONAL','BANK','NB','OF','THE','IN','AT','AND','NOTE','CURRENCY','N','B','TRUST','SAVINGS','CO','COMPANY'];
-  const toks = v.toUpperCase().replace(/[^A-Z0-9 ]/g,' ').split(/\s+/).filter(Boolean).map(w => ({ '1ST':'FIRST', '2ND':'SECOND', '3RD':'THIRD' }[w] || w)).filter(w => !stop.includes(w)).slice(0, 4);
   try{
-    let q = client.from('census_summary').select('lookup_key,bank_name,city,state_code,large_note_count,small_note_count,total_population').eq('census_type','national');
-    if (/^\d{1,5}$/.test(v.trim())) q = q.eq('lookup_key', v.trim());
-    else { if (!toks.length){ pick.style.display = 'none'; return; } toks.forEach(w => { q = q.or('bank_name.ilike.%' + w + '%,city.ilike.%' + w + '%'); }); }
-    const st = liveVal('fState'); if (st) q = q.eq('state_code', st);
-    const { data } = await q.order('total_population', { ascending: false }).limit(15);
-    if (!data || !data.length){ pick.innerHTML = '<div style="padding:10px 12px;color:var(--muted);font-size:12.5px">No bank matches' + (st ? ' in ' + liveEsc(names[st] || st) : '') + '.</div>'; pick.style.display = 'block'; return; }
+    const r = await natBankQuery(v, 15); const data = r.data;
+    if (!data.length){ pick.innerHTML = '<div style="padding:10px 12px;color:var(--muted);font-size:12.5px">No bank matches' + (r.state ? ' in ' + liveEsc(r.stateName) : '') + '.</div>'; pick.style.display = 'block'; return; }
     pick.innerHTML = data.map(r => { const x = natExpandBank(r.bank_name, r.city); return '<div class="nat-pick-row" data-ch="' + liveEsc(r.lookup_key) + '" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12.5px">' +
       '<div style="color:var(--text);font-weight:600">' + liveEsc(x.display) + '</div>' +
       '<div style="color:var(--muted)">' + liveEsc(r.city + ', ' + r.state_code) + ' · Charter ' + liveEsc(r.lookup_key) + ' · ' + (r.large_note_count || 0) + ' large / ' + (r.small_note_count || 0) + ' small known</div></div>'; }).join('');
@@ -2226,8 +2237,9 @@ function natDetect(){
   const chip = (document.querySelector('#catChips .active')?.textContent || '').trim();
   const fr = liveVal('fFr'); const frBase = fr ? Number(frBaseCanon(fr)) : NaN;
   const frNat = !isNaN(frBase) && NAT_FR_RANGES.some(r => frBase >= r[0] && frBase <= r[1]);
-  if (!charter && chip !== 'National Bank Note' && !frNat) return null;
-  return { charter: charter, frNat: frNat, chip: chip === 'National Bank Note' };
+  const bankText = liveVal('fBank');
+  if (!charter && chip !== 'National Bank Note' && !frNat && !bankText) return null;
+  return { charter: charter, frNat: frNat, chip: chip === 'National Bank Note', bankText: bankText };
 }
 function natBuildPlan(det, dir, cat){
   const names = natStateNames();
@@ -2331,7 +2343,22 @@ function natCardBadges(info){
   return out;
 }
 
+// Bank text typed but nothing picked (the dropdown hides under a phone keyboard): list the
+// matching banks in the results panel so one tap sets the charter and runs the search.
+async function natInlineBankPick(box, text){
+  box.innerHTML = '<p style="color:var(--muted);padding:12px">Looking up banks&hellip;</p>';
+  const r = await natBankQuery(text, 25); const data = r.data;
+  if (!data.length){ box.innerHTML = '<p style="color:var(--muted);padding:12px">No bank in the charter directory matches "' + liveEsc(text) + '"' + (r.state ? ' in ' + liveEsc(r.stateName) : '') + '. Try the bank\'s distinctive word, its city, or a charter number.</p>'; return; }
+  let html = '<p style="color:var(--text2);padding:4px 12px 8px;font-size:13px">' + data.length + (data.length === 25 ? '+' : '') + ' bank' + (data.length === 1 ? '' : 's') + ' match "' + liveEsc(text) + '"' + (r.state ? ' in ' + liveEsc(r.stateName) : '') + ' — tap one to search its listings.</p>';
+  html += data.map(row => { const x = natExpandBank(row.bank_name, row.city); return '<div class="nat-inline-row" data-ch="' + liveEsc(row.lookup_key) + '" style="display:flex;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;align-items:center">' +
+    '<div><div style="color:var(--text);font-weight:600">' + liveEsc(x.display) + '</div><div style="color:var(--text2);font-size:13px">' + liveEsc(row.city + ', ' + row.state_code) + ' · Charter ' + liveEsc(row.lookup_key) + '</div></div>' +
+    '<div style="color:var(--muted);font-size:12px;white-space:nowrap">' + (row.large_note_count || 0) + ' large / ' + (row.small_note_count || 0) + ' small known</div></div>'; }).join('');
+  box.innerHTML = html;
+  box.querySelectorAll('.nat-inline-row').forEach(el => { const row = data.find(d => String(d.lookup_key) === el.getAttribute('data-ch')); el.addEventListener('click', () => { natPickBank(row); runLiveSearch(); }); });
+}
+
 async function runNationalsSearch(box, opts, det){
+  if (!det.charter && det.bankText){ try{ await natInlineBankPick(box, det.bankText); }catch(err){ box.innerHTML = '<p style="color:#c66;padding:12px">Bank lookup error: ' + liveEsc(err.message) + '</p>'; } return; }
   box.innerHTML = '<p style="color:var(--muted);padding:12px">Searching eBay&hellip;</p>';
   try{
     const dir = det.charter ? await natDirectoryByCharter(det.charter) : null;
