@@ -960,12 +960,17 @@ async function suggestRelax() {
     else { saved = el.value; el.value = ""; }
 
     let count = 0;
+    // Capped check (max 1,001 ids, 4-second limit) instead of a full exact count,
+    // which scanned the whole table and hit the 15-second database timeout.
+    const _ac = new AbortController();
+    const _tm = setTimeout(function () { _ac.abort(); }, 4000);
     try {
-      let q = sb.from(TABLE).select("*", { count: "exact", head: true });
+      let q = sb.from(TABLE).select("id");
       q = (await applyFilters(q)).q;
-      const res = await q;
-      count = res.count || 0;
+      const res = await q.limit(1001).abortSignal(_ac.signal);
+      count = res.error ? 0 : (res.data || []).length;
     } catch (e) { count = 0; }
+    clearTimeout(_tm);
 
     if (f.id === "fStar") el.checked = saved; else el.value = saved;
     if (count > 0) results.push({ id: f.id, label: f.label, count: count });
@@ -977,7 +982,7 @@ async function suggestRelax() {
   const links = results.slice(0, 3).map(function (r) {
     return '<a href="#" class="relax-link" data-id="' + r.id +
       '" style="color:var(--accent);text-decoration:underline">remove \u201c' +
-      esc(r.label) + '\u201d (' + fmt(r.count) + ' results)</a>';
+      esc(r.label) + '\u201d (' + fmt(Math.min(r.count, 1000)) + (r.count > 1000 ? '+' : '') + ' results)</a>';
   }).join(" &middot; ");
 
   const tbody = document.getElementById("tbody");
