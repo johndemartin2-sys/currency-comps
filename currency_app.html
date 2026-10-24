@@ -770,6 +770,29 @@ async function ccParseTitle(s) {
   const rest = t.split(" ").filter(function (w) { return w && !CC_FILLER[w]; }).join(" ");
   return { frBases: frBases, denom: denom, rest: rest, nicks: nicks };
 }
+// Typo help for nickname words, scored the same way the database scores
+// similar spellings (shared three-letter chunks).
+function ccTrigrams(s) { const t = "  " + String(s).toLowerCase() + " "; const g = {}; for (let i = 0; i < t.length - 2; i++) g[t.substr(i, 3)] = 1; return g; }
+function ccTrigramSim(a, b) { const A = ccTrigrams(a), B = ccTrigrams(b); let both = 0, all = 0; for (const k in A) { all++; if (B[k]) both++; } for (const k in B) if (!A[k]) all++; return all ? both / all : 0; }
+const CC_NICK_SKIP = { back: 1, note: 1, silver: 1, dollar: 1, coin: 1 };
+function ccNickWords() {
+  const out = [];
+  (ccNicknames || []).forEach(function (n) {
+    String(n.phrase).toLowerCase().split(" ").forEach(function (w) { if (w.length >= 4 && !CC_NICK_SKIP[w] && out.indexOf(w) < 0) out.push(w); });
+  });
+  return out;
+}
+function ccNickWordFix(term) {
+  const t = String(term).toLowerCase();
+  if (t.length < 4) return null;
+  let best = null;
+  ccNickWords().forEach(function (w) {
+    if (w === t || Math.abs(w.length - t.length) > 2) return;
+    const s = ccTrigramSim(t, w);
+    if (s >= 0.4 && (!best || s > best.s)) best = { w: w, s: s };
+  });
+  return best ? best.w : null;
+}
 function ccCountText(n) { return n === 1001 ? "1,000+" : (n > 1000 ? "~" : "") + fmt(n); }
 
 // ── APPLY COIN FILTERS ──
@@ -945,18 +968,26 @@ async function maybeSuggestTitle() {
     try {
       const { data, error } = _l.r;
       const list = error ? [] : (data || []);
-      // If the word itself is in the index it is spelled fine - never "correct" it.
-      const exact = list.some(function (r) {
+      // If the word itself is in the index, or is part of a nickname, it is
+      // spelled fine - never "correct" it.
+      const exact = ccNickWords().indexOf(term.toLowerCase()) >= 0 || list.some(function (r) {
         return r && r.suggestion && r.suggestion.toLowerCase() === term.toLowerCase();
       });
-      // Only trust a correction that looks like a real typo of what was typed:
-      // similar length plus a decent score. Blocks nonsense like "hawiai" -> "hai".
-      const cand = exact ? null : list.find(function (r) {
-        return r && r.suggestion &&
-               Math.abs(r.suggestion.length - term.length) <= 2 &&
-               (r.score || 0) >= 0.4;
-      });
-      if (cand) fixes.push({ from: term, to: cand.suggestion });
+      // Nickname words first ("battlship" -> "battleship", not "battle").
+      const nickFix = exact ? null : ccNickWordFix(term);
+      // Otherwise (rule borrowed from search_lots_v2): among close spellings, prefer
+      // the word that appears most in titles ("lincon" -> "lincoln", not "linco";
+      // "egle" -> "eagle"). Length guard still blocks nonsense like "hawiai" -> "hai".
+      let cand = null;
+      if (!exact && !nickFix) {
+        list.forEach(function (r) {
+          if (!r || !r.suggestion || Math.abs(r.suggestion.length - term.length) > 2 || (r.score || 0) < 0.35) return;
+          const w = (r.score || 0) * Math.log((r.n || 0) + 1);
+          if (!cand || w > cand.w) cand = { s: r.suggestion, w: w };
+        });
+      }
+      const fixTo = nickFix || (cand && cand.s);
+      if (fixTo) fixes.push({ from: term, to: fixTo });
     } catch (e) { /* RPC missing or offline -> silently skip */ }
   }
   if (!fixes.length) return false;
