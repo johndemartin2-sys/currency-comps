@@ -691,7 +691,7 @@ async function runQuery() {
     rows = data || [];
     totalMatching = count || 0;
       try { if (window.ccUpdatePaywall) window.ccUpdatePaywall(rows.length); } catch(e){}
-    document.getElementById("matchCount").textContent = (totalMatching > 1000 ? "~" : "") + fmt(totalMatching);
+    document.getElementById("matchCount").textContent = ccCountText(totalMatching);
     if (totalMatching === 0 && window.__frWarn && window.__frWarn.frB) {
       try {
         const _w = window.__frWarn;
@@ -731,6 +731,46 @@ function applyTitleTokens(q, s) {
   for (let i = 0; i < toks.length; i++) q = q.ilike("title", "%" + toks[i] + "%");
   return q;
 }
+
+// ── NICKNAMES AND PLAIN WORDS IN THE TITLE BOX (currency mode) ──
+// The nickname list lives in the search_nicknames table so it can be edited
+// without an app change. Loaded once per visit.
+let ccNicknames = null;
+async function ccLoadNicknames() {
+  if (ccNicknames) return ccNicknames;
+  try {
+    const { data, error } = await sb.from("search_nicknames").select("phrase,fr_bases");
+    ccNicknames = error ? [] : (data || []);
+  } catch (e) { ccNicknames = []; }
+  ccNicknames.sort(function (a, b) { return b.phrase.length - a.phrase.length; });
+  return ccNicknames;
+}
+const CC_FILLER = { series: 1, of: 1, the: 1, a: 1, an: 1, and: 1, note: 1, notes: 1, bill: 1, bills: 1, dollar: 1, dollars: 1 };
+const CC_NUMWORDS = [["one thousand", "$1000"], ["thousand", "$1000"], ["five hundred", "$500"], ["one hundred", "$100"], ["hundred", "$100"],
+  ["fifty", "$50"], ["twenty", "$20"], ["ten", "$10"], ["five", "$5"], ["two", "$2"], ["one", "$1"]];
+async function ccParseTitle(s) {
+  let t = " " + String(s || "").toLowerCase().replace(/[.,;:!?()"]/g, " ").replace(/\s+/g, " ").trim() + " ";
+  const frBases = [], nicks = [];
+  let denom = null;
+  const list = await ccLoadNicknames();
+  list.forEach(function (n) {
+    const p = " " + String(n.phrase).toLowerCase() + " ";
+    if (t.indexOf(p) >= 0) {
+      t = t.split(p).join(" ");
+      nicks.push(n.phrase);
+      (n.fr_bases || []).forEach(function (b) { if (frBases.indexOf(b) < 0) frBases.push(b); });
+    }
+  });
+  CC_NUMWORDS.forEach(function (w) {
+    const re = new RegExp(" " + w[0] + " dollars? ");
+    if (!denom && re.test(t)) { denom = w[1]; t = t.replace(re, " "); }
+  });
+  const m = t.match(/ \$?(\d{1,5}) dollars? /);
+  if (!denom && m) { denom = "$" + m[1]; t = t.replace(m[0], " "); }
+  const rest = t.split(" ").filter(function (w) { return w && !CC_FILLER[w]; }).join(" ");
+  return { frBases: frBases, denom: denom, rest: rest, nicks: nicks };
+}
+function ccCountText(n) { return n === 1001 ? "1,000+" : (n > 1000 ? "~" : "") + fmt(n); }
 
 // ── APPLY COIN FILTERS ──
 async function applyCoinFilters(q) {
@@ -789,7 +829,16 @@ async function applyFilters(q) {
   if (src) q = q.eq("source", src);
 
   const title = v("fTitle");
-  if (title) q = applyTitleTokens(q, title);
+  if (title) {
+    // Nicknames (e.g. "chief") become Friedberg filters; "five dollar" becomes a
+    // denomination; filler words ("series", "of") are dropped. Whatever is left
+    // is matched against the title as before.
+    const _p = await ccParseTitle(title);
+    if (_p.frBases.length) q = q.in("fr_base_canon", _p.frBases);
+    if (_p.denom && !document.getElementById("fDenom").value)
+      q = q.eq("denomination_canonical", _p.denom).eq("is_mixed_denomination", false);
+    if (_p.rest) q = applyTitleTokens(q, _p.rest);
+  }
 
   const fr = v("fFr");
   const frStarSuffix = /[*★]\s*$/.test(fr || "");
@@ -884,9 +933,17 @@ async function maybeSuggestTitle() {
 
   const terms = raw.split(/\s+/).filter(Boolean);
   const fixes = [];
-  for (const term of terms) {
+  // Look up every word at once instead of one after another (was ~300 ms per word).
+  const _looked = await Promise.all(terms.map(function (term) {
+    if (CC_FILLER[term.toLowerCase()]) return Promise.resolve({ term: term, skip: true });
+    return sb.rpc("suggest_title_terms", { p_term: term, p_limit: 5 })
+      .then(function (r) { return { term: term, r: r }; }, function () { return { term: term, r: { data: [], error: true } }; });
+  }));
+  for (const _l of _looked) {
+    const term = _l.term;
+    if (_l.skip) continue;
     try {
-      const { data, error } = await sb.rpc("suggest_title_terms", { p_term: term, p_limit: 5 });
+      const { data, error } = _l.r;
       const list = error ? [] : (data || []);
       // If the word itself is in the index it is spelled fine - never "correct" it.
       const exact = list.some(function (r) {
@@ -982,7 +1039,7 @@ async function suggestRelax() {
   const links = results.slice(0, 3).map(function (r) {
     return '<a href="#" class="relax-link" data-id="' + r.id +
       '" style="color:var(--accent);text-decoration:underline">remove \u201c' +
-      esc(r.label) + '\u201d (' + fmt(Math.min(r.count, 1000)) + (r.count > 1000 ? '+' : '') + ' results)</a>';
+      esc(r.label) + '\u201d (' + (r.count >= 1000 ? '1,000+' : fmt(r.count)) + ' results)</a>';
   }).join(" &middot; ");
 
   const tbody = document.getElementById("tbody");
@@ -1083,7 +1140,7 @@ function renderTable() {
 function renderPager() {
   const maxP = Math.max(0, Math.ceil(totalMatching / PER) - 1);
   document.getElementById("pgInfo").textContent = totalMatching > 0
-    ? `Page ${page + 1} of ${maxP + 1} (${totalMatching > 1000 ? "~" : ""}${fmt(totalMatching)} results)`
+    ? `Page ${page + 1} of ${maxP + 1} (${ccCountText(totalMatching)} results)`
     : "—";
   document.getElementById("pgPrev").disabled = page <= 0;
   document.getElementById("pgNext").disabled = page >= maxP;
