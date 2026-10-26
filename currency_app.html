@@ -968,11 +968,18 @@ async function maybeSuggestTitle() {
     try {
       const { data, error } = _l.r;
       const list = error ? [] : (data || []);
-      // If the word itself is in the index, or is part of a nickname, it is
-      // spelled fine - never "correct" it.
-      const exact = ccNickWords().indexOf(term.toLowerCase()) >= 0 || list.some(function (r) {
-        return r && r.suggestion && r.suggestion.toLowerCase() === term.toLowerCase();
+      // If the word is part of a nickname, it is spelled fine - never "correct" it.
+      // If it is in the title index, it is fine too UNLESS it is rare (under 20
+      // titles) and a close spelling is far more common (20x and 50+ titles):
+      // "linco" (3) -> "lincoln" (2,531), but "fitchburg" (189) stays.
+      const _tl = term.toLowerCase();
+      const _self = list.find(function (r) { return r && r.suggestion && r.suggestion.toLowerCase() === _tl; });
+      const _selfN = _self ? (_self.n || 0) : 0;
+      const _swamped = !!_self && _selfN < 20 && list.some(function (r) {
+        return r && r.suggestion && r.suggestion.toLowerCase() !== _tl && (r.score || 0) >= 0.5 &&
+          Math.abs(r.suggestion.length - term.length) <= 2 && (r.n || 0) >= Math.max(50, 20 * _selfN);
       });
+      const exact = ccNickWords().indexOf(_tl) >= 0 || (!!_self && !_swamped);
       // Nickname words first ("battlship" -> "battleship", not "battle").
       const nickFix = exact ? null : ccNickWordFix(term);
       // Otherwise (rule borrowed from search_lots_v2): among close spellings, prefer
@@ -981,7 +988,7 @@ async function maybeSuggestTitle() {
       let cand = null;
       if (!exact && !nickFix) {
         list.forEach(function (r) {
-          if (!r || !r.suggestion || Math.abs(r.suggestion.length - term.length) > 2 || (r.score || 0) < 0.35) return;
+          if (!r || !r.suggestion || r.suggestion.toLowerCase() === _tl || Math.abs(r.suggestion.length - term.length) > 2 || (r.score || 0) < 0.35) return;
           const w = (r.score || 0) * Math.log((r.n || 0) + 1);
           if (!cand || w > cand.w) cand = { s: r.suggestion, w: w };
         });
