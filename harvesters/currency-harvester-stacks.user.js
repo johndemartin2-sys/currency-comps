@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Currency Comp Harvester — Stack's Bowers v9.7.3
+// @name         Currency Comp Harvester — Stack's Bowers v9.7.4
 // @namespace    jdmstrategy.comp.tool
-// @version      9.7.3
+// @version      9.7.4
 // @description  Family-engine harvester for Stack's Bowers Archive -> ingest_stacks_bowers_lot via ingest-proxy. API-direct + DOM modes. Shares its series/Friedberg parser byte-for-byte with the Heritage harvester.
 // @match        https://archive.stacksbowers.com/*
 // @grant        GM_xmlhttpRequest
@@ -10,6 +10,14 @@
 // @connect      auctions.stacksbowers.com
 // @run-at       document-start
 // ==/UserScript==
+// v9.7.4 (2026-11-10): API DATE FORMAT. /Home/getSearch now returns
+//   AuctionEndDate as "YYYY-MM-DD HH:MM:SS" (e.g. "2013-01-29 15:00:00");
+//   apiParseDate only read "Month D, YYYY", so every API record went out
+//   with a null sold_on and the RPC rejected it ("reject: sold_on missing"
+//   - 8,380 of 10,000 on the last API Top Up, 499 of 500 on 2026-11-10).
+//   A null newest date also meant the stop-at cutoff could never fire.
+//   apiParseDate now reads the ISO form first (date part only, no timezone
+//   shift) and falls back to the month-name form. DOM mode is unchanged.
 // v9.7.3 (2026-08-26): TOP UP "STOP AT" DATE NOW WINS OVER KNOWN PAGES.
 //   Top Up stopped on the first fully-known page BEFORE checking the stop-at
 //   date, so a gap left by a partial run (known pages on both sides, a
@@ -194,7 +202,7 @@
   const RPC_ENDPOINT  = SUPABASE_URL + '/functions/v1/ingest-proxy/ingest_stacks_bowers_lot';
   const SOURCE        = 'stacks_bowers';
   const EXTRACTOR_VERSION = 'v8';    // RPC contract: must stay 'v8'
-  const VERSION       = '9.7.3';
+  const VERSION       = '9.7.4';
   const LS_KEY        = 'sbh9';
   const CONCURRENCY   = 8;           // parallel upsert workers
   const RETRY_ONCE    = true;        // single retry per lot on transient failure
@@ -973,6 +981,10 @@
   const API_MONTHS = {january:1,february:2,march:3,april:4,may:5,june:6,
     july:7,august:8,september:9,october:10,november:11,december:12};
   function apiParseDate(s){
+    // v9.7.4: ISO form first ("2026-11-04 15:00:00" / "2026-11-04T15:00:00").
+    const iso = String(s || '').match(/^\s*(\d{4})-(\d{2})-(\d{2})(?:[T\s]|$)/);
+    if (iso && +iso[2] >= 1 && +iso[2] <= 12 && +iso[3] >= 1 && +iso[3] <= 31)
+      return iso[1] + '-' + iso[2] + '-' + iso[3];
     const m = String(s || '').match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/i);
     if (!m) return null;
     const mm = API_MONTHS[m[1].toLowerCase()];
