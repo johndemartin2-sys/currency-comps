@@ -7,6 +7,7 @@
 <title>Currency Comps</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<script>try{window.__ccRecovery=/(^|[#&?])type=recovery(&|$)/.test(location.hash||"")||/(^|[#&?])type=recovery(&|$)/.test(location.search||"");}catch(e){window.__ccRecovery=false;}</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
@@ -2643,6 +2644,68 @@ natInstallBankField();
       await new Promise(function(r){ setTimeout(r,250); });
     }
   })();
+})();
+</script>
+
+<!-- Password reset: show a "choose a new password" box when arriving from a reset email link -->
+<div id="ccResetGate" style="display:none;position:fixed;inset:0;z-index:10000;background:#0b0b0f;color:#e9e9ee;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;">
+  <div style="width:340px;max-width:90vw;background:#16161c;border:1px solid #2a2a33;border-radius:14px;padding:28px;">
+    <h2 style="margin:0 0 4px;font-family:'Playfair Display',serif;color:#c9a44c;">Choose a new password</h2>
+    <p style="margin:0 0 18px;font-size:13px;opacity:.7;">Enter a new password for your Currency Comps account.</p>
+    <input id="ccResetPw1" type="password" placeholder="New password" autocomplete="new-password" style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:10px;border-radius:8px;border:1px solid #2a2a33;background:#0b0b0f;color:#e9e9ee;">
+    <input id="ccResetPw2" type="password" placeholder="Confirm new password" autocomplete="new-password" style="width:100%;box-sizing:border-box;margin-bottom:14px;padding:10px;border-radius:8px;border:1px solid #2a2a33;background:#0b0b0f;color:#e9e9ee;">
+    <button id="ccResetSave" style="width:100%;padding:11px;border:0;border-radius:8px;background:#c9a44c;color:#0b0b0f;font-weight:600;cursor:pointer;">Save new password</button>
+    <div id="ccResetMsg" style="min-height:18px;margin-top:10px;font-size:12.5px;color:#e98;"></div>
+    <div style="margin-top:6px;font-size:12.5px;text-align:right;"><a href="#" id="ccResetSkip" style="color:#9bb;text-decoration:none;">Not now</a></div>
+  </div>
+</div>
+<script>
+(function(){
+  var shown=false;
+  function el(id){ return document.getElementById(id); }
+  function msg(t, ok){ var m=el('ccResetMsg'); if(m){ m.textContent=t||''; m.style.color = ok ? '#7c9' : '#e98'; } }
+  function hide(){ var g=el('ccResetGate'); if(g) g.style.display='none'; window.__ccRecovery=false; }
+  function show(){
+    if(shown) return; shown=true;
+    var g=el('ccResetGate'); if(g) g.style.display='flex';
+    var p=el('ccResetPw1'); if(p){ try{ p.focus(); }catch(_){} }
+  }
+  async function save(){
+    var a=(el('ccResetPw1')||{}).value||'', b=(el('ccResetPw2')||{}).value||'';
+    if(a.length<6){ msg('Password must be at least 6 characters.'); return; }
+    if(a!==b){ msg('The two passwords do not match.'); return; }
+    var btn=el('ccResetSave'); if(btn) btn.disabled=true;
+    try{
+      var client=(typeof ccEnsureSb==='function') ? ccEnsureSb() : null;
+      if(!client){ msg('Could not reach the sign-in service. Refresh and try again.'); if(btn) btn.disabled=false; return; }
+      var r=await client.auth.updateUser({ password:a });
+      if(r && r.error){ msg(r.error.message || 'Could not save the new password.'); if(btn) btn.disabled=false; return; }
+      msg('Password updated. Taking you to the tool…', true);
+      setTimeout(hide, 1200);
+    }catch(e){ msg('Network error. Please try again.'); if(btn) btn.disabled=false; }
+  }
+  function wire(){
+    var s=el('ccResetSave'); if(s) s.addEventListener('click', save);
+    var p2=el('ccResetPw2'); if(p2) p2.addEventListener('keydown', function(e){ if(e.key==='Enter') save(); });
+    var k=el('ccResetSkip'); if(k) k.addEventListener('click', function(e){ e.preventDefault(); hide(); });
+  }
+  async function boot(){
+    wire();
+    var client=null;
+    for(var i=0;i<40 && !client;i++){
+      try{ client=(typeof ccEnsureSb==='function') ? ccEnsureSb() : null; }catch(_){ client=null; }
+      if(!client) await new Promise(function(r){ setTimeout(r,250); });
+    }
+    if(!client || !client.auth) return;
+    try{ client.auth.onAuthStateChange(function(ev){ if(ev==='PASSWORD_RECOVERY') show(); }); }catch(_){}
+    if(window.__ccRecovery){
+      try{
+        var res=await client.auth.getSession();
+        if(res && res.data && res.data.session) show();
+      }catch(_){}
+    }
+  }
+  window.__ccResetBoot=boot();
 })();
 </script>
 
